@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mate"
+version = "0.0.1"
+requires-python = ">=3.10"
+dependencies = ["numpy"]
+authors = [
+  {name = "Bernardo L. Español", email = "esp.bernardo@gmail.com"},
+]
+
+[tool.setuptools]
+packages = ["mate", "mate.core", "mate.elements", "mate.backends"]
+package-dir = {"mate" = "."}
