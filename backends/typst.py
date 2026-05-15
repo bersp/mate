@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
+from ..core.element import anchor_offsets
 from ..elements.group import Group
 from ..elements.shapes import Circle, Ellipse, Rectangle
 from ..elements.text import Text
@@ -52,7 +53,7 @@ def _bare(el: Element) -> str:
             )
         else:
             inner = _escape(el.content)
-        return _wrap_text_fill(el, inner)
+        return _wrap_text_attrs(el, inner)
     if isinstance(el, (Rectangle, Circle, Ellipse)):
         return _shape_markup(el)
     # Groups (and any unknown leaf) contribute nothing to size: the
@@ -92,16 +93,20 @@ def _typst_stroke(color: str | None, width: float | None) -> str:
     return f"{w}cm + {c}"
 
 
-def _wrap_text_fill(el: Text, inner: str) -> str:
-    """Wrap ``inner`` in ``#text(fill: ...)`` when the element has explicit fill.
+def _wrap_text_attrs(el: Text, inner: str) -> str:
+    """Wrap ``inner`` in ``#text(font: ..., size: ...pt, fill: ...)``.
 
-    Skipped entirely when both ``fill_color`` and ``fill_opacity`` are
-    ``None`` so the body inherits Typst's lexical default (which is
-    black, matching :class:`~mate.core.drawable.Drawable`'s visual default).
+    ``font`` and ``size`` are always emitted — every :class:`Text` carries
+    them explicitly so the rendered output never relies on Typst's
+    implicit fallback. ``fill:`` is added only when the element has
+    explicit fill state, otherwise the body inherits Typst's lexical
+    default (black, matching :class:`~mate.core.drawable.Drawable`'s
+    visual default).
     """
-    if el.fill_color is None and el.fill_opacity is None:
-        return inner
-    return f'#text(fill: {_typst_fill(el.fill_color, el.fill_opacity)})[{inner}]'
+    attrs = [f'font: "{el.font}"', f'size: {el.size}pt']
+    if not (el.fill_color is None and el.fill_opacity is None):
+        attrs.append(f'fill: {_typst_fill(el.fill_color, el.fill_opacity)}')
+    return f'#text({", ".join(attrs)})[{inner}]'
 
 
 def _shape_markup(el: Rectangle | Circle | Ellipse) -> str:
@@ -151,13 +156,16 @@ def _collect_fixed(el: Element) -> list[Element]:
 def _render_placed(el: Element, render_node: RenderNode) -> list[str]:
     """Emit ``#place`` blocks for ``el`` and every fixed descendant.
 
-    Each fixed element becomes a top-level ``#context { ... place(top + left, ...) }``
-    block whose ``dx``/``dy`` shift the body's measured center to
-    ``_center``. Typst's ``measure(...)`` is called inline so the
-    renderer does not need a Python pre-measure pass. Fixed descendants
-    are emitted as siblings (not nested), so Typst's flow does not
-    stack them inside the parent — only the explicit dx/dy decides
-    position.
+    The placement formula depends on the element's anchor: the body's
+    top-left lands at ``_pos - (h_mul * w, v_mul * h)`` where
+    ``(h_mul, v_mul)`` are the anchor's offset multipliers. With
+    ``anchor="top-left"`` both multipliers are zero, so ``dx``/``dy``
+    are constants and the block needs no inline ``measure(...)``. For
+    every other anchor a ``#context { let __s = measure(__b); ... }``
+    block lets Typst compute the offsets at render time, so Python
+    still doesn't need to know the body's size. Fixed descendants are
+    emitted as siblings (not nested) so Typst's flow doesn't stack
+    them inside the parent — only the explicit dx/dy decide position.
 
     Parameters
     ----------
@@ -178,14 +186,23 @@ def _render_placed(el: Element, render_node: RenderNode) -> list[str]:
     # locally so an ancestor's `hidden=True` reaches it.
     if not el.hidden and el.get_effective_hidden():
         body = f'#hide[{body}]'
-    out = [
-        '#context { '
-        f'let __b = [{body}]; '
-        'let __s = measure(__b); '
-        f'place(top + left, dx: {el._center.x}cm - __s.width/2, '
-        f'dy: {el._center.y}cm - __s.height/2, __b) '
-        '}'
-    ]
+    h_mul, v_mul = anchor_offsets(el._anchor)
+    if h_mul == 0 and v_mul == 0:
+        line = (
+            f'#place(top + left, dx: {el._pos.x}cm, dy: {el._pos.y}cm, '
+            f'[{body}])'
+        )
+    else:
+        line = (
+            '#context { '
+            f'let __b = [{body}]; '
+            'let __s = measure(__b); '
+            f'place(top + left, '
+            f'dx: {el._pos.x}cm - {h_mul} * __s.width, '
+            f'dy: {el._pos.y}cm - {v_mul} * __s.height, __b) '
+            '}'
+        )
+    out = [line]
     for sub in _collect_fixed(el):
         out.extend(_render_placed(sub, render_node))
     return out
@@ -253,7 +270,7 @@ class TypstRenderer:
                 )
             else:
                 inner = _escape(el.content)
-            inner = _wrap_text_fill(el, inner)
+            inner = _wrap_text_attrs(el, inner)
         elif isinstance(el, (Rectangle, Circle, Ellipse)):
             inner = _shape_markup(el)
         elif isinstance(el, Group):
@@ -385,12 +402,12 @@ class TypstMeasurer:
                 self.xs[e['id']] = e['x']
 
         # Inline-at-root is unusual but tolerated: y=0 by convention.
-        # Fixed roots seed `ancestor_y` from their own center.y.
+        # Fixed roots recompute their own y from `_pos` and anchor inside
+        # `_assign`, so the seed only matters for the inline case.
         for el in self.roots:
             if el.placement == "omitted":
                 continue
-            ay = el._center.y if el.placement == "fixed" else 0.0
-            self._assign(el, ancestor_y=ay)
+            self._assign(el, ancestor_y=0.0)
 
     def _query(self) -> list[dict[str, Any]]:
         """Run ``typst query`` and return the parsed JSON list."""
@@ -426,7 +443,7 @@ class TypstMeasurer:
                 inner = self._render_children_with_probes(el)
             else:
                 inner = _escape(el.content)
-            inner = _wrap_text_fill(el, inner)
+            inner = _wrap_text_attrs(el, inner)
         elif isinstance(el, (Rectangle, Circle, Ellipse)):
             inner = _shape_markup(el)
         elif isinstance(el, Group):
@@ -472,24 +489,26 @@ class TypstMeasurer:
         Convention: bbox is always ``(x, y, w, h)`` with ``(x, y)`` the
         top-left in slide coordinates. For *fixed* elements the body is
         rendered with ``#place(top + left, dx, dy)`` shifted so the
-        body's measured center lands at ``_center``, so the top-left is
-        ``(_center.x - w/2, _center.y - h/2)``. For *inline* elements
-        ``bbox.x`` is the flowed cursor x recovered via the
-        ``here().position()`` probe; ``bbox.y`` is the ``ancestor_y``
-        threaded down — the top-left of the rendered body of the
-        nearest fixed ancestor (= line top under top-aligned
-        placement). This is what makes ``shift((0, 0))`` on an inline
-        element a true visual no-op: freezing the element's
-        ``_center`` to the bbox center and re-emitting via the same
-        ``#place`` formula overlaps the inline rendering.
+        body's ``_anchor`` point lands at ``_pos``, so the top-left is
+        ``(_pos.x - h_mul * w, _pos.y - v_mul * h)`` where
+        ``(h_mul, v_mul)`` are the anchor's offset multipliers. For
+        *inline* elements ``bbox.x`` is the flowed cursor x recovered
+        via the ``here().position()`` probe; ``bbox.y`` is the
+        ``ancestor_y`` threaded down — the top-left of the rendered
+        body of the nearest fixed ancestor (= line top under
+        top-aligned placement). This is what makes ``shift((0, 0))`` on
+        an inline element a true visual no-op: freezing the element's
+        ``_pos`` to the measured anchor point and re-emitting via the
+        same ``#place`` formula overlaps the inline rendering.
         :class:`Group` is special: its bbox is computed *after* the
         children are assigned, as the union of their bboxes; its own
-        ``_center`` has no rendered body to anchor.
+        ``_pos`` has no rendered body to anchor.
         """
         w, h = self.sizes.get(el._mid, (0.0, 0.0))
         if el.placement == "fixed":
-            x = el._center.x - w / 2
-            y = el._center.y - h / 2
+            h_mul, v_mul = anchor_offsets(el._anchor)
+            x = el._pos.x - h_mul * w
+            y = el._pos.y - v_mul * h
             child_y = y
         else:
             x = self.xs.get(el._mid, 0.0)

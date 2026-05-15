@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import copy as _copy
-from typing import Literal
+from typing import Iterable, Literal
 
 from .registry import IDKey, id_registry
 from .vec import Vec, VecLike
@@ -18,6 +18,55 @@ def _next_mid() -> int:
 
 Placement = Literal["fixed", "inline", "omitted"]
 
+Anchor = Literal[
+    "top-left", "top-center", "top-right",
+    "center-left", "center", "center-right",
+    "bottom-left", "bottom-center", "bottom-right",
+]
+
+# (h_mul, v_mul) such that the bbox top-left is at
+# ``_pos - (h_mul * w, v_mul * h)``. Equivalently the anchor point is at
+# ``bbox.top_left + (h_mul * w, v_mul * h)``. left=0, center=0.5, right=1;
+# top=0, center=0.5, bottom=1.
+_ANCHOR_OFFSETS: dict[Anchor, tuple[float, float]] = {
+    "top-left":      (0.0, 0.0),
+    "top-center":    (0.5, 0.0),
+    "top-right":     (1.0, 0.0),
+    "center-left":   (0.0, 0.5),
+    "center":        (0.5, 0.5),
+    "center-right":  (1.0, 0.5),
+    "bottom-left":   (0.0, 1.0),
+    "bottom-center": (0.5, 1.0),
+    "bottom-right":  (1.0, 1.0),
+}
+
+
+def anchor_offsets(anchor: Anchor) -> tuple[float, float]:
+    """Return ``(h_mul, v_mul)`` for ``anchor`` (see :data:`_ANCHOR_OFFSETS`)."""
+    return _ANCHOR_OFFSETS[anchor]
+
+
+def measure_all(elements: Iterable[Element]) -> None:
+    """Fill ``_bbox`` for every element in a single Typst measurement pass.
+
+    Groups the elements by tree root, dedupes, and runs one
+    :class:`~mate.backends.typst.TypstMeasurer` over the unique roots.
+    After this call, ``get_bbox`` / ``get_width`` / ``get_height`` on
+    any of the given elements (or their descendants) are cache hits
+    until the next geometric mutation.
+
+    Useful before any layout helper that would otherwise pay one Typst
+    subprocess per element with a distinct tree root.
+    """
+    seen: dict[int, Element] = {}
+    for el in elements:
+        root = el._tree_root()
+        seen.setdefault(id(root), root)
+    if not seen:
+        return
+    from ..backends.typst import TypstMeasurer
+    TypstMeasurer(list(seen.values())).measure()
+
 
 class Element:
     """Base class of every visual node that can appear on a slide.
@@ -28,32 +77,34 @@ class Element:
     can call :meth:`get_bbox` and the measurer runs over their own
     subtree.
 
-    Center anchor
-    -------------
-    Every element carries a single absolute position in slide
-    coordinates (cm) exposed as :attr:`center`. ``center`` is the
-    **center** of the element's bounding box: the renderer measures the
-    body's size and emits a ``#place(top + left, dx: center.x - w/2,
-    dy: center.y - h/2, body)`` block so the body's center lands at
-    ``center``. This makes recentering trivially idempotent —
-    ``el.move_to(el.center)`` is the identity.
+    Anchor model
+    ------------
+    Every element stores a single position ``_pos: Vec`` in slide
+    coordinates (cm) together with an :data:`Anchor` mode ``_anchor``
+    that names which point of the bbox sits at ``_pos``. Nine anchors
+    are supported — all combinations of vertical (``top``/``center``/
+    ``bottom``) and horizontal (``left``/``center``/``right``) — written
+    as hyphenated strings (``"top-left"``, ``"center"``,
+    ``"bottom-right"``, ...). The renderer emits a ``#place`` block that
+    shifts the body so its ``_anchor`` point lands at ``_pos``.
 
-    Storage is in the private ``_center`` field; reads go through the
-    :attr:`center` property so subclasses can override the public
-    reading (e.g. :class:`~mate.elements.group.Group` returns the union
-    bbox center, since a Group has no rendered body of its own).
-    Internal hot paths (``_translate``, the backend) read/write
-    ``_center`` directly to avoid measurement.
+    With ``anchor="top-left"`` the placement formula is simply
+    ``dx = _pos.x, dy = _pos.y`` — Python never needs to know the body's
+    measured size to place the element. With other anchors the formula
+    involves ``_pos - (h_mul * w, v_mul * h)`` and Typst handles the
+    subtraction inline via ``measure(...)``; Python still doesn't
+    measure for rendering, but the measurer fills ``_bbox`` for
+    geometric queries.
 
-    The :attr:`placement` enum decides how ``center`` is used:
+    Placement
+    ---------
+    The :attr:`placement` enum decides how ``_pos`` is used:
 
-    - ``"fixed"``   — drawn with its center anchored at ``_center``.
-    - ``"inline"``  — flows within its parent's content; ``_center`` is
-      ignored at render time and reading :attr:`center` measures the
-      actual visual center (Typst ``here().position()`` probe for x;
-      the parent's line top for y). Used by
-      :class:`~mate.elements.text.Text` subs created by ``[...](id=K)``
-      markup.
+    - ``"fixed"``   — drawn with its ``_anchor`` point at ``_pos``.
+    - ``"inline"``  — flows within its parent's content; ``_pos`` is
+      ignored at render time and reading the visual anchor point
+      requires measurement. Used by :class:`~mate.elements.text.Text`
+      subs created by ``[...](id=K)`` markup.
     - ``"omitted"`` — neither rendered nor measured; the element stays
       in the tree but contributes nothing.
 
@@ -62,23 +113,25 @@ class Element:
     Two mutators flip ``placement`` to ``"fixed"`` and propagate to
     every fixed descendant so the whole subtree translates as a unit:
 
-    - :meth:`move_to(p)` writes ``_center = p``. The visual delta is
-      ``p - <current visual center>``.
-    - :meth:`shift(d)` adds ``d`` to ``_center`` (accumulates over
+    - :meth:`move_to(p)` writes ``_pos = p``. The visual delta is
+      ``p - <current visual anchor point>``.
+    - :meth:`shift(d)` adds ``d`` to ``_pos`` (accumulates over
       repeated calls). When the element is currently ``"inline"`` it
-      first *freezes* ``_center`` to its measured visual center so the
+      first *freezes* ``_pos`` to its measured anchor point so the
       increment is taken from the flowed position; ``shift((0, 0))``
       is then a true visual no-op.
 
     Both call :meth:`_translate` on every child with the same delta so
     that fixed descendants move together. ``"inline"`` children are not
-    touched (their ``_center`` is meaningless), but the recursion
-    descends through them so that fixed grand-descendants still follow.
+    touched (their ``_pos`` is meaningless), but the recursion descends
+    through them so that fixed grand-descendants still follow.
 
     Parameters
     ----------
-    center : VecLike, optional
-        Initial center in cm. Defaults to ``Vec(0, 0)``.
+    pos : VecLike, optional
+        Initial anchor point in cm. Defaults to ``Vec(0, 0)``.
+    anchor : Anchor, optional
+        Which bbox point sits at ``pos``. Defaults to ``"center"``.
     placement : Placement, optional
         Initial placement state. Defaults to ``"fixed"``.
     id : IDKey or list[IDKey] or None, optional
@@ -88,10 +141,13 @@ class Element:
 
     Attributes
     ----------
+    pos : Vec
+        Stored anchor point (read via the :attr:`pos` property).
+    anchor : Anchor
+        Stored anchor mode.
     center : Vec
-        Visual center in slide coordinates. Property — reads return the
-        true visual center (measuring for ``"inline"`` elements on
-        cache miss); writes store the value in ``_center``.
+        Visual center in slide coordinates. Property — measures on
+        cache miss when the stored anchor is not already the center.
     placement : Placement
         See ``placement`` parameter.
     parent : Element or None
@@ -105,9 +161,11 @@ class Element:
     id : list[IDKey]
         User-facing ids; empty when none. Clones from :meth:`copy` are
         born with an empty ``id`` and are not in the registry.
-    _center : Vec
-        Storage backing :attr:`center`. Internal hot paths read/write
+    _pos : Vec
+        Storage backing :attr:`pos`. Internal hot paths read/write
         this directly.
+    _anchor : Anchor
+        Storage backing :attr:`anchor`.
     _mid : int
         Globally unique monotonic id (used by the backend for metadata).
     _bbox : tuple[float, float, float, float] or None
@@ -117,11 +175,13 @@ class Element:
     def __init__(
         self,
         *,
-        center: VecLike | None = None,
+        pos: VecLike | None = None,
+        anchor: Anchor = "center",
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
     ) -> None:
-        self._center: Vec = Vec(center) if center is not None else Vec(0, 0)
+        self._pos: Vec = Vec(pos) if pos is not None else Vec(0, 0)
+        self._anchor: Anchor = anchor
         self.placement: Placement = placement
         self.parent: Element | None = None
         self.hidden: bool = False
@@ -136,32 +196,55 @@ class Element:
                 id_registry.register(self, k)
 
     @property
+    def pos(self) -> Vec:
+        """Return the stored anchor point. Never measures."""
+        return self._pos
+
+    @pos.setter
+    def pos(self, value: VecLike) -> None:
+        self._pos = Vec(value)
+
+    @property
+    def anchor(self) -> Anchor:
+        """Return the stored anchor mode."""
+        return self._anchor
+
+    @property
     def center(self) -> Vec:
         """Return the current visual center in slide coordinates.
 
-        Fast path for ``"fixed"`` / ``"omitted"``: returns the stored
-        ``_center`` directly, no measurement. For ``"inline"`` the
-        anchor has no meaning until layout runs, so this triggers a
-        measurement (one Typst subprocess on cache miss) and returns
-        the bbox center.
+        Fast path when ``placement != "inline"`` *and* ``_anchor ==
+        "center"``: returns ``_pos`` directly. Otherwise measures the
+        bbox (one Typst subprocess on cache miss) and returns its
+        center.
+        """
+        if self.placement != "inline" and self._anchor == "center":
+            return self._pos
+        x, y, w, h = self.get_bbox()
+        return Vec(x + w / 2, y + h / 2)
 
-        The setters that write the center are :meth:`move_to` and
-        :meth:`shift`.
+    def _current_anchor_point(self) -> Vec:
+        """Return the current visual position of this element's anchor.
+
+        For ``"fixed"`` placement this is ``_pos`` directly (no
+        measurement). For ``"inline"`` placement the anchor point is
+        recovered from the measured bbox plus the anchor's offset
+        multipliers. :class:`~mate.elements.group.Group` overrides this
+        to always measure, since a Group's stored ``_pos`` is not
+        guaranteed to track the union-bbox anchor point when descendants
+        are moved independently.
         """
         if self.placement == "inline":
             x, y, w, h = self.get_bbox()
-            return Vec(x + w / 2, y + h / 2)
-        return self._center
-
-    @center.setter
-    def center(self, value: VecLike) -> None:
-        self._center = Vec(value)
+            h_mul, v_mul = _ANCHOR_OFFSETS[self._anchor]
+            return Vec(x + h_mul * w, y + v_mul * h)
+        return self._pos
 
     def move_to(self, p: VecLike) -> Element:
         """Anchor the element at slide coordinates ``p`` and translate descendants.
 
-        Sets ``_center = p`` and forces ``placement = "fixed"``.
-        Computes the visual delta against the current :attr:`center`
+        Sets ``_pos = p`` and forces ``placement = "fixed"``.
+        Computes the visual delta against the current anchor point
         (which measures for inline/Group) and applies it to every fixed
         descendant, so the subtree translates as a unit.
 
@@ -172,24 +255,24 @@ class Element:
         Element
             ``self``, to allow chaining.
         """
-        new_center = Vec(p)
-        old_center = self.center
-        self._center = new_center
+        new_pos = Vec(p)
+        old_anchor = self._current_anchor_point()
+        self._pos = new_pos
         self.placement = "fixed"
-        self._translate_children(new_center - old_center)
+        self._translate_children(new_pos - old_anchor)
         self._invalidate_tree()
         return self
 
     def shift(self, d: VecLike) -> Element:
-        """Add ``d`` to ``_center`` and translate descendants by the same delta.
+        """Add ``d`` to ``_pos`` and translate descendants by the same delta.
 
         Accumulates over repeated calls (``shift((1, 0)).shift((1, 0))``
         ends up at ``+2cm`` on x). When the element is currently
-        ``"inline"``, ``_center`` is first frozen to the element's
-        measured visual center so the increment is taken from the
-        flowed position; ``shift((0, 0))`` is then a true visual no-op.
-        Forces ``placement = "fixed"`` and may trigger one measurement
-        on the first call against an inline element.
+        ``"inline"``, ``_pos`` is first frozen to the measured anchor
+        point so the increment is taken from the flowed position;
+        ``shift((0, 0))`` is then a true visual no-op. Forces
+        ``placement = "fixed"`` and may trigger one measurement on the
+        first call against an inline element.
 
         Geometric mutator: invalidates the bbox cache of this element's tree.
 
@@ -200,10 +283,24 @@ class Element:
         """
         delta = Vec(d)
         if self.placement == "inline":
-            self._center = self.center
-        self._center = self._center + delta
+            self._pos = self._current_anchor_point()
+        self._pos = self._pos + delta
         self.placement = "fixed"
         self._translate_children(delta)
+        self._invalidate_tree()
+        return self
+
+    def set_anchor(self, anchor: Anchor) -> Element:
+        """Change the anchor mode in place.
+
+        The stored ``_pos`` is not modified, so the visual position
+        shifts to put the new anchor point at the same coordinate.
+        Geometric mutator: invalidates the bbox cache of this element's
+        tree (the bbox top-left moves).
+
+        Returns ``self`` for chaining.
+        """
+        self._anchor = anchor
         self._invalidate_tree()
         return self
 
@@ -211,7 +308,7 @@ class Element:
         """Apply ``delta`` to every fixed descendant in this subtree.
 
         ``"inline"`` descendants are skipped for the position update
-        (their ``_center`` is irrelevant) but recursion descends
+        (their ``_pos`` is irrelevant) but recursion descends
         through them so fixed grand-descendants still follow.
         ``"omitted"`` subtrees are pruned entirely.
         """
@@ -224,7 +321,7 @@ class Element:
         if self.placement == "omitted":
             return
         if self.placement == "fixed":
-            self._center = self._center + delta
+            self._pos = self._pos + delta
         for c in self.children:
             c._translate(delta)
 
@@ -235,6 +332,14 @@ class Element:
     def get_placement(self) -> Placement:
         """Return the element's :attr:`placement` (``"fixed"``/``"inline"``/``"omitted"``)."""
         return self.placement
+
+    def get_anchor(self) -> Anchor:
+        """Return the element's :attr:`anchor` mode."""
+        return self._anchor
+
+    def get_pos(self) -> Vec:
+        """Return the stored anchor point. Never measures."""
+        return self._pos
 
     def get_parent(self) -> Element | None:
         """Return the owning :class:`Element`, or ``None`` for tree roots."""
@@ -312,6 +417,14 @@ class Element:
         while el.parent is not None:
             el = el.parent
         return el
+
+    def get_width(self) -> float:
+        """Return the bbox width in cm (measures on cache miss)."""
+        return self.get_bbox()[2]
+
+    def get_height(self) -> float:
+        """Return the bbox height in cm (measures on cache miss)."""
+        return self.get_bbox()[3]
 
     def get_bbox_center(self) -> Vec:
         """Return the bbox center as a :class:`Vec`.

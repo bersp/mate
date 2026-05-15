@@ -2,12 +2,39 @@ from __future__ import annotations
 
 import re
 
-from ..core.element import Element, Placement
+from ..core.element import Anchor, Element, Placement
 from ..core.registry import IDKey, id_registry
 from ..core.drawable import Drawable
 from ..core.vec import VecLike
 
 _ID_RE = re.compile(r'\(id=([^)]+)\)')
+
+# Hardcoded Typst defaults — kept in sync with `typst query` on a blank doc
+# so the rendered output is independent of any implicit fallback.
+DEFAULT_FONT: str = "libertinus serif"
+DEFAULT_SIZE_PT: float = 11.0
+
+# Reference glyphs used to probe the line slot of a (font, size): includes
+# ascenders and descenders so the measured height covers the full em box.
+_LINE_HEIGHT_PROBE = "Ágjpqy"
+_line_height_cache: dict[tuple[str, float], float] = {}
+
+
+def _measure_line_height(font: str, size_pt: float) -> float:
+    """Return the line slot height in cm for ``(font, size_pt)``, cached.
+
+    Cache miss runs one Typst measurement on a reference string with
+    full-height glyphs; the result is stored under ``(font, size_pt)``
+    and reused on every subsequent call.
+    """
+    key = (font, size_pt)
+    cached = _line_height_cache.get(key)
+    if cached is not None:
+        return cached
+    probe = Text(_LINE_HEIGHT_PROBE, font=font, size=size_pt)
+    h = probe.get_bbox()[3]
+    _line_height_cache[key] = h
+    return h
 
 
 class Text(Drawable):
@@ -30,7 +57,11 @@ class Text(Drawable):
     source : str or None, optional
         Source string with optional ``[...](id=K)`` markup. ``None``
         builds an empty Text (typically for internal cloning). Positional.
-    center, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    font : str, optional
+        Typst font family name. Default :data:`DEFAULT_FONT`.
+    size : float, optional
+        Font size in points. Default :data:`DEFAULT_SIZE_PT`.
+    pos, anchor, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
         Keyword-only. See :class:`~mate.core.drawable.Drawable`. ``stroke_*``
         fields are currently ignored for text rendering.
 
@@ -40,13 +71,20 @@ class Text(Drawable):
         Raw text for leaves; empty string when this node has children.
     subs : list[Text]
         Id'd sub-Texts at this immediate level, in source order.
+    font : str
+        Typst font family used to render and measure this node.
+    size : float
+        Font size in points.
     """
 
     def __init__(
         self,
         source: str | None = None,
         *,
-        center: VecLike | None = None,
+        font: str = DEFAULT_FONT,
+        size: float = DEFAULT_SIZE_PT,
+        pos: VecLike | None = None,
+        anchor: Anchor = "center",
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
@@ -55,7 +93,8 @@ class Text(Drawable):
         stroke_width: float | None = None,
     ) -> None:
         super().__init__(
-            center=center,
+            pos=pos,
+            anchor=anchor,
             placement=placement,
             id=id,
             fill_color=fill_color,
@@ -65,6 +104,8 @@ class Text(Drawable):
         )
         self.content: str = ""
         self.subs: list[Text] = []
+        self.font: str = font
+        self.size: float = size
         if source is not None:
             children = _parse_segment(source, self.subs)
             # Collapse to a leaf when parsing yields a single childless node;
@@ -73,6 +114,10 @@ class Text(Drawable):
                 self.content = children[0].content
             else:
                 self._take_children(children)
+                # Parser-built subs are constructed with the module defaults;
+                # propagate this node's font/size so they inherit explicitly.
+                self._set_field("font", font, propagate=True)
+                self._set_field("size", size, propagate=True)
 
     def get_content(self) -> str:
         """Return this node's own raw text (empty when the node has children)."""
@@ -87,6 +132,58 @@ class Text(Drawable):
         if self.children:
             return "".join(s.get_text() for s in self.children)
         return self.content
+
+    def get_font(self) -> str:
+        """Return the Typst font family name used for this node."""
+        return self.font
+
+    def get_size(self) -> float:
+        """Return the font size in points."""
+        return self.size
+
+    def set_font(self, font: str, propagate: bool = True) -> Text:
+        """Set ``font``; with ``propagate=True`` (default) also rewrites every Text descendant.
+
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        self._set_field("font", font, propagate)
+        self._invalidate_tree()
+        return self
+
+    def set_size(self, size: float, propagate: bool = True) -> Text:
+        """Set ``size`` (points); with ``propagate=True`` (default) also rewrites every Text descendant.
+
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        self._set_field("size", size, propagate)
+        self._invalidate_tree()
+        return self
+
+    def get_line_height(self) -> float:
+        """Return the typographic line slot height in cm for this node's font/size.
+
+        Independent of the node's content: same value for ``Text("abc")``
+        and ``Text("Ágjpqy")`` as long as ``font`` and ``size`` match.
+        Cached by ``(font, size)`` at module level — the first call for a
+        given config triggers a single Typst measurement; subsequent
+        calls are lookups.
+        """
+        return _measure_line_height(self.font, self.size)
+
+    def get_height(self, line: bool = False) -> float:
+        """Return this Text's height in cm.
+
+        Parameters
+        ----------
+        line : bool, optional
+            When ``True``, return the font-determined line slot height
+            (see :meth:`get_line_height`) instead of the content bbox
+            height. Useful for stacking text elements at uniform spacing
+            regardless of which glyphs appear.
+        """
+        if line:
+            return self.get_line_height()
+        return super().get_height()
 
     def _copy(self, mapping: dict[int, Element]) -> Text:
         # Only the `subs` cross-references need fixing up: ``content`` and

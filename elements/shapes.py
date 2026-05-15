@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..core.element import Placement
+from ..core.element import Anchor, Placement
 from ..core.registry import IDKey
 from ..core.drawable import Drawable
 from ..core.vec import VecLike
@@ -19,7 +19,7 @@ class Rectangle(Drawable):
     ----------
     width, height : float
         Width and height in cm. Positional.
-    center, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    pos, anchor, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -33,7 +33,8 @@ class Rectangle(Drawable):
         width: float,
         height: float,
         *,
-        center: VecLike | None = None,
+        pos: VecLike | None = None,
+        anchor: Anchor = "center",
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
@@ -42,7 +43,8 @@ class Rectangle(Drawable):
         stroke_width: float | None = None,
     ) -> None:
         super().__init__(
-            center=center,
+            pos=pos,
+            anchor=anchor,
             placement=placement,
             id=id,
             fill_color=fill_color,
@@ -90,7 +92,7 @@ class Circle(Drawable):
     ----------
     radius : float
         Radius in cm. Positional.
-    center, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    pos, anchor, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -103,7 +105,8 @@ class Circle(Drawable):
         self,
         radius: float,
         *,
-        center: VecLike | None = None,
+        pos: VecLike | None = None,
+        anchor: Anchor = "center",
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
@@ -112,7 +115,8 @@ class Circle(Drawable):
         stroke_width: float | None = None,
     ) -> None:
         super().__init__(
-            center=center,
+            pos=pos,
+            anchor=anchor,
             placement=placement,
             id=id,
             fill_color=fill_color,
@@ -125,6 +129,14 @@ class Circle(Drawable):
     def get_radius(self) -> float:
         """Return the circle's radius in cm."""
         return self.radius
+
+    def get_width(self) -> float:
+        """Return the circle's bbox width (``2 * radius``)."""
+        return 2 * self.radius
+
+    def get_height(self) -> float:
+        """Return the circle's bbox height (``2 * radius``)."""
+        return 2 * self.radius
 
     def set_radius(self, radius: float, propagate: bool = True) -> Circle:
         """Set ``radius``; with ``propagate=True`` (default) also rewrites every descendant that has ``radius``.
@@ -147,7 +159,7 @@ class Ellipse(Drawable):
     ----------
     width, height : float
         Bounding box width and height in cm. Positional.
-    center, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    pos, anchor, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -161,7 +173,8 @@ class Ellipse(Drawable):
         width: float,
         height: float,
         *,
-        center: VecLike | None = None,
+        pos: VecLike | None = None,
+        anchor: Anchor = "center",
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
@@ -170,7 +183,8 @@ class Ellipse(Drawable):
         stroke_width: float | None = None,
     ) -> None:
         super().__init__(
-            center=center,
+            pos=pos,
+            anchor=anchor,
             placement=placement,
             id=id,
             fill_color=fill_color,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from ..core.element import Element, Placement
+from ..core.element import Anchor, Element, Placement, anchor_offsets
 from ..core.registry import IDKey
 from ..core.drawable import Drawable
 from ..core.vec import Vec, VecLike
@@ -30,7 +30,7 @@ class Group(Drawable):
     children : iterable of :class:`Element`, optional
         Initial members. Each one's ``parent`` is set to this group.
         More can be appended later via :meth:`add`. Positional.
-    center, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    pos, anchor, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
     """
 
@@ -38,7 +38,8 @@ class Group(Drawable):
         self,
         children: Iterable[Element] | None = None,
         *,
-        center: VecLike | None = None,
+        pos: VecLike | None = None,
+        anchor: Anchor = "center",
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
@@ -47,7 +48,8 @@ class Group(Drawable):
         stroke_width: float | None = None,
     ) -> None:
         super().__init__(
-            center=center,
+            pos=pos,
+            anchor=anchor,
             placement=placement,
             id=id,
             fill_color=fill_color,
@@ -91,14 +93,20 @@ class Group(Drawable):
         """Return the union bbox center.
 
         A Group has no rendered body of its own, so its visual center
-        is always the center of the union of its children's bboxes —
-        not the stored ``_center``, which only exists to make
-        :meth:`Element.move_to` arithmetic uniform across subclasses.
+        is always the center of the union of its children's bboxes.
         Measures on cache miss; warm-cache calls are O(1).
         """
         x, y, w, h = self.get_bbox()
         return Vec(x + w / 2, y + h / 2)
 
-    @center.setter
-    def center(self, value: VecLike) -> None:
-        self._center = Vec(value)
+    def _current_anchor_point(self) -> Vec:
+        """Return the union-bbox anchor point.
+
+        Always measures (no stored-``_pos`` fast path): a Group's
+        ``_pos`` is updated by :meth:`move_to` / :meth:`shift` but does
+        not stay in sync when descendants are moved independently, so
+        the only reliable read is via the union bbox.
+        """
+        x, y, w, h = self.get_bbox()
+        h_mul, v_mul = anchor_offsets(self._anchor)
+        return Vec(x + h_mul * w, y + v_mul * h)
