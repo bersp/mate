@@ -1,22 +1,58 @@
 from __future__ import annotations
 
-from ..core.element import Element, anchor_offsets, measure_all
+from ..core.element import Anchor, Element, anchor_offsets, measure_all
+from ..core.vec import Vec, VecLike
 from ..elements.shapes import Circle, Ellipse, Rectangle
 from ..elements.text import Text
 
 
-def arrange(elements: list[Element], line_height: bool = False) -> None:
-    """Stack elements in a single column, top-to-bottom, bboxes flush.
+def arrange(
+    elements: list[Element],
+    pos: VecLike,
+    anchor: Anchor,
+    *,
+    gap: float = 0.0,
+    line_height: bool = False,
+) -> None:
+    """Stack ``elements`` in a single column with optional gap.
 
-    The first element stays where it is and defines the anchor of the
-    stack: every subsequent element is moved so its bbox top-left meets
-    the previous element's bbox bottom-left, and all bboxes share the
-    first element's left ``x``. Consecutive bboxes touch with zero gap.
+    The stack as a whole is anchored at ``pos`` with mode ``anchor``:
+    the union bbox is positioned so that its ``anchor`` point lands at
+    ``pos``. Elements are laid out in list order, top to bottom.
+
+    Horizontal alignment within the stack is driven by the horizontal
+    half of ``anchor``:
+
+    - ``"*-left"``   — all bboxes share the same left ``x`` (= ``pos.x``).
+    - ``"*-center"`` — all bboxes share the same center ``x``.
+    - ``"*-right"``  — all bboxes share the same right ``x``.
+
+    The vertical half decides where ``pos.y`` sits in the stack
+    (slide coords are y-up, so the list's first element is at the
+    larger y):
+
+    - ``"top-*"``    — ``pos.y`` is the stack's top edge.
+    - ``"center-*"`` — ``pos.y`` is the stack's vertical center.
+    - ``"bottom-*"`` — ``pos.y`` is the stack's bottom edge.
+
+    Each element is placed via :meth:`Element.move_to`, which honors
+    that element's own anchor.
 
     Parameters
     ----------
     elements : list[Element]
         Elements to stack, in top-to-bottom order.
+    pos : VecLike
+        Slide coordinate (in cm) at which the stack is anchored.
+    anchor : Anchor
+        Anchor mode for the stack as a whole. One of ``"top-left"``,
+        ``"top-center"``, ``"top-right"``, ``"center-left"``,
+        ``"center"``, ``"center-right"``, ``"bottom-left"``,
+        ``"bottom-center"``, ``"bottom-right"``.
+    gap : float, optional
+        Vertical space (in cm) inserted between consecutive bboxes.
+        Defaults to ``0`` (bboxes touch). Counts towards the stack's
+        total height for anchoring purposes.
     line_height : bool, optional
         When ``True``, :class:`~mate.elements.text.Text` heights come
         from the font-determined line slot (see
@@ -27,17 +63,17 @@ def arrange(elements: list[Element], line_height: bool = False) -> None:
 
     Performance
     -----------
-    Width measurements are skipped for any element whose anchor is on
-    the left edge (``"top-left"``, ``"center-left"``,
-    ``"bottom-left"``). Heights come from intrinsic fields for shape
-    primitives (:class:`Rectangle`, :class:`Circle`, :class:`Ellipse`)
-    and from the cached line-height for :class:`Text` when
-    ``line_height=True``. Any remaining elements that genuinely need
-    a bbox (non-left anchors, or :class:`Text` with
-    ``line_height=False``, or custom non-intrinsic subclasses) are
-    measured together in **one** :func:`measure_all` pass before the
-    positioning loop, so the whole call spends at most one Typst
-    subprocess for size regardless of N.
+    Heights are always required for every element to size the stack.
+    Width measurements are skipped for any element whose anchor shares
+    the same horizontal half as ``anchor`` (e.g. ``"top-left"``
+    elements in a ``"top-left"`` stack, ``"center-right"`` elements in
+    a ``"bottom-right"`` stack). Intrinsic-size primitives
+    (:class:`Rectangle`, :class:`Circle`, :class:`Ellipse`) and
+    :class:`Text` under ``line_height=True`` never trigger a
+    measurement. Any element that genuinely needs a measured bbox is
+    collected and passed to :func:`measure_all` in a single batched
+    pass, so the whole call spends at most one Typst subprocess
+    regardless of N.
 
     Elements are mutated in place via :meth:`Element.move_to`, which
     forces ``placement="fixed"`` and preserves each element's anchor.
@@ -45,43 +81,52 @@ def arrange(elements: list[Element], line_height: bool = False) -> None:
     if not elements:
         return
 
-    pending = [el for el in elements if _needs_bbox(el, line_height)]
+    anchor_pos = Vec(pos)
+    stack_h_mul, stack_v_mul = anchor_offsets(anchor)
+
+    pending = [el for el in elements if _needs_bbox(el, line_height, stack_h_mul)]
     if pending:
         measure_all(pending)
 
     heights = [_height(el, line_height) for el in elements]
+    total_h = sum(heights) + gap * (len(elements) - 1)
 
-    first = elements[0]
-    h_mul0, v_mul0 = anchor_offsets(first.anchor)
-    x0 = first.pos.x if h_mul0 == 0 else first.pos.x - h_mul0 * first.get_width()
-    top0 = first.pos.y - v_mul0 * heights[0]
-    y_cursor = top0 + heights[0]
+    x0 = anchor_pos.x
+    # Slide coords are y-up: list order is top-to-bottom, so the cursor
+    # starts at the stack's top edge and decreases by each element's
+    # height (plus gap). Top edge = anchor_pos.y + (1 - v_mul) * total_h.
+    y_cursor = anchor_pos.y + (1.0 - stack_v_mul) * total_h
 
-    for el, h in zip(elements[1:], heights[1:]):
+    for el, h in zip(elements, heights):
         h_mul, v_mul = anchor_offsets(el.anchor)
-        pos_x = x0 if h_mul == 0 else x0 + h_mul * el.get_width()
-        pos_y = y_cursor + v_mul * h
+        if h_mul == stack_h_mul:
+            pos_x = x0
+        else:
+            pos_x = x0 + (h_mul - stack_h_mul) * el.get_width()
+        # bbox.bottom = y_cursor - h; pos_y = bbox.bottom + v_mul * h.
+        pos_y = y_cursor - (1.0 - v_mul) * h
         el.move_to((pos_x, pos_y))
-        y_cursor += h
+        y_cursor -= h + gap
 
 
 _INTRINSIC_SIZE = (Rectangle, Circle, Ellipse)
 
 
-def _needs_bbox(el: Element, line_height: bool) -> bool:
+def _needs_bbox(el: Element, line_height: bool, stack_h_mul: float) -> bool:
     """``True`` if ``arrange`` will end up reading a measured bbox for ``el``.
 
-    The positioning loop reads ``get_width`` only for non-left-anchored
-    elements, and ``get_height`` only for elements without an intrinsic
-    height (everything that isn't a shape primitive or a Text under
-    ``line_height=True``).
+    The positioning loop reads ``get_width`` only for elements whose
+    horizontal anchor half differs from the stack's, and ``get_height``
+    for every element. Intrinsic-size shapes report both dimensions
+    without measuring; :class:`Text` under ``line_height=True`` reports
+    height from the cached line slot but still needs measurement for
+    width.
     """
-    if anchor_offsets(el.anchor)[0] != 0:
-        return True
     if isinstance(el, _INTRINSIC_SIZE):
         return False
+    needs_w = anchor_offsets(el.anchor)[0] != stack_h_mul
     if isinstance(el, Text) and line_height:
-        return False
+        return needs_w
     return True
 
 
