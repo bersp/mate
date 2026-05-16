@@ -153,19 +153,40 @@ def _collect_fixed(el: Element) -> list[Element]:
     return out
 
 
-def _render_placed(el: Element, render_node: RenderNode) -> list[str]:
+def _render_placed(
+    el: Element,
+    render_node: RenderNode,
+    canvas: tuple[float, float] | None = None,
+) -> list[str]:
     """Emit ``#place`` blocks for ``el`` and every fixed descendant.
 
-    The placement formula depends on the element's anchor: the body's
-    top-left lands at ``_pos - (h_mul * w, v_mul * h)`` where
-    ``(h_mul, v_mul)`` are the anchor's offset multipliers. With
-    ``anchor="top-left"`` both multipliers are zero, so ``dx``/``dy``
-    are constants and the block needs no inline ``measure(...)``. For
-    every other anchor a ``#context { let __s = measure(__b); ... }``
-    block lets Typst compute the offsets at render time, so Python
-    still doesn't need to know the body's size. Fixed descendants are
-    emitted as siblings (not nested) so Typst's flow doesn't stack
-    them inside the parent — only the explicit dx/dy decide position.
+    Slide coordinates are y-up with origin at the slide centre; Typst's
+    page coordinates are y-down with origin at the page's top-left. The
+    body's left edge in user coordinates is ``_pos.x - h_mul * w`` and
+    its top edge is ``_pos.y + (1 - v_mul) * h`` where
+    ``(h_mul, v_mul)`` are the anchor's offset multipliers. ``canvas``
+    controls how those user-coordinate values are mapped onto the
+    Typst page:
+
+    - ``canvas=(W, H)`` (renderer mode): apply the full user→Typst
+      transform: ``dx = _pos.x + W/2 - h_mul * w`` and
+      ``dy = H/2 - _pos.y - (1 - v_mul) * h``. ``anchor="top-left"``
+      collapses to constants ``dx = _pos.x + W/2``, ``dy = H/2 - _pos.y``
+      with no inline ``measure(...)``.
+    - ``canvas=None`` (measurer/aux-doc mode): no centring or y-flip is
+      applied. ``dx`` matches the user-coordinate left edge directly
+      and ``dy = _pos.y + (1 - v_mul) * h``. The aux doc never needs
+      to be visually correct — only the inline ``here().position().x``
+      probes are read back, and they recover the user-coordinate x
+      because the fixed ancestor's left edge sits at user-x in the aux
+      doc too.
+
+    Every other anchor wraps the placement in
+    ``#context { let __s = measure(__b); ... }`` so Typst supplies the
+    body's measured size at compile time; Python still doesn't measure
+    for rendering. Fixed descendants are emitted as siblings (not
+    nested) so Typst's flow doesn't stack them inside the parent —
+    only the explicit dx/dy decide position.
 
     Parameters
     ----------
@@ -174,6 +195,9 @@ def _render_placed(el: Element, render_node: RenderNode) -> list[str]:
     render_node : RenderNode
         Backend-specific body renderer (renderer vs measurer differ
         only in this callable).
+    canvas : tuple[float, float] or None
+        ``(width, height)`` of the slide in cm for renderer mode, or
+        ``None`` for the measurer's aux-doc mode (see above).
 
     Returns
     -------
@@ -187,24 +211,47 @@ def _render_placed(el: Element, render_node: RenderNode) -> list[str]:
     if not el.hidden and el.get_effective_hidden():
         body = f'#hide[{body}]'
     h_mul, v_mul = anchor_offsets(el._anchor)
-    if h_mul == 0 and v_mul == 0:
+    if canvas is None:
+        dx_const = el._pos.x
+        dy_const = el._pos.y
+        # Aux doc keeps Typst's native y-down within the placed block,
+        # so the body's top edge sits `+ (1 - v_mul) * h` below the
+        # anchor point (matches the user-coord top edge `_pos.y +
+        # (1 - v_mul) * h` because we treat user-y as Typst-y here).
+        dy_h_sign = 1.0
+    else:
+        W, H = canvas
+        dx_const = el._pos.x + W / 2
+        dy_const = H / 2 - el._pos.y
+        # Renderer flips y: a larger (1 - v_mul) * h moves the body's
+        # top *up* in user-y, which is *down* in Typst-y, so subtract.
+        dy_h_sign = -1.0
+    # ``"top-left"`` is the only anchor with both multipliers zero
+    # (h_mul == 0 and (1 - v_mul) == 0); skip the contextual measure.
+    if h_mul == 0 and v_mul == 1:
         line = (
-            f'#place(top + left, dx: {el._pos.x}cm, dy: {el._pos.y}cm, '
+            f'#place(top + left, dx: {dx_const}cm, dy: {dy_const}cm, '
             f'[{body}])'
         )
     else:
+        dx_expr = f'{dx_const}cm'
+        if h_mul != 0:
+            dx_expr += f' - {h_mul} * __s.width'
+        dy_expr = f'{dy_const}cm'
+        if v_mul != 1:
+            dy_coef = dy_h_sign * (1.0 - v_mul)
+            sign = '-' if dy_coef < 0 else '+'
+            dy_expr += f' {sign} {abs(dy_coef)} * __s.height'
         line = (
             '#context { '
             f'let __b = [{body}]; '
             'let __s = measure(__b); '
-            f'place(top + left, '
-            f'dx: {el._pos.x}cm - {h_mul} * __s.width, '
-            f'dy: {el._pos.y}cm - {v_mul} * __s.height, __b) '
+            f'place(top + left, dx: {dx_expr}, dy: {dy_expr}, __b) '
             '}'
         )
     out = [line]
     for sub in _collect_fixed(el):
-        out.extend(_render_placed(sub, render_node))
+        out.extend(_render_placed(sub, render_node, canvas))
     return out
 
 
@@ -239,6 +286,7 @@ class TypstRenderer:
         if not presentation.slides:
             _write(self.path, "")
             return
+        canvas = (presentation.width, presentation.height)
         lines = [
             f'#set page(width: {presentation.width}cm, '
             f'height: {presentation.height}cm, margin: 0cm)',
@@ -250,7 +298,7 @@ class TypstRenderer:
             for el in slide.elements:
                 if el.placement != "fixed":
                     continue
-                lines.extend(_render_placed(el, self._render_node))
+                lines.extend(_render_placed(el, self._render_node, canvas))
         _write(self.path, "\n".join(lines) + "\n")
 
     def _render_node(self, el: Element, placeholder: bool) -> str:
@@ -298,22 +346,25 @@ class TypstMeasurer:
 
     1. A ``#context [...]`` block with one ``#metadata((id, w, h))``
        per element, used to recover the *isolated* size of each.
-    2. The same ``#place`` tree the renderer would emit, but with
-       ``here().position()`` probes injected before every inline child,
-       used to recover the actual ``x`` after parent flow. The ``y`` of
-       an inline child is taken by convention to be the top-left ``y``
-       of the nearest fixed ancestor's rendered body (= the line top
-       under top-aligned placement) — Typst's ``here().y`` returns the
-       cursor baseline rather than the line top, so it cannot be used
-       directly to make ``#place(center + horizon, dx, dy)`` overlap
-       the inline visual.
+    2. The same ``#place`` tree the renderer would emit (with
+       ``canvas=None``, so no centring or y-flip is applied), with
+       ``here().position()`` probes injected before every inline
+       child. The probes recover the inline cursor's user-coordinate
+       ``x`` directly — the fixed ancestor's left edge lives at the
+       same Typst x in the aux doc as it does in user coordinates, so
+       the cursor x flows through unchanged. The ``y`` of an inline
+       child is *not* read from the aux doc; instead it is computed as
+       ``ancestor_top_y - h`` (the bottom edge under the convention
+       that the inline body's top sits at the line top of the nearest
+       fixed ancestor). Typst's ``here().y`` returns the cursor
+       baseline rather than the line top, so it cannot be used.
 
     A single ``typst query`` call returns both kinds of records; we
     tell them apart by which keys are present (``w``/``h`` vs ``x``).
     The aux document opens with ``#set page(margin: 0cm)`` — page
     width/height are intentionally left at Typst's default since
-    neither ``measure(...)`` of isolated content nor fixed-position
-    placement depends on page size, but the margin must be zero so
+    neither ``measure(...)`` of isolated content nor inline cursor
+    recovery depends on page size, but the margin must be zero so
     that ``#place(top + left, ...)`` (body-relative) and
     ``here().position()`` (page-absolute) share the same coordinate
     system.
@@ -401,13 +452,14 @@ class TypstMeasurer:
             else:
                 self.xs[e['id']] = e['x']
 
-        # Inline-at-root is unusual but tolerated: y=0 by convention.
-        # Fixed roots recompute their own y from `_pos` and anchor inside
-        # `_assign`, so the seed only matters for the inline case.
+        # Inline-at-root is unusual but tolerated: ancestor_top_y=0 by
+        # convention, so the inline root's bbox.y collapses to `-h`.
+        # Fixed roots recompute their own y from `_pos` and anchor
+        # inside `_assign`, so the seed only matters for the inline case.
         for el in self.roots:
             if el.placement == "omitted":
                 continue
-            self._assign(el, ancestor_y=0.0)
+            self._assign(el, ancestor_top_y=0.0)
 
     def _query(self) -> list[dict[str, Any]]:
         """Run ``typst query`` and return the parsed JSON list."""
@@ -483,23 +535,29 @@ class TypstMeasurer:
             '}'
         )
 
-    def _assign(self, el: Element, ancestor_y: float) -> None:
-        """Write ``el._bbox`` and recurse, threading the fixed-ancestor y.
+    def _assign(self, el: Element, ancestor_top_y: float) -> None:
+        """Write ``el._bbox`` and recurse, threading the fixed-ancestor top y.
 
         Convention: bbox is always ``(x, y, w, h)`` with ``(x, y)`` the
-        top-left in slide coordinates. For *fixed* elements the body is
-        rendered with ``#place(top + left, dx, dy)`` shifted so the
-        body's ``_anchor`` point lands at ``_pos``, so the top-left is
-        ``(_pos.x - h_mul * w, _pos.y - v_mul * h)`` where
-        ``(h_mul, v_mul)`` are the anchor's offset multipliers. For
-        *inline* elements ``bbox.x`` is the flowed cursor x recovered
-        via the ``here().position()`` probe; ``bbox.y`` is the
-        ``ancestor_y`` threaded down — the top-left of the rendered
-        body of the nearest fixed ancestor (= line top under
-        top-aligned placement). This is what makes ``shift((0, 0))`` on
-        an inline element a true visual no-op: freezing the element's
-        ``_pos`` to the measured anchor point and re-emitting via the
-        same ``#place`` formula overlaps the inline rendering.
+        geometric **centre** in slide coordinates (y-up) and ``w``,
+        ``h`` positive extents. The four edges are derived as
+        ``left = x - w/2``, ``right = x + w/2``, ``bottom = y - h/2``,
+        ``top = y + h/2``. For *fixed* elements the body is rendered
+        so its ``_anchor`` point lands at ``_pos``, which means the
+        centre offsets from ``_pos`` by ``((0.5 - h_mul) * w,
+        (0.5 - v_mul) * h)`` where ``(h_mul, v_mul)`` are the anchor's
+        offset multipliers. For *inline* elements ``bbox.x`` is the
+        flowed cursor x (recovered via the ``here().position()`` probe)
+        shifted by ``+ w/2`` to the centre; ``bbox.y`` is
+        ``ancestor_top_y - h/2`` under the convention that the inline
+        body's top sits at the line top of the nearest fixed ancestor.
+        Typst's ``here().y`` returns the cursor baseline rather than
+        the line top, so it cannot be used directly; the line-top y is
+        threaded down via ``ancestor_top_y`` instead. This is what
+        makes ``shift((0, 0))`` on an inline element a true visual
+        no-op: freezing ``_pos`` to the measured anchor point and
+        re-emitting via the same ``#place`` formula overlaps the
+        inline rendering.
         :class:`Group` is special: its bbox is computed *after* the
         children are assigned, as the union of their bboxes; its own
         ``_pos`` has no rendered body to anchor.
@@ -507,29 +565,36 @@ class TypstMeasurer:
         w, h = self.sizes.get(el._mid, (0.0, 0.0))
         if el.placement == "fixed":
             h_mul, v_mul = anchor_offsets(el._anchor)
-            x = el._pos.x - h_mul * w
-            y = el._pos.y - v_mul * h
-            child_y = y
+            cx = el._pos.x + (0.5 - h_mul) * w
+            cy = el._pos.y + (0.5 - v_mul) * h
+            child_top_y = cy + h / 2
         else:
-            x = self.xs.get(el._mid, 0.0)
-            y = ancestor_y
-            child_y = ancestor_y
+            cx = self.xs.get(el._mid, 0.0) + w / 2
+            cy = ancestor_top_y - h / 2
+            child_top_y = ancestor_top_y
         for c in el.children:
             if c.placement == "omitted":
                 continue
-            self._assign(c, child_y)
+            self._assign(c, child_top_y)
         if isinstance(el, Group):
             boxes = [
                 c._bbox for c in el.children
                 if c.placement != "omitted" and c._bbox is not None
             ]
             if boxes:
-                x0 = min(b[0] for b in boxes)
-                y0 = min(b[1] for b in boxes)
-                x1 = max(b[0] + b[2] for b in boxes)
-                y1 = max(b[1] + b[3] for b in boxes)
-                el._bbox = (x0, y0, x1 - x0, y1 - y0)
+                lefts = [b[0] - b[2] / 2 for b in boxes]
+                rights = [b[0] + b[2] / 2 for b in boxes]
+                bottoms = [b[1] - b[3] / 2 for b in boxes]
+                tops = [b[1] + b[3] / 2 for b in boxes]
+                left, right = min(lefts), max(rights)
+                bottom, top = min(bottoms), max(tops)
+                el._bbox = (
+                    (left + right) / 2,
+                    (bottom + top) / 2,
+                    right - left,
+                    top - bottom,
+                )
             else:
-                el._bbox = (x, y, 0.0, 0.0)
+                el._bbox = (cx, cy, 0.0, 0.0)
         else:
-            el._bbox = (x, y, w, h)
+            el._bbox = (cx, cy, w, h)

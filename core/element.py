@@ -24,20 +24,21 @@ Anchor = Literal[
     "bottom-left", "bottom-center", "bottom-right",
 ]
 
-# (h_mul, v_mul) such that the bbox top-left is at
-# ``_pos - (h_mul * w, v_mul * h)``. Equivalently the anchor point is at
-# ``bbox.top_left + (h_mul * w, v_mul * h)``. left=0, center=0.5, right=1;
-# top=0, center=0.5, bottom=1.
+# (h_mul, v_mul) such that the bbox centre is offset from ``_pos`` by
+# ``((0.5 - h_mul) * w, (0.5 - v_mul) * h)``. Equivalently the anchor
+# point is at ``bbox.centre + ((h_mul - 0.5) * w, (v_mul - 0.5) * h)``.
+# left=0, center=0.5, right=1; bottom=0, center=0.5, top=1. Slide
+# coordinates are y-up, so ``top-*`` anchors carry the larger ``v_mul``.
 _ANCHOR_OFFSETS: dict[Anchor, tuple[float, float]] = {
-    "top-left":      (0.0, 0.0),
-    "top-center":    (0.5, 0.0),
-    "top-right":     (1.0, 0.0),
+    "top-left":      (0.0, 1.0),
+    "top-center":    (0.5, 1.0),
+    "top-right":     (1.0, 1.0),
     "center-left":   (0.0, 0.5),
     "center":        (0.5, 0.5),
     "center-right":  (1.0, 0.5),
-    "bottom-left":   (0.0, 1.0),
-    "bottom-center": (0.5, 1.0),
-    "bottom-right":  (1.0, 1.0),
+    "bottom-left":   (0.0, 0.0),
+    "bottom-center": (0.5, 0.0),
+    "bottom-right":  (1.0, 0.0),
 }
 
 
@@ -71,30 +72,41 @@ def measure_all(elements: Iterable[Element]) -> None:
 class Element:
     """Base class of every visual node that can appear on a slide.
 
-    Every element exposes a uniform ``(x, y, w, h)`` bounding box in cm.
-    Elements form a tree via ``children``; measurement is a function of
-    the tree alone — orphan elements (no slide membership, no parent)
-    can call :meth:`get_bbox` and the measurer runs over their own
-    subtree.
+    Every element exposes a uniform ``(x, y, w, h)`` bounding box in
+    cm, where ``(x, y)`` is the geometric **centre** of the element and
+    ``w``, ``h`` are positive extents. The four edges are derived as
+    ``left = x - w/2``, ``right = x + w/2``, ``bottom = y - h/2``,
+    ``top = y + h/2``. Elements form a tree via ``children``;
+    measurement is a function of the tree alone — orphan elements (no
+    slide membership, no parent) can call :meth:`get_bbox` and the
+    measurer runs over their own subtree.
+
+    Coordinate system
+    -----------------
+    Slide coordinates are in centimetres with origin at the slide's
+    visual centre, ``+x`` pointing right and ``+y`` pointing up
+    (mathematical convention). A slide of size ``(W, H)`` spans
+    ``x ∈ [-W/2, +W/2]`` and ``y ∈ [-H/2, +H/2]``. The renderer
+    translates this to Typst's native page coordinates (origin
+    top-left, ``+y`` down) at emission time.
 
     Anchor model
     ------------
     Every element stores a single position ``_pos: Vec`` in slide
-    coordinates (cm) together with an :data:`Anchor` mode ``_anchor``
-    that names which point of the bbox sits at ``_pos``. Nine anchors
-    are supported — all combinations of vertical (``top``/``center``/
+    coordinates together with an :data:`Anchor` mode ``_anchor`` that
+    names which point of the bbox sits at ``_pos``. Nine anchors are
+    supported — all combinations of vertical (``top``/``center``/
     ``bottom``) and horizontal (``left``/``center``/``right``) — written
     as hyphenated strings (``"top-left"``, ``"center"``,
-    ``"bottom-right"``, ...). The renderer emits a ``#place`` block that
-    shifts the body so its ``_anchor`` point lands at ``_pos``.
+    ``"bottom-right"``, ...). The renderer emits a ``#place`` block
+    that shifts the body so its ``_anchor`` point lands at ``_pos``.
 
-    With ``anchor="top-left"`` the placement formula is simply
-    ``dx = _pos.x, dy = _pos.y`` — Python never needs to know the body's
-    measured size to place the element. With other anchors the formula
-    involves ``_pos - (h_mul * w, v_mul * h)`` and Typst handles the
-    subtraction inline via ``measure(...)``; Python still doesn't
-    measure for rendering, but the measurer fills ``_bbox`` for
-    geometric queries.
+    With ``anchor="top-left"`` the renderer needs no inline measurement
+    (the body's top edge sits at ``_pos.y`` directly, so the placement
+    constants are known from ``_pos`` alone). Every other anchor uses
+    Typst's ``measure(...)`` at compile time to subtract a fraction of
+    the body's height/width; Python still doesn't measure for
+    rendering, but the measurer fills ``_bbox`` for geometric queries.
 
     Placement
     ---------
@@ -216,12 +228,13 @@ class Element:
         Fast path when ``placement != "inline"`` *and* ``_anchor ==
         "center"``: returns ``_pos`` directly. Otherwise measures the
         bbox (one Typst subprocess on cache miss) and returns its
-        center.
+        centre — which under the centre-storage bbox convention is
+        ``(bbox[0], bbox[1])``.
         """
         if self.placement != "inline" and self._anchor == "center":
             return self._pos
-        x, y, w, h = self.get_bbox()
-        return Vec(x + w / 2, y + h / 2)
+        cx, cy, _, _ = self.get_bbox()
+        return Vec(cx, cy)
 
     def _current_anchor_point(self) -> Vec:
         """Return the current visual position of this element's anchor.
@@ -235,9 +248,9 @@ class Element:
         are moved independently.
         """
         if self.placement == "inline":
-            x, y, w, h = self.get_bbox()
+            cx, cy, w, h = self.get_bbox()
             h_mul, v_mul = _ANCHOR_OFFSETS[self._anchor]
-            return Vec(x + h_mul * w, y + v_mul * h)
+            return Vec(cx + (h_mul - 0.5) * w, cy + (v_mul - 0.5) * h)
         return self._pos
 
     def move_to(self, p: VecLike) -> Element:
@@ -296,7 +309,7 @@ class Element:
         The stored ``_pos`` is not modified, so the visual position
         shifts to put the new anchor point at the same coordinate.
         Geometric mutator: invalidates the bbox cache of this element's
-        tree (the bbox top-left moves).
+        tree (the bbox corners move).
 
         Returns ``self`` for chaining.
         """
@@ -401,14 +414,13 @@ class Element:
     def get_bbox(self) -> tuple[float, float, float, float]:
         """Return the cached ``(x, y, w, h)``, measuring on cache miss.
 
-        On cache miss, walks to the tree root (the topmost ancestor
-        reachable through ``parent``) and runs the backend measurer
+        On cache miss, batches the measurement via :func:`measure_all`,
+        which walks to the tree root and runs the backend measurer
         over that subtree. Membership in a :class:`Slide` is
         irrelevant — measurement is a function of the tree alone.
         """
         if self._bbox is None:
-            from ..backends.typst import TypstMeasurer
-            TypstMeasurer([self._tree_root()]).measure()
+            measure_all([self])
         return self._bbox  # type: ignore[return-value]
 
     def _tree_root(self) -> Element:
@@ -432,8 +444,8 @@ class Element:
         Always measures (on cache miss), regardless of placement. Use
         :attr:`center` for the cheaper "anchor or measured" reading.
         """
-        x, y, w, h = self.get_bbox()
-        return Vec(x + w / 2, y + h / 2)
+        cx, cy, _, _ = self.get_bbox()
+        return Vec(cx, cy)
 
     def copy(self) -> Element:
         """Public deep-copy entry point.
@@ -481,7 +493,7 @@ class Element:
 
         Walks to the tree root and clears ``_bbox`` on every descendant.
         Used by geometric mutators: a position change can shift the
-        flowed top-left of inline siblings, so the whole tree's cache
+        flowed position of inline siblings, so the whole tree's cache
         must be re-measured on the next :meth:`get_bbox` call.
         """
         root = self._tree_root()

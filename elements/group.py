@@ -93,11 +93,13 @@ class Group(Drawable):
         """Return the union bbox center.
 
         A Group has no rendered body of its own, so its visual center
-        is always the center of the union of its children's bboxes.
-        Measures on cache miss; warm-cache calls are O(1).
+        is always the centre of the union of its children's bboxes.
+        Under the centre-storage bbox convention this is just
+        ``(bbox[0], bbox[1])``. Measures on cache miss; warm-cache
+        calls are O(1).
         """
-        x, y, w, h = self.get_bbox()
-        return Vec(x + w / 2, y + h / 2)
+        cx, cy, _, _ = self.get_bbox()
+        return Vec(cx, cy)
 
     def _current_anchor_point(self) -> Vec:
         """Return the union-bbox anchor point.
@@ -107,6 +109,6 @@ class Group(Drawable):
         not stay in sync when descendants are moved independently, so
         the only reliable read is via the union bbox.
         """
-        x, y, w, h = self.get_bbox()
+        cx, cy, w, h = self.get_bbox()
         h_mul, v_mul = anchor_offsets(self._anchor)
-        return Vec(x + h_mul * w, y + v_mul * h)
+        return Vec(cx + (h_mul - 0.5) * w, cy + (v_mul - 0.5) * h)

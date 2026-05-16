@@ -6,7 +6,7 @@ A Python-driven presentation tool.
 
 1. **All logic in Python.** The backend is dumb: it receives "draw this here" and "measure this" instructions.
 2. **Backend-agnostic.** To add another backend (LaTeX, SVG, canvas, etc.) only `backends/` is touched. The rest of the project knows nothing about Typst syntax.
-3. **Uniform bbox.** Every `Element` (text, shapes, lines, ...) exposes `(x, y, w, h)` in cm. Without this there is no coherent layout.
+3. **Uniform bbox.** Every `Element` (text, shapes, lines, ...) exposes `(x, y, w, h)` in cm, where `(x, y)` is the geometric **centre** in slide coordinates. Without this there is no coherent layout.
 4. **Lazy, cached measurement.** Measuring spawns a Typst subprocess (~25 ms with `--ignore-system-fonts`); results are cached until something changes.
 
 ## Folder structure
@@ -31,6 +31,12 @@ mate/
 └── .cache/            # regenerated artifacts (measurement); safe to delete
 ```
 
+## Coordinate system
+
+Slide coordinates are in centimetres with origin at the slide's **visual centre**, `+x` pointing right and `+y` pointing up (mathematical convention). A slide of size `(W, H)` therefore spans `x ∈ [-W/2, +W/2]` and `y ∈ [-H/2, +H/2]`. A `Vec(0, 0)` placed with the default `anchor="center"` lands at the centre of the slide.
+
+This convention applies everywhere in the Python model: `_pos`, `_bbox`, the values inspected by `arrange`, `move_to`, `shift`, `center`, etc. Typst's native page coordinates are y-down with origin at the top-left; the renderer applies the user→Typst transform (`dx = _pos.x + W/2`, `dy = H/2 - _pos.y`) at emission time so user `(0, 0)` lands at the Typst page centre. The measurer keeps its aux doc in raw user-coords — only the inline `here().position().x` probe is read back, and it returns the user-x directly.
+
 ## Model
 
 ### `core/vec.py` — `Vec`
@@ -45,7 +51,7 @@ Base class of **everything** that appears on a slide. Attributes:
 |---|---|
 | `pos` | Stored anchor point `Vec` in slide coordinates (cm). Public, read via property; writes go to `_pos`. Never measures. |
 | `_pos` | Storage backing `pos`. Internal hot paths (`_translate`, backend) read/write this directly. |
-| `anchor` | Which point of the bbox sits at `_pos`. One of the nine `Anchor` strings: `"top-left"`, `"top-center"`, `"top-right"`, `"center-left"`, `"center"` (default), `"center-right"`, `"bottom-left"`, `"bottom-center"`, `"bottom-right"`. Resolved into `(h_mul, v_mul)` multipliers by `anchor_offsets(anchor)` such that `bbox.top_left = _pos - (h_mul * w, v_mul * h)`. |
+| `anchor` | Which point of the bbox sits at `_pos`. One of the nine `Anchor` strings: `"top-left"`, `"top-center"`, `"top-right"`, `"center-left"`, `"center"` (default), `"center-right"`, `"bottom-left"`, `"bottom-center"`, `"bottom-right"`. Resolved into `(h_mul, v_mul)` multipliers by `anchor_offsets(anchor)` such that the bbox centre is offset from `_pos` by `((0.5 - h_mul) * w, (0.5 - v_mul) * h)`. Under y-up slide coords, `v_mul = 1` for `"top-*"`, `0.5` for `"center-*"`, `0` for `"bottom-*"`. |
 | `_anchor` | Storage backing `anchor`. |
 | `center` | Visual bbox center `Vec`. Property: fast path returns `_pos` when `_anchor == "center"` and the element is not inline; otherwise measures. `Group` overrides it to always return the union-bbox center. |
 | `placement` | `"fixed"` (drawn with the body's `_anchor` point at `_pos`), `"inline"` (flows in parent's content), or `"omitted"` (not rendered, not measured). |
@@ -53,7 +59,7 @@ Base class of **everything** that appears on a slide. Attributes:
 | `hidden` | If `True`, the element takes space but is not drawn. Propagates through ancestors via `get_effective_hidden()` — `hidden=True` on a Group hides the whole subtree at render time. |
 | `children` | List of sub-`Element`s. Forms a tree. |
 | `_mid` | Globally unique id, used by the backend for metadata. |
-| `_bbox` | Cached `(x, y, w, h)` or `None` (not measured). |
+| `_bbox` | Cached `(x, y, w, h)` or `None` (not measured). `(x, y)` is the geometric **centre** in slide coords (y-up); `w` and `h` are positive extents. Edges: `left = x - w/2`, `right = x + w/2`, `bottom = y - h/2`, `top = y + h/2`. |
 
 Public API: `move_to / shift / set_anchor / get_bbox / get_width / get_height / get_bbox_center / copy` plus the `pos`, `anchor`, and `center` properties. Movement (`move_to` / `shift`) forces `placement = "fixed"` and invalidates the bbox cache of the whole tree.
 
@@ -140,9 +146,11 @@ Movement (`move_to`, `shift`) is inherited from `Element`: every fixed descendan
 
 ### `utils/layout.py` — `arrange`
 
-`arrange(elements, line_height=False)` stacks elements in a single column, top-to-bottom, bboxes flush against each other and sharing the first element's left `x`. The first element keeps its position; the rest are moved via `move_to`, which honors each element's own anchor.
+`arrange(elements, pos, anchor, *, line_height=False)` stacks elements in a single column, top-to-bottom in list order, with bboxes flush against each other at zero gap. The stack as a whole is anchored at `pos` with mode `anchor`: the union bbox is sized as `(max(widths), sum(heights))` (conceptually) and positioned so its `anchor` point lands at `pos`. The horizontal half of `anchor` picks the alignment of bboxes inside the stack (`*-left` → flush left, `*-center` → centered, `*-right` → flush right); the vertical half picks where `pos.y` sits relative to the stack (`top-*` → top edge, `center-*` → vertical center, `bottom-*` → bottom edge). Each element is moved via `move_to`, which honors that element's own anchor.
 
-Performance is the reason this helper exists as a single function rather than a couple of inlined lines. Before the positioning loop it identifies which elements will end up needing a real bbox — non-left-anchored elements (require width) plus elements without an intrinsic height (`Text` under `line_height=False`, or custom subclasses) — and runs `measure_all` over that subset, so the worst case is one Typst subprocess for the whole call. A stack of left-anchored shape primitives pays zero subprocesses; a stack of left-anchored `Text`s with `line_height=True` pays one subprocess to seed the line-height cache for a given `(font, size)` and zero afterwards.
+Math note: writing out the per-element `pos.x` in terms of the stack's `pos.x`, the stack's `h_mul`, the element's own `h_mul`, and its width, the stack's `total_width` cancels — only the element's own width is needed. So `arrange` never computes `max(widths)` and only reads `get_width()` for elements whose horizontal anchor half differs from the stack's.
+
+Performance is the reason this helper exists as a single function rather than a couple of inlined lines. Before the positioning loop it identifies which elements will end up needing a real bbox — elements whose horizontal anchor half differs from the stack's (require width) plus elements without an intrinsic height (`Text` under `line_height=False`, or custom subclasses) — and runs `measure_all` over that subset, so the worst case is one Typst subprocess for the whole call. A stack of shape primitives whose anchors all share the stack's horizontal half pays zero subprocesses; a stack of similarly-anchored `Text`s with `line_height=True` pays one subprocess to seed the line-height cache for a given `(font, size)` and zero afterwards.
 
 ### Why a uniform tree
 
@@ -154,9 +162,9 @@ A `Text` with subs is internally a tree of `Text`s. When `Square`, `Triangle`, `
 
 Two classes with separate responsibilities:
 
-**`TypstRenderer`** — writes the final `.typ` the user compiles to PDF. Each fixed element with `_anchor == "top-left"` becomes a plain `#place(top + left, dx: _pos.x cm, dy: _pos.y cm, [body])` — no inline measure. Every other anchor becomes a `#context { let __b = [body]; let __s = measure(__b); place(top + left, dx: _pos.x cm - h_mul * __s.width, dy: _pos.y cm - v_mul * __s.height, __b) }` block, where `(h_mul, v_mul) = anchor_offsets(_anchor)`. Typst evaluates `measure(...)` at compile time, so Python never measures to render. Other emitted forms: `#text(font:, size:, fill:)[...]`, `#hide[...]`, `#pagebreak()`.
+**`TypstRenderer`** — writes the final `.typ` the user compiles to PDF. Slide coords are y-up with origin at the slide centre; the renderer applies the user→Typst transform (`dx = _pos.x + W/2`, `dy = H/2 - _pos.y`) so user `(0, 0)` lands at the page centre. Each fixed element with `_anchor == "top-left"` becomes a plain `#place(top + left, dx: (_pos.x + W/2) cm, dy: (H/2 - _pos.y) cm, [body])` — no inline measure (it's the only anchor where both `h_mul == 0` and `(1 - v_mul) == 0`). Every other anchor becomes a `#context { let __b = [body]; let __s = measure(__b); place(top + left, dx: (_pos.x + W/2) cm - h_mul * __s.width, dy: (H/2 - _pos.y) cm - (1 - v_mul) * __s.height, __b) }` block, where `(h_mul, v_mul) = anchor_offsets(_anchor)`. Typst evaluates `measure(...)` at compile time, so Python never measures to render. Other emitted forms: `#text(font:, size:, fill:)[...]`, `#hide[...]`, `#pagebreak()`.
 
-**`TypstMeasurer`** — writes an auxiliary `.typ` (at `.cache/measure.typ`) and runs `typst query` to obtain bboxes. Constructed with a list of root elements (any subtree, attached to a slide or not) and writes results into `el._bbox` for every reachable node. The aux document opens with `#set page(margin: 0cm)` — page width/height are intentionally left at Typst's default (measurement is page-size agnostic) but the margin must be zero so that `#place(top + left, dx, dy)` (body-relative) and `here().position()` (page-absolute) share the same coordinate system.
+**`TypstMeasurer`** — writes an auxiliary `.typ` (at `.cache/measure.typ`) and runs `typst query` to obtain bboxes. Constructed with a list of root elements (any subtree, attached to a slide or not) and writes results into `el._bbox` for every reachable node. The aux document opens with `#set page(margin: 0cm)` — page width/height are intentionally left at Typst's default (measurement is page-size agnostic) but the margin must be zero so that `#place(top + left, dx, dy)` (body-relative) and `here().position()` (page-absolute) share the same coordinate system. The measurer invokes `_render_placed` with `canvas=None`, which skips the user→Typst centring/y-flip the renderer applies: the aux doc keeps fixed ancestors at their raw user-coord `(dx, dy)`, which lets each inline `here().position().x` probe return the user-x directly (no offset to subtract). The aux doc never has to be visually correct; only the x probe values are read back.
 
 Module-level helpers (shared by both classes):
 - `_collect_fixed(el)` — recursively gathers descendants with `placement == "fixed"`.
@@ -169,7 +177,7 @@ For each `Element` (other than `"omitted"`, which is pruned everywhere) we need:
 
 - **(w, h)**: the *isolated* size of the element. Obtained by writing a `#context [ ... ]` block with one `#metadata((id, w: measure(...).width/1cm, h: ...))<bbox>` per element.
 - **x**: the *actual* horizontal position after parent flow, only for inline elements. Obtained by injecting `#context { let p = here().position(); [#metadata((id, x: p.x/1cm))<bbox>] }` right before the inline child, inside the page-rendered tree.
-- **y**: by convention, `bbox.y` of an inline element equals the top-left `y` of the nearest fixed ancestor's rendered body (= the line top under top-aligned placement). Equivalently, for a fixed ancestor with `_pos.y`, anchor multiplier `v_mul`, and measured height `h`, the line top is `_pos.y - v_mul * h`. This is what makes `shift((0, 0))` on an inline element a true visual no-op: freezing `_pos` to the measured anchor point and re-emitting overlaps the inline rendering. Typst's `here().position().y` returns the cursor baseline, not the line top, so it cannot be used directly.
+- **y**: by convention, `bbox.y` of an inline element equals `ancestor_top_y - h/2` — the centre under the rule that the inline body's top sits at the line top of the nearest fixed ancestor. Equivalently, for a fixed ancestor with `_pos.y`, anchor multiplier `v_mul`, and measured height `h`, its top edge in y-up slide coords is `_pos.y + (1 - v_mul) * h`; this value is threaded down through `_assign` as `ancestor_top_y`. This is what makes `shift((0, 0))` on an inline element a true visual no-op: freezing `_pos` to the measured anchor point and re-emitting overlaps the inline rendering. Typst's `here().position().y` returns the cursor baseline, not the line top, so it cannot be used directly.
 
 Everything is emitted under the same `<bbox>` label and recovered in a single `typst query --ignore-system-fonts ... --field value` call. Telling apart size and x is done by checking which key is present in the JSON entry.
 
