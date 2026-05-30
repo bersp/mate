@@ -40,10 +40,12 @@ class PresentationTemplate:
         """Return the slide background element, or ``None`` for no background."""
         return None
 
-    def add_title(self, source: str) -> Text:
-        """Create a title from ``source`` and add it to the current slide and the title region."""
-        title = Text(source, font=self.font)
-        self.current_slide.title = title
-        self.current_slide.add(title)
-        self.layout.title.add(title)
-        return title
+    def add_title(self) -> None:
+        """Build the current slide's title and subtitle strings into ``Text`` elements, adding them to the slide and title region."""
+        slide = self.current_slide
+        for text in (slide.title, slide.subtitle):
+            if text is None:
+                continue
+            el = Text(text, font=self.font)
+            slide.add(el)
+            self.layout.title.add(el)
