@@ -45,7 +45,8 @@ class Slide:
 class Presentation(PresentationTemplate):
     """Top-level presentation built on a template."""
 
-    def __init__(self, width: float = 20, height: float = 15) -> None:
+    def __init__(self, name: str, width: float = 20, height: float = 15) -> None:
+        self.name: str = name
         self.width: float = width
         self.height: float = height
         config.set_slide_size(width, height)
@@ -76,8 +77,8 @@ class Presentation(PresentationTemplate):
     def _render_slide(self, slide: Slide) -> str:
         return self._renderer.render_slide(slide, (self.width, self.height))
 
-    def write(self, path: str | Path = "presentation.typ") -> None:
-        """Assemble the closed slides into a Typst source file at ``path``.
+    def write(self) -> None:
+        """Compile the closed slides into ``<name>.pdf`` in the working directory.
 
         Raises if any slide is still open — call :meth:`Presentation.end_slide`
         first.
@@ -87,6 +88,8 @@ class Presentation(PresentationTemplate):
             raise RuntimeError(
                 f"{open_count} slide(s) still open; call .end_slide() before write()."
             )
-        self._renderer.write_document(
-            [s._fragment for s in self.slides], (self.width, self.height), Path(path)
+        self._renderer.compile_document(
+            [s._fragment for s in self.slides],
+            (self.width, self.height),
+            Path(f"{self.name}.pdf"),
         )

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "mate"
 version = "0.0.1"
 requires-python = ">=3.10"
-dependencies = ["numpy"]
+dependencies = ["numpy", "typst>=0.14"]
 authors = [
   {name = "Bernardo L. Español", email = "esp.bernardo@gmail.com"},
 ]

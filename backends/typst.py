@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
+
+import typst
 
 from ..core.element import anchor_offsets
 from ..elements.group import Group
@@ -274,21 +275,20 @@ class TypstRenderer:
             lines.extend(_render_placed(el, self._render_node, canvas))
         return "\n".join(lines)
 
-    def write_document(
+    def compile_document(
         self, fragments: list[str], canvas: tuple[float, float], path: str | Path
     ) -> None:
-        """Assemble per-slide ``fragments`` into one ``.typ`` at ``path``.
+        """Assemble per-slide ``fragments`` and compile them to a PDF at ``path``.
 
-        Consecutive fragments are separated by ``#pagebreak()``.
+        The document source is built in memory and handed to the bundled
+        Typst compiler; no intermediate ``.typ`` is written. Consecutive
+        fragments are separated by ``#pagebreak()``.
         """
-        path = Path(path)
-        if not fragments:
-            _write(path, "")
-            return
         width, height = canvas
         preamble = f"#set page(width: {width}cm, height: {height}cm, margin: 0cm)\n"
         body = "\n#pagebreak()\n".join(fragments)
-        _write(path, preamble + "\n" + body + "\n")
+        source = preamble + "\n" + body + "\n"
+        typst.compile(source.encode("utf-8"), output=str(path))
 
     def _render_node(self, el: Element, placeholder: bool) -> str:
         """Render an element body (no ``#place`` wrapper).
@@ -451,22 +451,19 @@ class TypstMeasurer:
             self._assign(el, ancestor_top_y=0.0)
 
     def _query(self) -> list[dict[str, Any]]:
-        """Run ``typst query`` and return the parsed JSON list."""
-        result = subprocess.run(
-            [
-                "typst",
-                "query",
-                "--ignore-system-fonts",
-                str(self.path),
-                "<bbox>",
-                "--field",
-                "value",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
+        """Query the auxiliary document for ``<bbox>`` records via typst-py.
+
+        Runs in-process against the bundled Typst compiler;
+        ``ignore_system_fonts`` keeps the font set to Typst's embedded
+        faces so no system-font scan happens.
+        """
+        out = typst.query(
+            str(self.path),
+            "<bbox>",
+            field="value",
+            ignore_system_fonts=True,
         )
-        return json.loads(result.stdout)
+        return json.loads(out)
 
     def _collect(self, el: Element) -> None:
         """Register ``el`` and its subtree into ``self.elements``.

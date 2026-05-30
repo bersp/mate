@@ -72,7 +72,7 @@ def arrange(
     :class:`Text` under ``line_height=True`` never trigger a
     measurement. Any element that genuinely needs a measured bbox is
     collected and passed to :func:`measure_all` in a single batched
-    pass, so the whole call spends at most one Typst subprocess
+    pass, so the whole call spends at most one Typst query
     regardless of N.
 
     Elements are mutated in place via :meth:`Element.move_to`, which

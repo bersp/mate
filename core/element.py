@@ -63,7 +63,7 @@ def measure_all(elements: Iterable[Element]) -> None:
     until the next geometric mutation.
 
     Useful before any layout helper that would otherwise pay one Typst
-    subprocess per element with a distinct tree root.
+    query per element with a distinct tree root.
     """
     seen: dict[int, Element] = {}
     for el in elements:
@@ -233,7 +233,7 @@ class Element:
 
         Fast path when ``placement != "inline"`` *and* ``_anchor ==
         "center"``: returns ``_pos`` directly. Otherwise measures the
-        bbox (one Typst subprocess on cache miss) and returns its
+        bbox (one Typst query on cache miss) and returns its
         centre — which under the centre-storage bbox convention is
         ``(bbox[0], bbox[1])``.
         """
