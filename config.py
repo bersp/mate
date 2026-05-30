@@ -1,9 +1,17 @@
 """Process-global configuration singleton: slide size and the color palette."""
+
 from __future__ import annotations
 
 import re
 
 _HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})")
+
+# Default values templates may read via ``config.get``. Keys are dotted
+# paths; a template either uses the default or hardcodes its own literal.
+_DEFAULTS: dict[str, object] = {
+    "box.full_with_margins.margins": 0.7,
+    "box.content.anchor": "top-left",
+}
 
 _DEFAULT_PALETTE: dict[str, str] = {
     "BLACK": "#2b3339",
@@ -63,10 +71,25 @@ class Config:
         self.slide_width: float = 0.0
         self.slide_height: float = 0.0
         self.colors: Colors = Colors()
+        self._defaults: dict[str, object] = dict(_DEFAULTS)
 
     def set_slide_size(self, width: float, height: float) -> None:
         self.slide_width = float(width)
         self.slide_height = float(height)
+
+    def get(self, key: str) -> object:
+        """Return the default value registered under ``key``."""
+        try:
+            return self._defaults[key]
+        except KeyError:
+            defined = ", ".join(sorted(self._defaults))
+            raise KeyError(
+                f"{key!r} is not a defined config key. Defined keys: {defined}."
+            ) from None
+
+    def set(self, key: str, value: object) -> None:
+        """Override the default for ``key`` process-wide."""
+        self._defaults[key] = value
 
 
 config = Config()

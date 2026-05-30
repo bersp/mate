@@ -1,17 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import numpy as np
 
 from ..config import config
 from ..core.element import Anchor, Element, anchor_offsets
 from ..core.vec import Vec, VecLike
 from .arrange import arrange as _arrange_elements
-
-if TYPE_CHECKING:
-    from ..elements.group import Group
-    from ..elements.shapes import Rectangle
 
 
 class Region:
@@ -310,11 +304,6 @@ class Region:
             line_height=True,
         )
 
-    def get_bbox_el(self, **drawable_kw) -> "Rectangle":
-        """Return a :class:`Rectangle` matching this region (debug overlay)."""
-        from ..elements.shapes import Rectangle
-        return Rectangle(self._width, self._height, **drawable_kw).move_to(self._center)
-
     def __repr__(self) -> str:
         return (
             f"Region(center={self._center!r}, width={self._width:.4g}, "
@@ -326,10 +315,8 @@ class Region:
 class Layout:
     """A named container of :class:`Region`\\ s, stored as attributes."""
 
-    def __init__(self, **regions: Region) -> None:
+    def __init__(self) -> None:
         self.active: Region | None = None
-        for name, region in regions.items():
-            setattr(self, name, region)
 
     def add(self, name: str, region: Region) -> Region:
         """Attach ``region`` to this layout under ``name`` and return it."""
@@ -346,7 +333,9 @@ class Layout:
         self.active = region
         return region
 
-    def _regions(self) -> dict[str, Region]:
+    @property
+    def regions(self) -> dict[str, Region]:
+        """Mapping of region name to :class:`Region` for every attached region."""
         return {
             n: v for n, v in self.__dict__.items()
             if n != "active" and isinstance(v, Region)
@@ -354,14 +343,9 @@ class Layout:
 
     def remove_all_elements(self) -> None:
         """Clear :attr:`Region.elements` on every region in this layout."""
-        for region in self._regions().values():
+        for region in self.regions.values():
             region.remove_all()
 
-    def get_bbox_el_for_each_region(self, **drawable_kw) -> "Group":
-        """Return a :class:`Group` of one :meth:`Region.get_bbox_el` per region in this layout."""
-        from ..elements.group import Group
-        return Group([r.get_bbox_el(**drawable_kw) for r in self._regions().values()])
-
     def __repr__(self) -> str:
-        body = ", ".join(f"{k}={v!r}" for k, v in self._regions().items())
+        body = ", ".join(f"{k}={v!r}" for k, v in self.regions.items())
         return f"Layout({body})"

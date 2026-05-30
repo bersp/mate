@@ -12,5 +12,5 @@ authors = [
 ]
 
 [tool.setuptools]
-packages = ["mate", "mate.core", "mate.elements", "mate.backends", "mate.utils"]
+packages = ["mate", "mate.core", "mate.elements", "mate.backends", "mate.composition"]
 package-dir = {"mate" = "."}

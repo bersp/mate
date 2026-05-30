@@ -27,9 +27,10 @@ mate/
 │   └── text.py
 ├── backends/          # backend-specific renderers/measurers
 │   └── typst.py
-├── utils/             # layout helpers built on top of the core model
+├── composition/       # spatial layout built on top of core + elements
 │   ├── arrange.py
-│   └── layout.py
+│   ├── layout.py
+│   └── utils.py
 └── .cache/            # regenerated artifacts (measurement); safe to delete
 ```
 
@@ -89,9 +90,17 @@ All `Element` constructor parameters (`pos`, `anchor`, `placement`, `id`) are **
 
 ### `core/presentation.py` — `Presentation`, `Slide`
 
-- `Presentation` owns the global `width` / `height` (every slide has the same size) and the list of `Slide`s. `write(path)` delegates to `TypstRenderer`.
-- `Slide` is a thin container — it holds `elements` (root list) and that's it. `add(element)` just appends and returns it for chaining. Root elements keep `parent = None` (the slide is not itself an `Element`).
+- `Presentation` is a :class:`PresentationTemplate` (see below) plus the list of `Slide`s. It owns the global `width` / `height` (every slide has the same size), publishes them to `config`, and tracks `current_slide` (the most recently created slide, set by `new_slide`). `write(path)` delegates to `TypstRenderer`.
+- `Slide` holds `elements` (root list) plus `title` / `subtitle` references. `add(element)` appends and returns it for chaining. Root elements keep `parent = None` (the slide is not itself an `Element`).
 - Measurement is **independent of slide membership**. An orphan element can call `get_bbox()` and the measurer runs over its own tree (rooted at the topmost ancestor reachable via `parent`). The slide never appears in the measurement path.
+
+### `core/template.py` — `PresentationTemplate`
+
+Base class of `Presentation`: the theme a presentation overrides. Holds the presentation-wide `font`, builds the region `Layout` (`build_layout`), and the optional slide `background` (returns an `Element` or `None`). A concrete theme subclasses `Presentation` and overrides these hooks; the geometry and `config` wiring live in `Presentation`, so the template assumes the slide size is already published when `build_layout` runs.
+
+`build_layout` reads slide-relative geometry from `config` and per-theme knobs from the `config` defaults store (`box.full_with_margins.margins`, `box.content.anchor`), producing named regions: `title`, `footer`, `left_margin`, `right_margin`, `content` (the inner region left after subtracting the four sides), `full`, and `full_with_margins`; `active` starts on `content`.
+
+`add_title(source)` creates a `Text` in the template `font`, records it as `current_slide.title`, and adds it to both the current slide and the `title` region.
 
 ### `core/drawable.py` — `Drawable`
 
@@ -144,9 +153,9 @@ Movement (`move_to`, `shift`) is inherited from `Element`: every fixed descendan
 
 `hidden` lives on `Element` (so it applies to nodes without a body too) and propagates through the parent chain via `Element.get_effective_hidden()`. The renderer applies it at every fixed `#place` block (`_render_placed` wraps the body in `#hide[...]` when an ancestor is hidden), so the flag reaches fixed descendants that have escaped lexical scope.
 
-## Utilities
+## Composition
 
-### `utils/arrange.py` — `arrange`
+### `composition/arrange.py` — `arrange`
 
 `arrange(elements, pos, anchor, *, line_height=False)` stacks elements in a single column, top-to-bottom in list order, with bboxes flush against each other at zero gap. The stack as a whole is anchored at `pos` with mode `anchor`: the union bbox is sized as `(max(widths), sum(heights))` (conceptually) and positioned so its `anchor` point lands at `pos`. The horizontal half of `anchor` picks the alignment of bboxes inside the stack (`*-left` → flush left, `*-center` → centered, `*-right` → flush right); the vertical half picks where `pos.y` sits relative to the stack (`top-*` → top edge, `center-*` → vertical center, `bottom-*` → bottom edge). Each element is moved via `move_to`, which honors that element's own anchor.
 
@@ -154,15 +163,19 @@ Math note: writing out the per-element `pos.x` in terms of the stack's `pos.x`, 
 
 Performance is the reason this helper exists as a single function rather than a couple of inlined lines. Before the positioning loop it identifies which elements will end up needing a real bbox — elements whose horizontal anchor half differs from the stack's (require width) plus elements without an intrinsic height (`Text` under `line_height=False`, or custom subclasses) — and runs `measure_all` over that subset, so the worst case is one Typst subprocess for the whole call. A stack of shape primitives whose anchors all share the stack's horizontal half pays zero subprocesses; a stack of similarly-anchored `Text`s with `line_height=True` pays one subprocess to seed the line-height cache for a given `(font, size)` and zero afterwards.
 
-### `utils/layout.py` — `Region`, `Layout`
+### `composition/layout.py` — `Region`, `Layout`
 
 `Region` is a rectangle (centre, width, height) plus a default `anchor` and `arrange_gap`. It exposes `center`; `left`/`right`/`top`/`bottom` as the midpoint `Vec` of each edge; and `get_anchor_point(anchor)` for the nine anchor points. Slide-relative classmethods (`Region.create_full()`, `create_left(w)`, `create_right(w)`, `create_top(h)`, `create_bottom(h)`, `create_inner(*, left=, right=, top=, bottom=)`) read the slide size from `config` and build regions from it; `create_inner` takes side regions and returns what's left after subtracting each side's extent from the slide. `Region.merge_regions(regions)` is a static helper returning the bounding region of several. `adjust_borders(left=, right=, top=, bottom=)` mutates in place by moving each border outward (positive) or inward (negative); chained setters `set_width`/`set_height`/`set_center`/`set_arrange_gap` follow the same return-self pattern. `grid(template, *, hgap=, vgap=, width_ratios=, height_ratios=)` splits the region and merges cells sharing a label into one sub-`Region` (sub-regions inherit the parent's `anchor` and `arrange_gap`).
 
-Region owns its elements: `add(el)`, `remove(el)`, `replace(old, new)`, `remove_all()` mutate `region.elements`. `region.arrange()` stacks `region.elements` via `utils.arrange.arrange` using the region's own `anchor` and `arrange_gap` (line-height heights for Text). `region.get_bbox_el(**drawable_kw)` returns a `Rectangle` matching this region for debug overlays.
+Region owns its elements: `add(el)`, `remove(el)`, `replace(old, new)`, `remove_all()` mutate `region.elements`. `region.arrange()` stacks `region.elements` via `composition.arrange.arrange` using the region's own `anchor` and `arrange_gap` (line-height heights for Text).
 
-`Layout` is a named container of `Region`s: `Layout(**regions)` stores each kwarg as an attribute, and regions can also be attached afterward (`layout.header = Region.create_top(2.0)`) or via `layout.add(name, region)`. `layout.active` (initially `None`) is set with `set_active(region_or_name)` and serves as the "current region" pointer. `layout.remove_all_elements()` clears every region's `elements`. `layout.get_bbox_el_for_each_region(**drawable_kw)` returns a `Group` containing one `Region.get_bbox_el` per stored region.
+`Layout` is a named container of `Region`s: `Layout()` starts empty; regions are attached with `layout.add(name, region)` (which returns the region) or by direct attribute assignment (`layout.header = Region.create_top(2.0)`). `layout.regions` is the read-only mapping of name to `Region`. `layout.active` (initially `None`) is set with `set_active(region_or_name)` and serves as the "current region" pointer. `layout.remove_all_elements()` clears every region's `elements`.
 
-`config.py` holds the process-global `config` singleton: the slide size (`config.slide_width`/`slide_height`, read by `Region.create_*`, written by `Presentation.__init__` via `config.set_slide_size(width, height)`) and the color palette (`config.colors`, a `Colors` registry). `config.colors.get(name)` returns the hex for a palette name, passes a literal hex string through unchanged, and raises on anything else; `config.colors.set(name, hex)` defines a name.
+### `composition/utils.py` — composition helpers
+
+`layout_to_group(layout, **drawable_kw)` returns a `Group` of one sub-`Group` per region, each holding a `Rectangle` matching the region (with `drawable_kw` forwarded, so the caller picks outline vs. fill) and a `Text` of the region name centred on it.
+
+`config.py` holds the process-global `config` singleton: the slide size (`config.slide_width`/`slide_height`, read by `Region.create_*`, written by `Presentation.__init__` via `config.set_slide_size(width, height)`) and the color palette (`config.colors`, a `Colors` registry). `config.colors.get(name)` returns the hex for a palette name, passes a literal hex string through unchanged, and raises on anything else; `config.colors.set(name, hex)` defines a name. It also holds a flat store of theme defaults keyed by dotted paths — `config.get("box.content.anchor")` / `config.set(key, value)` — which templates read as starting values and may override with their own literals; `get` raises on an undefined key.
 
 ### Why a uniform tree
 
