@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from itertools import cycle
+
 from ..config import config
+from ..elements.group import Group
 from ..elements.text import DEFAULT_FONT, Text
 from ..composition.layout import Layout, Region
+from ..composition.utils import layout_to_group
 from .element import Element
 
 
@@ -40,12 +44,30 @@ class PresentationTemplate:
         """Return the slide background element, or ``None`` for no background."""
         return None
 
+    def draw_layout(
+        self, regions: list[str] | None = None, stroke_width: float = 0.03
+    ) -> Group:
+        """Add a debug overlay of the layout: one coloured outline per region, labelled in its colour. ``regions`` selects which to draw by name; ``None`` draws every region."""
+        colors = ("red", "orange", "yellow", "green", "aqua", "blue", "purple")
+        group = layout_to_group(
+            self.layout, regions, fill_opacity=0, stroke_width=stroke_width
+        )
+        for sub_group, color in zip(group.children, cycle(colors)):
+            rect, label = sub_group.children
+            rect.set_stroke_color(color)
+            label.set_fill_color(color)
+        self.current_slide.add(group)
+        return group
+
     def add_title(self) -> None:
-        """Build the current slide's title and subtitle strings into ``Text`` elements, adding them to the slide and title region."""
+        """
+        Build the current slide's title and subtitle strings into ``Text`` elements,
+        adding them to the slide and title region.
+        """
         slide = self.current_slide
         for text in (slide.title, slide.subtitle):
             if text is None:
                 continue
             el = Text(text, font=self.font)
             slide.add(el)
-            self.layout.title.add(el)
+            self.layout.get("title").add(el)

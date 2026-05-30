@@ -14,21 +14,21 @@ _DEFAULTS: dict[str, object] = {
 }
 
 _DEFAULT_PALETTE: dict[str, str] = {
-    "BLACK": "#2b3339",
-    "DARKEST_GRAY": "#323B41",
-    "DARKER_GRAY": "#3A454A",
-    "DARK_GRAY": "#4C5B6A",
-    "GRAY": "#ADBCC1",
-    "LIGHTER_GRAY": "#D8E2E9",
-    "LIGHTEST_GRAY": "#E5EAF0",
-    "WHITE": "#ECF0F4",
-    "RED": "#C95E61",
-    "ORANGE": "#E69875",
-    "YELLOW": "#DBBC7F",
-    "GREEN": "#689C6E",
-    "AQUA": "#73AD9C",
-    "BLUE": "#6F8AA6",
-    "PURPLE": "#B891B0",
+    "black": "#2b3339",
+    "darkest_gray": "#323B41",
+    "darker_gray": "#3A454A",
+    "dark_gray": "#4C5B6A",
+    "gray": "#ADBCC1",
+    "lighter_gray": "#D8E2E9",
+    "lightest_gray": "#E5EAF0",
+    "white": "#ECF0F4",
+    "red": "#C95E61",
+    "orange": "#E69875",
+    "yellow": "#DBBC7F",
+    "green": "#689C6E",
+    "aqua": "#73AD9C",
+    "blue": "#6F8AA6",
+    "purple": "#B891B0",
 }
 
 
@@ -83,7 +83,7 @@ class Config:
             return self._defaults[key]
         except KeyError:
             defined = ", ".join(sorted(self._defaults))
-            raise KeyError(
+            raise ValueError(
                 f"{key!r} is not a defined config key. Defined keys: {defined}."
             ) from None
 

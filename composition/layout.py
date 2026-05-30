@@ -313,33 +313,35 @@ class Region:
 
 
 class Layout:
-    """A named container of :class:`Region`\\ s, stored as attributes."""
+    """A named container of :class:`Region`\\ s, keyed by name."""
 
     def __init__(self) -> None:
+        self.regions: dict[str, Region] = {}
         self.active: Region | None = None
 
     def add(self, name: str, region: Region) -> Region:
         """Attach ``region`` to this layout under ``name`` and return it."""
-        setattr(self, name, region)
+        self.regions[name] = region
         return region
 
+    def get(self, name: str) -> Region:
+        """Return the region attached under ``name``, or raise with the defined names."""
+        if name not in self.regions:
+            defined = ", ".join(self.regions)
+            raise ValueError(
+                f"{name!r} is not a region in this layout. Defined regions: {defined}."
+            )
+        return self.regions[name]
+
     def set_active(self, region_or_name: Region | str) -> Region:
-        """Set :attr:`active` to ``region_or_name`` (Region or attribute name)."""
+        """Set :attr:`active` to ``region_or_name`` (Region or name)."""
         region = (
-            getattr(self, region_or_name)
+            self.get(region_or_name)
             if isinstance(region_or_name, str)
             else region_or_name
         )
         self.active = region
         return region
-
-    @property
-    def regions(self) -> dict[str, Region]:
-        """Mapping of region name to :class:`Region` for every attached region."""
-        return {
-            n: v for n, v in self.__dict__.items()
-            if n != "active" and isinstance(v, Region)
-        }
 
     def remove_all_elements(self) -> None:
         """Clear :attr:`Region.elements` on every region in this layout."""

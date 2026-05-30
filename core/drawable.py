@@ -37,7 +37,7 @@ class Drawable(Element):
     Parameters
     ----------
     fill_color, stroke_color : str or None, optional
-        A palette name (e.g. ``"RED"``) or a literal hex string; both
+        A palette name (e.g. ``"red"``) or a literal hex string; both
         are resolved to hex via ``config.colors`` and stored as hex.
         Default ``None`` → resolved to ``"black"`` at render time.
     fill_opacity : float or None, optional
