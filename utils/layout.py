@@ -1,137 +1,367 @@
 from __future__ import annotations
 
-from ..core.element import Anchor, Element, anchor_offsets, measure_all
+from typing import TYPE_CHECKING
+
+import numpy as np
+
+from ..config import config
+from ..core.element import Anchor, Element, anchor_offsets
 from ..core.vec import Vec, VecLike
-from ..elements.shapes import Circle, Ellipse, Rectangle
-from ..elements.text import Text
+from .arrange import arrange as _arrange_elements
+
+if TYPE_CHECKING:
+    from ..elements.group import Group
+    from ..elements.shapes import Rectangle
 
 
-def arrange(
-    elements: list[Element],
-    pos: VecLike,
-    anchor: Anchor,
-    *,
-    gap: float = 0.0,
-    line_height: bool = False,
-) -> None:
-    """Stack ``elements`` in a single column with optional gap.
-
-    The stack as a whole is anchored at ``pos`` with mode ``anchor``:
-    the union bbox is positioned so that its ``anchor`` point lands at
-    ``pos``. Elements are laid out in list order, top to bottom.
-
-    Horizontal alignment within the stack is driven by the horizontal
-    half of ``anchor``:
-
-    - ``"*-left"``   — all bboxes share the same left ``x`` (= ``pos.x``).
-    - ``"*-center"`` — all bboxes share the same center ``x``.
-    - ``"*-right"``  — all bboxes share the same right ``x``.
-
-    The vertical half decides where ``pos.y`` sits in the stack
-    (slide coords are y-up, so the list's first element is at the
-    larger y):
-
-    - ``"top-*"``    — ``pos.y`` is the stack's top edge.
-    - ``"center-*"`` — ``pos.y`` is the stack's vertical center.
-    - ``"bottom-*"`` — ``pos.y`` is the stack's bottom edge.
-
-    Each element is placed via :meth:`Element.move_to`, which honors
-    that element's own anchor.
+class Region:
+    """A rectangle with placement helpers.
 
     Parameters
     ----------
-    elements : list[Element]
-        Elements to stack, in top-to-bottom order.
-    pos : VecLike
-        Slide coordinate (in cm) at which the stack is anchored.
-    anchor : Anchor
-        Anchor mode for the stack as a whole. One of ``"top-left"``,
-        ``"top-center"``, ``"top-right"``, ``"center-left"``,
-        ``"center"``, ``"center-right"``, ``"bottom-left"``,
-        ``"bottom-center"``, ``"bottom-right"``.
-    gap : float, optional
-        Vertical space (in cm) inserted between consecutive bboxes.
-        Defaults to ``0`` (bboxes touch). Counts towards the stack's
-        total height for anchoring purposes.
-    line_height : bool, optional
-        When ``True``, :class:`~mate.elements.text.Text` heights come
-        from the font-determined line slot (see
-        :meth:`Text.get_line_height`) instead of the bbox height. The
-        slot is cached per ``(font, size)`` so a stack of N homogeneous
-        texts spends one measurement total for height. Non-Text
-        elements still use :meth:`Element.get_height`.
-
-    Performance
-    -----------
-    Heights are always required for every element to size the stack.
-    Width measurements are skipped for any element whose anchor shares
-    the same horizontal half as ``anchor`` (e.g. ``"top-left"``
-    elements in a ``"top-left"`` stack, ``"center-right"`` elements in
-    a ``"bottom-right"`` stack). Intrinsic-size primitives
-    (:class:`Rectangle`, :class:`Circle`, :class:`Ellipse`) and
-    :class:`Text` under ``line_height=True`` never trigger a
-    measurement. Any element that genuinely needs a measured bbox is
-    collected and passed to :func:`measure_all` in a single batched
-    pass, so the whole call spends at most one Typst subprocess
-    regardless of N.
-
-    Elements are mutated in place via :meth:`Element.move_to`, which
-    forces ``placement="fixed"`` and preserves each element's anchor.
+    center : VecLike
+    width, height : float
+    anchor : Anchor, optional
+        Default anchor for :meth:`arrange`, inherited by sub-regions of
+        :meth:`grid`. Defaults to ``"top-left"``.
+    arrange_gap : float, optional
+        Default vertical gap for :meth:`arrange`. Defaults to ``0``.
     """
-    if not elements:
-        return
 
-    anchor_pos = Vec(pos)
-    stack_h_mul, stack_v_mul = anchor_offsets(anchor)
+    def __init__(
+        self,
+        center: VecLike,
+        width: float,
+        height: float,
+        *,
+        anchor: Anchor = "top-left",
+        arrange_gap: float = 0.0,
+    ) -> None:
+        self._center: Vec = Vec(center)
+        self._width: float = float(width)
+        self._height: float = float(height)
+        self._anchor: Anchor = anchor
+        self._arrange_gap: float = float(arrange_gap)
+        self.elements: list[Element] = []
 
-    pending = [el for el in elements if _needs_bbox(el, line_height, stack_h_mul)]
-    if pending:
-        measure_all(pending)
+    @classmethod
+    def from_vertices(
+        cls,
+        top_left: VecLike,
+        bottom_right: VecLike,
+        **kw,
+    ) -> Region:
+        tl = Vec(top_left)
+        br = Vec(bottom_right)
+        return cls(
+            ((tl.x + br.x) / 2, (tl.y + br.y) / 2),
+            br.x - tl.x,
+            tl.y - br.y,
+            **kw,
+        )
 
-    heights = [_height(el, line_height) for el in elements]
-    total_h = sum(heights) + gap * (len(elements) - 1)
+    @classmethod
+    def create_full(cls, **kw) -> Region:
+        """Region covering the whole slide."""
+        return cls((0.0, 0.0), config.slide_width, config.slide_height, **kw)
 
-    x0 = anchor_pos.x
-    # Slide coords are y-up: list order is top-to-bottom, so the cursor
-    # starts at the stack's top edge and decreases by each element's
-    # height (plus gap). Top edge = anchor_pos.y + (1 - v_mul) * total_h.
-    y_cursor = anchor_pos.y + (1.0 - stack_v_mul) * total_h
+    @classmethod
+    def create_left(cls, width: float, **kw) -> Region:
+        """Full-height column flush with the slide's left edge."""
+        cx = -config.slide_width / 2 + width / 2
+        return cls((cx, 0.0), width, config.slide_height, **kw)
 
-    for el, h in zip(elements, heights):
-        h_mul, v_mul = anchor_offsets(el.anchor)
-        if h_mul == stack_h_mul:
-            pos_x = x0
-        else:
-            pos_x = x0 + (h_mul - stack_h_mul) * el.get_width()
-        # bbox.bottom = y_cursor - h; pos_y = bbox.bottom + v_mul * h.
-        pos_y = y_cursor - (1.0 - v_mul) * h
-        el.move_to((pos_x, pos_y))
-        y_cursor -= h + gap
+    @classmethod
+    def create_right(cls, width: float, **kw) -> Region:
+        """Full-height column flush with the slide's right edge."""
+        cx = config.slide_width / 2 - width / 2
+        return cls((cx, 0.0), width, config.slide_height, **kw)
+
+    @classmethod
+    def create_top(cls, height: float, **kw) -> Region:
+        """Full-width band flush with the slide's top edge."""
+        cy = config.slide_height / 2 - height / 2
+        return cls((0.0, cy), config.slide_width, height, **kw)
+
+    @classmethod
+    def create_bottom(cls, height: float, **kw) -> Region:
+        """Full-width band flush with the slide's bottom edge."""
+        cy = -config.slide_height / 2 + height / 2
+        return cls((0.0, cy), config.slide_width, height, **kw)
+
+    @classmethod
+    def create_inner(
+        cls,
+        *,
+        left: Region | None = None,
+        right: Region | None = None,
+        top: Region | None = None,
+        bottom: Region | None = None,
+        **kw,
+    ) -> Region:
+        """Region covering what's left of the slide after subtracting the given side regions."""
+        half_w = config.slide_width / 2
+        half_h = config.slide_height / 2
+        lg = (left.right.x + half_w) if left else 0.0
+        rg = (half_w - right.left.x) if right else 0.0
+        tg = (half_h - top.bottom.y) if top else 0.0
+        bg = (bottom.top.y + half_h) if bottom else 0.0
+
+        region = cls.create_full(**kw)
+        region.adjust_borders(left=-lg, right=-rg, top=-tg, bottom=-bg)
+        return region
+
+    @property
+    def center(self) -> Vec:
+        return self._center
+
+    @property
+    def width(self) -> float:
+        return self._width
+
+    @property
+    def height(self) -> float:
+        return self._height
+
+    @property
+    def anchor(self) -> Anchor:
+        return self._anchor
+
+    @property
+    def arrange_gap(self) -> float:
+        return self._arrange_gap
+
+    @property
+    def left(self) -> Vec:
+        """Midpoint of the left edge."""
+        return Vec(self._center.x - self._width / 2, self._center.y)
+
+    @property
+    def right(self) -> Vec:
+        """Midpoint of the right edge."""
+        return Vec(self._center.x + self._width / 2, self._center.y)
+
+    @property
+    def top(self) -> Vec:
+        """Midpoint of the top edge."""
+        return Vec(self._center.x, self._center.y + self._height / 2)
+
+    @property
+    def bottom(self) -> Vec:
+        """Midpoint of the bottom edge."""
+        return Vec(self._center.x, self._center.y - self._height / 2)
+
+    def get_anchor_point(self, anchor: Anchor) -> Vec:
+        """Return the position of the given anchor on this region."""
+        h_mul, v_mul = anchor_offsets(anchor)
+        left_x = self._center.x - self._width / 2
+        bottom_y = self._center.y - self._height / 2
+        return Vec(left_x + h_mul * self._width, bottom_y + v_mul * self._height)
+
+    def set_width(self, value: float) -> Region:
+        self._width = float(value)
+        return self
+
+    def set_height(self, value: float) -> Region:
+        self._height = float(value)
+        return self
+
+    def set_center(self, value: VecLike) -> Region:
+        self._center = Vec(value)
+        return self
+
+    def set_arrange_gap(self, value: float) -> Region:
+        self._arrange_gap = float(value)
+        return self
+
+    @staticmethod
+    def merge_regions(regions: list[Region]) -> Region:
+        """Return a region whose bbox encloses every region in ``regions``."""
+        lefts = [r.left.x for r in regions]
+        rights = [r.right.x for r in regions]
+        tops = [r.top.y for r in regions]
+        bottoms = [r.bottom.y for r in regions]
+        l, r = min(lefts), max(rights)
+        b, t = min(bottoms), max(tops)
+        return Region(((l + r) / 2, (t + b) / 2), r - l, t - b)
+
+    def adjust_borders(
+        self,
+        *,
+        left: float = 0.0,
+        right: float = 0.0,
+        top: float = 0.0,
+        bottom: float = 0.0,
+    ) -> Region:
+        """Move each border outward (positive) or inward (negative), in place.
+
+        Each kwarg is the signed displacement of the corresponding edge
+        along its outward normal. ``left=+1`` pushes the left border 1
+        unit further left (the region grows); ``left=-1`` brings it
+        inward (the region shrinks). Returns ``self`` for chaining.
+        """
+        self._width = self._width + left + right
+        self._height = self._height + top + bottom
+        self._center = Vec(
+            self._center.x + (right - left) / 2,
+            self._center.y + (top - bottom) / 2,
+        )
+        return self
+
+    def grid(
+        self,
+        template: list[list[str]] | np.ndarray,
+        *,
+        hgap: float = 0.0,
+        vgap: float = 0.0,
+        width_ratios: list[float] | None = None,
+        height_ratios: list[float] | None = None,
+    ) -> dict[str, Region]:
+        """Split into a grid; cells sharing a label merge into one region.
+
+        ``template`` is a ``rows × cols`` array of labels with row 0 on
+        top. Each unique label produces one :class:`Region` covering the
+        bounding box of its cells (non-contiguous labels yield the
+        enclosing box). ``width_ratios`` and ``height_ratios`` set
+        relative cell sizes and default to uniform. Output regions
+        inherit ``anchor`` and ``arrange_gap`` from this region.
+
+        Example
+        -------
+        A header spanning two columns over a left/right body::
+
+            region.grid([["head", "head"],
+                         ["left", "right"]],
+                        vgap=0.3, height_ratios=[1, 3])
+            # -> {"head": Region(...), "left": Region(...), "right": Region(...)}
+        """
+        grid = np.asarray(template)
+        if grid.ndim != 2:
+            raise ValueError(f"grid template must be 2D, got shape {grid.shape}")
+        nrows, ncols = grid.shape
+
+        wr = (
+            np.full(ncols, 1.0 / ncols)
+            if width_ratios is None
+            else np.asarray(width_ratios, dtype=float) / float(np.sum(width_ratios))
+        )
+        hr = (
+            np.full(nrows, 1.0 / nrows)
+            if height_ratios is None
+            else np.asarray(height_ratios, dtype=float) / float(np.sum(height_ratios))
+        )
+
+        cell_w = wr * (self._width - hgap * (ncols - 1))
+        cell_h = hr * (self._height - vgap * (nrows - 1))
+
+        left_edges = np.empty(ncols)
+        x = self._center.x - self._width / 2
+        for j, w in enumerate(cell_w):
+            left_edges[j] = x
+            x += w + hgap
+        top_edges = np.empty(nrows)
+        y = self._center.y + self._height / 2
+        for i, h in enumerate(cell_h):
+            top_edges[i] = y
+            y -= h + vgap
+
+        out: dict[str, Region] = {}
+        for label in np.unique(grid):
+            rows, cols = np.where(grid == label)
+            cmin, cmax = int(cols.min()), int(cols.max())
+            rmin, rmax = int(rows.min()), int(rows.max())
+            l = left_edges[cmin]
+            r = left_edges[cmax] + cell_w[cmax]
+            t = top_edges[rmin]
+            b = top_edges[rmax] - cell_h[rmax]
+            out[str(label)] = Region(
+                ((l + r) / 2, (t + b) / 2),
+                r - l,
+                t - b,
+                anchor=self._anchor,
+                arrange_gap=self._arrange_gap,
+            )
+        return out
+
+    def add(self, element: Element) -> Element:
+        """Append ``element`` to :attr:`elements` and return it."""
+        self.elements.append(element)
+        return element
+
+    def remove(self, element: Element) -> None:
+        """Remove ``element`` from :attr:`elements`."""
+        self.elements.remove(element)
+
+    def replace(self, old: Element, new: Element) -> None:
+        """Replace ``old`` with ``new`` in :attr:`elements`, preserving order."""
+        self.elements[self.elements.index(old)] = new
+
+    def remove_all(self) -> None:
+        """Empty :attr:`elements`."""
+        self.elements.clear()
+
+    def arrange(self) -> None:
+        """Stack :attr:`elements` inside this region using :attr:`anchor` and :attr:`arrange_gap`."""
+        _arrange_elements(
+            self.elements,
+            pos=self.get_anchor_point(self._anchor),
+            anchor=self._anchor,
+            gap=self._arrange_gap,
+            line_height=True,
+        )
+
+    def get_bbox_el(self, **drawable_kw) -> "Rectangle":
+        """Return a :class:`Rectangle` matching this region (debug overlay)."""
+        from ..elements.shapes import Rectangle
+        return Rectangle(self._width, self._height, **drawable_kw).move_to(self._center)
+
+    def __repr__(self) -> str:
+        return (
+            f"Region(center={self._center!r}, width={self._width:.4g}, "
+            f"height={self._height:.4g}, anchor={self._anchor!r}, "
+            f"arrange_gap={self._arrange_gap:.4g})"
+        )
 
 
-_INTRINSIC_SIZE = (Rectangle, Circle, Ellipse)
+class Layout:
+    """A named container of :class:`Region`\\ s, stored as attributes."""
 
+    def __init__(self, **regions: Region) -> None:
+        self.active: Region | None = None
+        for name, region in regions.items():
+            setattr(self, name, region)
 
-def _needs_bbox(el: Element, line_height: bool, stack_h_mul: float) -> bool:
-    """``True`` if ``arrange`` will end up reading a measured bbox for ``el``.
+    def add(self, name: str, region: Region) -> Region:
+        """Attach ``region`` to this layout under ``name`` and return it."""
+        setattr(self, name, region)
+        return region
 
-    The positioning loop reads ``get_width`` only for elements whose
-    horizontal anchor half differs from the stack's, and ``get_height``
-    for every element. Intrinsic-size shapes report both dimensions
-    without measuring; :class:`Text` under ``line_height=True`` reports
-    height from the cached line slot but still needs measurement for
-    width.
-    """
-    if isinstance(el, _INTRINSIC_SIZE):
-        return False
-    needs_w = anchor_offsets(el.anchor)[0] != stack_h_mul
-    if isinstance(el, Text) and line_height:
-        return needs_w
-    return True
+    def set_active(self, region_or_name: Region | str) -> Region:
+        """Set :attr:`active` to ``region_or_name`` (Region or attribute name)."""
+        region = (
+            getattr(self, region_or_name)
+            if isinstance(region_or_name, str)
+            else region_or_name
+        )
+        self.active = region
+        return region
 
+    def _regions(self) -> dict[str, Region]:
+        return {
+            n: v for n, v in self.__dict__.items()
+            if n != "active" and isinstance(v, Region)
+        }
 
-def _height(el: Element, line_height: bool) -> float:
-    """Return the stacking height of ``el`` under the current mode."""
-    if line_height and isinstance(el, Text):
-        return el.get_line_height()
-    return el.get_height()
+    def remove_all_elements(self) -> None:
+        """Clear :attr:`Region.elements` on every region in this layout."""
+        for region in self._regions().values():
+            region.remove_all()
+
+    def get_bbox_el_for_each_region(self, **drawable_kw) -> "Group":
+        """Return a :class:`Group` of one :meth:`Region.get_bbox_el` per region in this layout."""
+        from ..elements.group import Group
+        return Group([r.get_bbox_el(**drawable_kw) for r in self._regions().values()])
+
+    def __repr__(self) -> str:
+        body = ", ".join(f"{k}={v!r}" for k, v in self._regions().items())
+        return f"Layout({body})"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..config import config
 from .element import Anchor, Element, Placement
 from .registry import IDKey
 from .vec import VecLike
@@ -10,10 +11,12 @@ class Drawable(Element):
 
     Adds four optional visual properties on top of :class:`Element`:
 
-    - ``fill_color``    — Typst color string for the fill. Renders as
-      ``"black"`` when ``None``.
-    - ``stroke_color``  — Typst color string for the stroke. Renders as
-      ``"black"`` when ``None`` (irrelevant when ``stroke_width == 0``).
+    - ``fill_color``    — hex string for the fill, resolved from a
+      palette name or literal hex via ``config.colors`` at construction
+      and on ``set_fill_color``. Renders as ``"black"`` when ``None``.
+    - ``stroke_color``  — hex string for the stroke, resolved the same
+      way. Renders as ``"black"`` when ``None`` (irrelevant when
+      ``stroke_width == 0``).
     - ``fill_opacity``  — Float in ``[0, 1]``. Renders as ``1`` when
       ``None``. Setting ``0`` is the conventional way to ask for "no
       fill" (the renderer emits ``fill: none`` for shapes).
@@ -34,7 +37,8 @@ class Drawable(Element):
     Parameters
     ----------
     fill_color, stroke_color : str or None, optional
-        Backend-specific color strings (e.g. Typst's ``"red"``).
+        A palette name (e.g. ``"RED"``) or a literal hex string; both
+        are resolved to hex via ``config.colors`` and stored as hex.
         Default ``None`` → resolved to ``"black"`` at render time.
     fill_opacity : float or None, optional
         Default ``None`` → ``1``. Set to ``0`` for no fill.
@@ -57,17 +61,17 @@ class Drawable(Element):
         stroke_width: float | None = None,
     ) -> None:
         super().__init__(pos=pos, anchor=anchor, placement=placement, id=id)
-        self.fill_color: str | None = fill_color
-        self.stroke_color: str | None = stroke_color
+        self.fill_color: str | None = config.colors.get(fill_color) if fill_color is not None else None
+        self.stroke_color: str | None = config.colors.get(stroke_color) if stroke_color is not None else None
         self.fill_opacity: float | None = fill_opacity
         self.stroke_width: float | None = stroke_width
 
     def get_fill_color(self) -> str | None:
-        """Return the stored ``fill_color`` (``None`` resolves to ``"black"`` at render time)."""
+        """Return the stored ``fill_color`` as hex (``None`` resolves to ``"black"`` at render time)."""
         return self.fill_color
 
     def get_stroke_color(self) -> str | None:
-        """Return the stored ``stroke_color`` (``None`` resolves to ``"black"`` at render time)."""
+        """Return the stored ``stroke_color`` as hex (``None`` resolves to ``"black"`` at render time)."""
         return self.stroke_color
 
     def get_fill_opacity(self) -> float | None:
@@ -80,12 +84,12 @@ class Drawable(Element):
 
     def set_fill_color(self, color: str | None, propagate: bool = True) -> Drawable:
         """Set ``fill_color``; with ``propagate=True`` (default) also rewrites every Drawable descendant."""
-        self._set_field("fill_color", color, propagate)
+        self._set_field("fill_color", config.colors.get(color) if color is not None else None, propagate)
         return self
 
     def set_stroke_color(self, color: str | None, propagate: bool = True) -> Drawable:
         """Set ``stroke_color``; with ``propagate=True`` (default) also rewrites every Drawable descendant."""
-        self._set_field("stroke_color", color, propagate)
+        self._set_field("stroke_color", config.colors.get(color) if color is not None else None, propagate)
         return self
 
     def set_fill_opacity(self, opacity: float | None, propagate: bool = True) -> Drawable:

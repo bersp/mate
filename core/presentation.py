@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..backends.typst import TypstRenderer
+from ..config import config
 from .element import Element
 
 
@@ -42,6 +43,7 @@ class Presentation:
         self.width: float = width
         self.height: float = height
         self.slides: list[Slide] = []
+        config.set_slide_size(width, height)
 
     def new_slide(self) -> Slide:
         """Create, attach, and return a fresh empty slide."""

@@ -14,6 +14,7 @@ A Python-driven presentation tool.
 ```
 mate/
 ├── __init__.py        # public re-exports
+├── config.py          # process-global `config` singleton (slide size, color palette)
 ├── demo.py            # usage example
 ├── pyproject.toml
 ├── core/              # primitives and central abstractions
@@ -27,6 +28,7 @@ mate/
 ├── backends/          # backend-specific renderers/measurers
 │   └── typst.py
 ├── utils/             # layout helpers built on top of the core model
+│   ├── arrange.py
 │   └── layout.py
 └── .cache/            # regenerated artifacts (measurement); safe to delete
 ```
@@ -144,13 +146,23 @@ Movement (`move_to`, `shift`) is inherited from `Element`: every fixed descendan
 
 ## Utilities
 
-### `utils/layout.py` — `arrange`
+### `utils/arrange.py` — `arrange`
 
 `arrange(elements, pos, anchor, *, line_height=False)` stacks elements in a single column, top-to-bottom in list order, with bboxes flush against each other at zero gap. The stack as a whole is anchored at `pos` with mode `anchor`: the union bbox is sized as `(max(widths), sum(heights))` (conceptually) and positioned so its `anchor` point lands at `pos`. The horizontal half of `anchor` picks the alignment of bboxes inside the stack (`*-left` → flush left, `*-center` → centered, `*-right` → flush right); the vertical half picks where `pos.y` sits relative to the stack (`top-*` → top edge, `center-*` → vertical center, `bottom-*` → bottom edge). Each element is moved via `move_to`, which honors that element's own anchor.
 
 Math note: writing out the per-element `pos.x` in terms of the stack's `pos.x`, the stack's `h_mul`, the element's own `h_mul`, and its width, the stack's `total_width` cancels — only the element's own width is needed. So `arrange` never computes `max(widths)` and only reads `get_width()` for elements whose horizontal anchor half differs from the stack's.
 
 Performance is the reason this helper exists as a single function rather than a couple of inlined lines. Before the positioning loop it identifies which elements will end up needing a real bbox — elements whose horizontal anchor half differs from the stack's (require width) plus elements without an intrinsic height (`Text` under `line_height=False`, or custom subclasses) — and runs `measure_all` over that subset, so the worst case is one Typst subprocess for the whole call. A stack of shape primitives whose anchors all share the stack's horizontal half pays zero subprocesses; a stack of similarly-anchored `Text`s with `line_height=True` pays one subprocess to seed the line-height cache for a given `(font, size)` and zero afterwards.
+
+### `utils/layout.py` — `Region`, `Layout`
+
+`Region` is a rectangle (centre, width, height) plus a default `anchor` and `arrange_gap`. It exposes `center`; `left`/`right`/`top`/`bottom` as the midpoint `Vec` of each edge; and `get_anchor_point(anchor)` for the nine anchor points. Slide-relative classmethods (`Region.create_full()`, `create_left(w)`, `create_right(w)`, `create_top(h)`, `create_bottom(h)`, `create_inner(*, left=, right=, top=, bottom=)`) read the slide size from `config` and build regions from it; `create_inner` takes side regions and returns what's left after subtracting each side's extent from the slide. `Region.merge_regions(regions)` is a static helper returning the bounding region of several. `adjust_borders(left=, right=, top=, bottom=)` mutates in place by moving each border outward (positive) or inward (negative); chained setters `set_width`/`set_height`/`set_center`/`set_arrange_gap` follow the same return-self pattern. `grid(template, *, hgap=, vgap=, width_ratios=, height_ratios=)` splits the region and merges cells sharing a label into one sub-`Region` (sub-regions inherit the parent's `anchor` and `arrange_gap`).
+
+Region owns its elements: `add(el)`, `remove(el)`, `replace(old, new)`, `remove_all()` mutate `region.elements`. `region.arrange()` stacks `region.elements` via `utils.arrange.arrange` using the region's own `anchor` and `arrange_gap` (line-height heights for Text). `region.get_bbox_el(**drawable_kw)` returns a `Rectangle` matching this region for debug overlays.
+
+`Layout` is a named container of `Region`s: `Layout(**regions)` stores each kwarg as an attribute, and regions can also be attached afterward (`layout.header = Region.create_top(2.0)`) or via `layout.add(name, region)`. `layout.active` (initially `None`) is set with `set_active(region_or_name)` and serves as the "current region" pointer. `layout.remove_all_elements()` clears every region's `elements`. `layout.get_bbox_el_for_each_region(**drawable_kw)` returns a `Group` containing one `Region.get_bbox_el` per stored region.
+
+`config.py` holds the process-global `config` singleton: the slide size (`config.slide_width`/`slide_height`, read by `Region.create_*`, written by `Presentation.__init__` via `config.set_slide_size(width, height)`) and the color palette (`config.colors`, a `Colors` registry). `config.colors.get(name)` returns the hex for a palette name, passes a literal hex string through unchanged, and raises on anything else; `config.colors.set(name, hex)` defines a name.
 
 ### Why a uniform tree
 

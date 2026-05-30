@@ -73,7 +73,7 @@ def _typst_fill(color: str | None, opacity: float | None) -> str:
     op = 1.0 if opacity is None else opacity
     if op == 0:
         return "none"
-    c = color if color is not None else _DEFAULT_FILL_COLOR
+    c = f'rgb("{color}")' if color is not None else _DEFAULT_FILL_COLOR
     if op == 1:
         return c
     return f"{c}.transparentize({(1.0 - op) * 100}%)"
@@ -89,7 +89,7 @@ def _typst_stroke(color: str | None, width: float | None) -> str:
     w = 0.0 if width is None else width
     if w == 0:
         return "none"
-    c = color if color is not None else _DEFAULT_STROKE_COLOR
+    c = f'rgb("{color}")' if color is not None else _DEFAULT_STROKE_COLOR
     return f"{w}cm + {c}"
 
 
