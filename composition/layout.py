@@ -301,7 +301,6 @@ class Region:
             pos=self.get_anchor_point(self._anchor),
             anchor=self._anchor,
             gap=self._arrange_gap,
-            line_height=True,
         )
 
     def __repr__(self) -> str:

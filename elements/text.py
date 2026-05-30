@@ -14,28 +14,6 @@ _ID_RE = re.compile(r"\(id=([^)]+)\)")
 DEFAULT_FONT: str = "libertinus serif"
 DEFAULT_SIZE_PT: float = 11.0
 
-# Reference glyphs used to probe the line slot of a (font, size): includes
-# ascenders and descenders so the measured height covers the full em box.
-_LINE_HEIGHT_PROBE = "Ágjpqy"
-_line_height_cache: dict[tuple[str, float], float] = {}
-
-
-def _measure_line_height(font: str, size_pt: float) -> float:
-    """Return the line slot height in cm for ``(font, size_pt)``, cached.
-
-    Cache miss runs one Typst measurement on a reference string with
-    full-height glyphs; the result is stored under ``(font, size_pt)``
-    and reused on every subsequent call.
-    """
-    key = (font, size_pt)
-    cached = _line_height_cache.get(key)
-    if cached is not None:
-        return cached
-    probe = Text(_LINE_HEIGHT_PROBE, font=font, size=size_pt)
-    h = probe.get_bbox()[3]
-    _line_height_cache[key] = h
-    return h
-
 
 class Text(Drawable):
     """Textual element: either a leaf with ``content`` or a tree of ``Text``.
@@ -166,32 +144,6 @@ class Text(Drawable):
         self._set_field("size", size, propagate)
         self._invalidate_tree()
         return self
-
-    def get_line_height(self) -> float:
-        """Return the typographic line slot height in cm for this node's font/size.
-
-        Independent of the node's content: same value for ``Text("abc")``
-        and ``Text("Ágjpqy")`` as long as ``font`` and ``size`` match.
-        Cached by ``(font, size)`` at module level — the first call for a
-        given config triggers a single Typst measurement; subsequent
-        calls are lookups.
-        """
-        return _measure_line_height(self.font, self.size)
-
-    def get_height(self, line: bool = False) -> float:
-        """Return this Text's height in cm.
-
-        Parameters
-        ----------
-        line : bool, optional
-            When ``True``, return the font-determined line slot height
-            (see :meth:`get_line_height`) instead of the content bbox
-            height. Useful for stacking text elements at uniform spacing
-            regardless of which glyphs appear.
-        """
-        if line:
-            return self.get_line_height()
-        return super().get_height()
 
     def _copy(self, mapping: dict[int, Element]) -> Text:
         # Only the `subs` cross-references need fixing up: ``content`` and
