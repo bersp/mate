@@ -254,6 +254,26 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content)
 
 
+def needs_inline_x(elements: list[Element]) -> bool:
+    """Return whether any of ``elements`` needs the inline-``x`` probe pass.
+
+    A fixed element's bbox is a function of its stored position and
+    isolated size, so the cheap size pass places it. An inline
+    element's ``bbox.x`` is the flowed cursor position, recovered only
+    by the probe pass. A :class:`Group` inherits the need from any of
+    its members. Used to pick the measurement tier for a given request.
+    """
+
+    def needs(el: Element) -> bool:
+        if el.placement == "inline":
+            return True
+        if isinstance(el, Group):
+            return any(needs(c) for c in el.children if c.placement != "omitted")
+        return False
+
+    return any(needs(el) for el in elements)
+
+
 class TypstRenderer:
     """Backend writer that emits the final Typst source for compilation.
 
@@ -330,11 +350,12 @@ class TypstMeasurer:
     :class:`Presentation`: it is a pure function of the element tree
     rooted at each entry of ``roots``. Generates an auxiliary ``.typ``
     (at ``.cache/measure.typ`` by default) and runs ``typst query`` on
-    it. The auxiliary document contains two complementary regions,
-    both labeled ``<bbox>``:
+    it. The auxiliary document contains up to two regions, both
+    labeled ``<bbox>``:
 
     1. A ``#context [...]`` block with one ``#metadata((id, w, h))``
-       per element, used to recover the *isolated* size of each.
+       per element, used to recover the *isolated* size of each. Always
+       emitted; sufficient to place every fixed element.
     2. The same ``#place`` tree the renderer would emit (with
        ``canvas=None``, so no centring or y-flip is applied), with
        ``here().position()`` probes injected before every inline
@@ -346,7 +367,9 @@ class TypstMeasurer:
        ``ancestor_top_y - h`` (the bottom edge under the convention
        that the inline body's top sits at the line top of the nearest
        fixed ancestor). Typst's ``here().y`` returns the cursor
-       baseline rather than the line top, so it cannot be used.
+       baseline rather than the line top, so it cannot be used. This
+       region — the costly part — is emitted only when the request
+       needs an inline element's flowed position (``with_inline_x``).
 
     A single ``typst query`` call returns both kinds of records; we
     tell them apart by which keys are present (``w``/``h`` vs ``x``).
@@ -389,14 +412,23 @@ class TypstMeasurer:
         self.sizes: dict[int, tuple[float, float]] = {}
         self.xs: dict[int, float] = {}
 
-    def measure(self) -> None:
-        """Run a full measurement pass and assign ``_bbox`` on every element.
+    def measure(self, with_inline_x: bool = True) -> None:
+        """Run a measurement pass and assign ``_bbox`` on the reachable tree.
+
+        The size records (region 1) are always emitted; they suffice to
+        place every fixed element. The ``#place`` tree with inline
+        ``x`` probes (region 2) is emitted only when ``with_inline_x``
+        is set — it is the expensive part and is needed solely to give
+        inline elements their flowed bbox. When it is skipped, inline
+        nodes (and any :class:`Group` whose union depends on one) are
+        left with ``_bbox = None`` so the next :meth:`get_bbox` re-runs
+        with probes.
 
         Steps
         -----
         1. Walk every root and collect descendants into ``self.elements``.
-        2. Emit the auxiliary ``.typ`` (size queries + fixed tree with
-           inline ``x`` probes).
+        2. Emit the auxiliary ``.typ`` (size queries, plus the probe
+           tree when ``with_inline_x``).
         3. Run ``typst query`` and split the output into ``sizes`` /
            ``xs``.
         4. Walk every root again to assign each element's bbox,
@@ -424,12 +456,13 @@ class TypstMeasurer:
                 f"h: measure({c}).height/1cm))<bbox>"
             )
         lines.append("]")
-        # Mirror the real render so `here().position()` probes see the
-        # actual layout flow; fixed roots become `#place` blocks.
-        for el in self.roots:
-            if el.placement != "fixed":
-                continue
-            lines.extend(_render_placed(el, self._render_node))
+        if with_inline_x:
+            # Mirror the real render so `here().position()` probes see the
+            # actual layout flow; fixed roots become `#place` blocks.
+            for el in self.roots:
+                if el.placement != "fixed":
+                    continue
+                lines.extend(_render_placed(el, self._render_node))
         _write(self.path, "\n".join(lines) + "\n")
 
         # Demux the records by which keys they carry. Size and x
@@ -556,6 +589,12 @@ class TypstMeasurer:
         :class:`Group` is special: its bbox is computed *after* the
         children are assigned, as the union of their bboxes; its own
         ``_pos`` has no rendered body to anchor.
+
+        A sizes-only pass (no inline ``x`` records) cannot place inline
+        elements: such a node is left with ``_bbox = None``, and a
+        :class:`Group` whose union would include one is left ``None``
+        too rather than caching a partial union. The next
+        :meth:`get_bbox` then re-measures with probes.
         """
         w, h = self.sizes.get(el._mid, (0.0, 0.0))
         if el.placement == "fixed":
@@ -572,12 +611,11 @@ class TypstMeasurer:
                 continue
             self._assign(c, child_top_y)
         if isinstance(el, Group):
-            boxes = [
-                c._bbox
-                for c in el.children
-                if c.placement != "omitted" and c._bbox is not None
-            ]
-            if boxes:
+            members = [c for c in el.children if c.placement != "omitted"]
+            if not members:
+                el._bbox = (cx, cy, 0.0, 0.0)
+            elif all(c._bbox is not None for c in members):
+                boxes = [c._bbox for c in members]
                 lefts = [b[0] - b[2] / 2 for b in boxes]
                 rights = [b[0] + b[2] / 2 for b in boxes]
                 bottoms = [b[1] - b[3] / 2 for b in boxes]
@@ -590,7 +628,5 @@ class TypstMeasurer:
                     right - left,
                     top - bottom,
                 )
-            else:
-                el._bbox = (cx, cy, 0.0, 0.0)
-        else:
+        elif el.placement == "fixed" or el._mid in self.xs:
             el._bbox = (cx, cy, w, h)

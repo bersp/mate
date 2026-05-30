@@ -54,26 +54,33 @@ def anchor_offsets(anchor: Anchor) -> tuple[float, float]:
 
 
 def measure_all(elements: Iterable[Element]) -> None:
-    """Fill ``_bbox`` for every element in a single Typst measurement pass.
+    """Fill ``_bbox`` for the given elements in a single Typst measurement pass.
 
     Groups the elements by tree root, dedupes, and runs one
     :class:`~mate.backends.typst.TypstMeasurer` over the unique roots.
     After this call, ``get_bbox`` / ``get_width`` / ``get_height`` on
-    any of the given elements (or their descendants) are cache hits
-    until the next geometric mutation.
+    any of the given elements are cache hits until the next geometric
+    mutation.
+
+    The pass measures inline cursor positions only when one of
+    ``elements`` actually needs them (see
+    :func:`~mate.backends.typst.needs_inline_x`); a request for fixed
+    elements alone runs the cheaper size-only pass, leaving inline
+    descendants to be measured on demand.
 
     Useful before any layout helper that would otherwise pay one Typst
     query per element with a distinct tree root.
     """
+    elements = list(elements)
     seen: dict[int, Element] = {}
     for el in elements:
         root = el._tree_root()
         seen.setdefault(id(root), root)
     if not seen:
         return
-    from ..backends.typst import TypstMeasurer
+    from ..backends.typst import TypstMeasurer, needs_inline_x
 
-    TypstMeasurer(list(seen.values())).measure()
+    TypstMeasurer(list(seen.values())).measure(with_inline_x=needs_inline_x(elements))
 
 
 class Element:
