@@ -12,7 +12,7 @@ from ..elements.text import Text
 
 if TYPE_CHECKING:
     from ..core.element import Element
-    from ..core.presentation import Presentation
+    from ..core.presentation import Slide
 
 
 _CACHE_MEASURE = Path(".cache/measure.typ")
@@ -266,40 +266,37 @@ class TypstRenderer:
 
     Knows nothing about measurement: it only places elements via
     ``#place`` and styles them via ``#text(fill:)`` / ``#hide``.
-
-    Parameters
-    ----------
-    path : str or Path
-        Destination ``.typ`` file.
     """
 
-    def __init__(self, path: str | Path) -> None:
-        self.path = Path(path)
+    def render_slide(self, slide: Slide, canvas: tuple[float, float]) -> str:
+        """Render a slide's fixed root elements to a Typst fragment.
 
-    def render(self, presentation: Presentation) -> None:
-        """Serialize ``presentation`` to ``self.path``.
-
-        Each slide becomes a page; consecutive slides are separated by
-        ``#pagebreak()``. Top-level elements with ``placement != "fixed"``
-        are skipped (their semantics is "do not draw at the slide root").
+        Top-level elements with ``placement != "fixed"`` are skipped (their
+        semantics is "do not draw at the slide root"). The fragment carries
+        no page preamble or pagebreak — those belong to the document.
         """
-        if not presentation.slides:
-            _write(self.path, "")
+        lines: list[str] = []
+        for el in slide.elements:
+            if el.placement != "fixed":
+                continue
+            lines.extend(_render_placed(el, self._render_node, canvas))
+        return "\n".join(lines)
+
+    def write_document(
+        self, fragments: list[str], canvas: tuple[float, float], path: str | Path
+    ) -> None:
+        """Assemble per-slide ``fragments`` into one ``.typ`` at ``path``.
+
+        Consecutive fragments are separated by ``#pagebreak()``.
+        """
+        path = Path(path)
+        if not fragments:
+            _write(path, "")
             return
-        canvas = (presentation.width, presentation.height)
-        lines = [
-            f'#set page(width: {presentation.width}cm, '
-            f'height: {presentation.height}cm, margin: 0cm)',
-            '',
-        ]
-        for i, slide in enumerate(presentation.slides):
-            if i > 0:
-                lines.append('#pagebreak()')
-            for el in slide.elements:
-                if el.placement != "fixed":
-                    continue
-                lines.extend(_render_placed(el, self._render_node, canvas))
-        _write(self.path, "\n".join(lines) + "\n")
+        width, height = canvas
+        preamble = f'#set page(width: {width}cm, height: {height}cm, margin: 0cm)\n'
+        body = "\n#pagebreak()\n".join(fragments)
+        _write(path, preamble + "\n" + body + "\n")
 
     def _render_node(self, el: Element, placeholder: bool) -> str:
         """Render an element body (no ``#place`` wrapper).
