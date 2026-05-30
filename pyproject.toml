@@ -14,3 +14,17 @@ authors = [
 [tool.setuptools]
 packages = ["mate", "mate.core", "mate.elements", "mate.backends", "mate.composition"]
 package-dir = {"mate" = "."}
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+# E/W: pycodestyle (E501 enforces the line width on every line, docstrings included)
+# F: pyflakes  D: pydocstyle (docstring style)
+select = ["E", "F", "W", "D"]
+# Docstrings are written only when they add information, so the
+# "missing docstring" family is not enforced; only docstring *style* is.
+ignore = ["D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"

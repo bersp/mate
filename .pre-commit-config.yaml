@@ -1,0 +1,9 @@
+# Run `pre-commit install` once, then hooks run on every commit.
+# Run `pre-commit autoupdate` to bump `rev` to the latest Ruff release.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.0
+    hooks:
+      - id: ruff-check        # lint (docstring style via pydocstyle "D", width via E501)
+        args: [--fix]
+      - id: ruff-format       # code formatting
