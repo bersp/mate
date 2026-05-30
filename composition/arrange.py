@@ -118,20 +118,26 @@ def _needs_bbox(el: Element, line_height: bool, stack_h_mul: float) -> bool:
     The positioning loop reads ``get_width`` only for elements whose
     horizontal anchor half differs from the stack's, and ``get_height``
     for every element. Intrinsic-size shapes report both dimensions
-    without measuring; :class:`Text` under ``line_height=True`` reports
-    height from the cached line slot but still needs measurement for
-    width.
+    without measuring; a single-line :class:`Text` under
+    ``line_height=True`` reports height from the cached line slot but
+    still needs measurement for width. A :class:`Text` with
+    ``max_width`` wraps to several lines, so its height is the measured
+    bbox and the line-slot shortcut does not apply.
     """
     if isinstance(el, _INTRINSIC_SIZE):
         return False
     needs_w = anchor_offsets(el.anchor)[0] != stack_h_mul
-    if isinstance(el, Text) and line_height:
+    if line_height and isinstance(el, Text) and el.max_width is None:
         return needs_w
     return True
 
 
 def _height(el: Element, line_height: bool) -> float:
-    """Return the stacking height of ``el`` under the current mode."""
-    if line_height and isinstance(el, Text):
+    """Return the stacking height of ``el`` under the current mode.
+
+    The cached line slot is used only for a single-line :class:`Text`;
+    a wrapped (``max_width``) Text reports its full measured height.
+    """
+    if line_height and isinstance(el, Text) and el.max_width is None:
         return el.get_line_height()
     return el.get_height()
