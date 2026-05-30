@@ -61,6 +61,12 @@ class Text(Drawable):
         Typst font family name. Default :data:`DEFAULT_FONT`.
     size : float, optional
         Font size in points. Default :data:`DEFAULT_SIZE_PT`.
+    max_width : float or None, optional
+        Maximum line width in cm. When set, the text wraps to stay
+        within it and the bbox width shrinks to fit the content
+        (``min(natural width, max_width)``); ``None`` (default) lets
+        the text run on a single line. Applies to the node it is set
+        on, not propagated to ``subs``.
     pos, anchor, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
         Keyword-only. See :class:`~mate.core.drawable.Drawable`. ``stroke_*``
         fields are currently ignored for text rendering.
@@ -75,6 +81,8 @@ class Text(Drawable):
         Typst font family used to render and measure this node.
     size : float
         Font size in points.
+    max_width : float or None
+        Wrap width in cm, or ``None`` for no wrapping.
     """
 
     def __init__(
@@ -83,6 +91,7 @@ class Text(Drawable):
         *,
         font: str = DEFAULT_FONT,
         size: float = DEFAULT_SIZE_PT,
+        max_width: float | None = None,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
         placement: Placement = "fixed",
@@ -106,6 +115,7 @@ class Text(Drawable):
         self.subs: list[Text] = []
         self.font: str = font
         self.size: float = size
+        self.max_width: float | None = max_width
         if source is not None:
             children = _parse_segment(source, self.subs)
             # Collapse to a leaf when parsing yields a single childless node;

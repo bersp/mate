@@ -52,7 +52,10 @@ def _bare(el: Element) -> str:
             inner = "".join(_bare(c) for c in el.children if c.placement != "omitted")
         else:
             inner = _escape(el.content)
-        return _wrap_text_attrs(el, inner)
+        body = _wrap_text_attrs(el, inner)
+        if el.max_width is not None:
+            body = _wrap_max_width(body, body, el.max_width)
+        return body
     if isinstance(el, (Rectangle, Circle, Ellipse)):
         return _shape_markup(el)
     # Groups (and any unknown leaf) contribute nothing to size: the
@@ -106,6 +109,23 @@ def _wrap_text_attrs(el: Text, inner: str) -> str:
     if not (el.fill_color is None and el.fill_opacity is None):
         attrs.append(f"fill: {_typst_fill(el.fill_color, el.fill_opacity)}")
     return f'#text({", ".join(attrs)})[{inner}]'
+
+
+def _wrap_max_width(measure_body: str, render_body: str, max_width: float) -> str:
+    """Box ``render_body`` at ``min(natural width, max_width)`` cm.
+
+    The box width is resolved at Typst's ``#context`` time from the
+    natural width of ``measure_body`` (probe-free, so it measures the
+    plain glyphs), giving shrink-to-fit wrapping: the body keeps its
+    natural width until it would exceed ``max_width``, then wraps.
+    ``render_body`` is what actually flows inside the box; it may carry
+    the measurer's inline x-probes, which are zero-width and so must be
+    kept out of the width measurement.
+    """
+    return (
+        f"#context {{ let __w = calc.min(measure([{measure_body}]).width, "
+        f"{max_width}cm); box(width: __w)[{render_body}] }}"
+    )
 
 
 def _shape_markup(el: Rectangle | Circle | Ellipse) -> str:
@@ -328,6 +348,8 @@ class TypstRenderer:
             else:
                 inner = _escape(el.content)
             inner = _wrap_text_attrs(el, inner)
+            if el.max_width is not None:
+                inner = _wrap_max_width(inner, inner, el.max_width)
         elif isinstance(el, (Rectangle, Circle, Ellipse)):
             inner = _shape_markup(el)
         elif isinstance(el, Group):
@@ -524,6 +546,10 @@ class TypstMeasurer:
             else:
                 inner = _escape(el.content)
             inner = _wrap_text_attrs(el, inner)
+            if el.max_width is not None:
+                # Width comes from the probe-free body; probes are
+                # zero-width and must not leak into the measurement.
+                inner = _wrap_max_width(_bare(el), inner, el.max_width)
         elif isinstance(el, (Rectangle, Circle, Ellipse)):
             inner = _shape_markup(el)
         elif isinstance(el, Group):
