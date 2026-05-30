@@ -270,11 +270,16 @@ class Element:
         Geometric mutator: invalidates the bbox cache of this element's tree.
         """
         new_pos = Vec(p)
+        was_inline = self.placement == "inline"
         old_anchor = self._current_anchor_point()
         self._pos = new_pos
         self.placement = "fixed"
-        self._translate_children(new_pos - old_anchor)
-        self._invalidate_tree()
+        delta = new_pos - old_anchor
+        self._translate_children(delta)
+        if was_inline:
+            self._invalidate_tree()
+        else:
+            self._apply_translation_to_bbox_cache(delta)
         return self
 
     def shift(self, d: VecLike) -> Element:
@@ -291,12 +296,16 @@ class Element:
         Geometric mutator: invalidates the bbox cache of this element's tree.
         """
         delta = Vec(d)
-        if self.placement == "inline":
+        was_inline = self.placement == "inline"
+        if was_inline:
             self._pos = self._current_anchor_point()
         self._pos = self._pos + delta
         self.placement = "fixed"
         self._translate_children(delta)
-        self._invalidate_tree()
+        if was_inline:
+            self._invalidate_tree()
+        else:
+            self._apply_translation_to_bbox_cache(delta)
         return self
 
     def set_anchor(self, anchor: Anchor) -> Element:
@@ -308,7 +317,7 @@ class Element:
         tree (the bbox corners move).
         """
         self._anchor = anchor
-        self._invalidate_tree()
+        self._invalidate_subtree_and_ancestors()
         return self
 
     def _translate_children(self, delta: Vec) -> None:
@@ -476,12 +485,62 @@ class Element:
         for c in children:
             c.parent = self
 
+    def _apply_translation_to_bbox_cache(self, delta: Vec) -> None:
+        """Shift the cached bbox of this subtree by ``delta`` in place.
+
+        A pure translation (this element stays ``"fixed"`` while its
+        anchor point moves by ``delta``) moves every descendant's bbox
+        by exactly ``delta`` and leaves all extents unchanged, so the
+        cache can be updated instead of dropped and re-measured. The
+        bbox of every strict ancestor is a function of this subtree
+        (a :class:`~mate.elements.group.Group` union, or inline-flow
+        geometry threaded from a fixed ancestor) and is dropped so the
+        next :meth:`get_bbox` recomputes it.
+        """
+        if delta.x == 0 and delta.y == 0:
+            return
+
+        def translate(el: Element) -> None:
+            if el._bbox is not None:
+                x, y, w, h = el._bbox
+                el._bbox = (x + delta.x, y + delta.y, w, h)
+            for c in el.children:
+                translate(c)
+
+        translate(self)
+        self._invalidate_ancestors()
+
+    def _invalidate_subtree_and_ancestors(self) -> None:
+        """Drop the bbox cache on this subtree and every strict ancestor.
+
+        For a geometric change that is not a pure translation (an anchor
+        flip moves the bbox corners by a content-dependent amount), the
+        subtree must be re-measured. Ancestors depend on the subtree and
+        are dropped too.
+        """
+
+        def clear(el: Element) -> None:
+            el._bbox = None
+            for c in el.children:
+                clear(c)
+
+        clear(self)
+        self._invalidate_ancestors()
+
+    def _invalidate_ancestors(self) -> None:
+        """Drop the bbox cache on every strict ancestor up to the root."""
+        p = self.parent
+        while p is not None:
+            p._bbox = None
+            p = p.parent
+
     def _invalidate_tree(self) -> None:
         """Drop the bbox cache for every node in this element's tree.
 
         Walks to the tree root and clears ``_bbox`` on every descendant.
-        Used by geometric mutators: a position change can shift the
-        flowed position of inline siblings, so the whole tree's cache
+        Used when an element leaves its parent's inline flow (an
+        ``"inline"`` to ``"fixed"`` transition): the flowed position of
+        the remaining inline siblings shifts, so the whole tree's cache
         must be re-measured on the next :meth:`get_bbox` call.
         """
         root = self._tree_root()
