@@ -27,15 +27,26 @@ class PresentationTemplate:
         left = layout.add("left_margin", Region.create_left(0.7, anchor="center"))
         right = layout.add("right_margin", Region.create_right(0.7, anchor="center"))
 
-        layout.add("content", Region.create_inner(
-            left=left, right=right, top=title, bottom=footer,
-            anchor=config.get("box.content.anchor")))
+        layout.add(
+            "content",
+            Region.create_inner(
+                left=left,
+                right=right,
+                top=title,
+                bottom=footer,
+                anchor=config.get("box.content.anchor"),
+            ),
+        )
 
         layout.add("full", Region.create_full(anchor="top-center"))
 
         m = config.get("box.full_with_margins.margins")
-        layout.add("full_with_margins", Region.create_full(anchor="top-center").adjust_borders(
-            left=-m, right=-m, top=-m, bottom=-m))
+        layout.add(
+            "full_with_margins",
+            Region.create_full(anchor="top-center").adjust_borders(
+                left=-m, right=-m, top=-m, bottom=-m
+            ),
+        )
 
         layout.set_active("content")
         return layout
@@ -47,7 +58,10 @@ class PresentationTemplate:
     def draw_layout(
         self, regions: list[str] | None = None, stroke_width: float = 0.03
     ) -> Group:
-        """Add a debug overlay of the layout: one coloured outline per region, labelled in its colour. ``regions`` selects which to draw by name; ``None`` draws every region."""
+        """Add a debug overlay of the layout: one outline per region, labelled.
+
+        ``regions`` selects which to draw by name; ``None`` draws every region.
+        """
         colors = ("red", "orange", "yellow", "green", "aqua", "blue", "purple")
         group = layout_to_group(
             self.layout, regions, fill_opacity=0, stroke_width=stroke_width
@@ -60,9 +74,9 @@ class PresentationTemplate:
         return group
 
     def add_title(self) -> None:
-        """
-        Build the current slide's title and subtitle strings into ``Text`` elements,
-        adding them to the slide and title region.
+        """Build the current slide's title and subtitle into ``Text`` elements.
+
+        Adds them to the slide and to the title region.
         """
         slide = self.current_slide
         for text in (slide.title, slide.subtitle):

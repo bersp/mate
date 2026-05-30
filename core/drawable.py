@@ -61,43 +61,57 @@ class Drawable(Element):
         stroke_width: float | None = None,
     ) -> None:
         super().__init__(pos=pos, anchor=anchor, placement=placement, id=id)
-        self.fill_color: str | None = config.colors.get(fill_color) if fill_color is not None else None
-        self.stroke_color: str | None = config.colors.get(stroke_color) if stroke_color is not None else None
+        self.fill_color: str | None = (
+            config.colors.get(fill_color) if fill_color is not None else None
+        )
+        self.stroke_color: str | None = (
+            config.colors.get(stroke_color) if stroke_color is not None else None
+        )
         self.fill_opacity: float | None = fill_opacity
         self.stroke_width: float | None = stroke_width
 
     def get_fill_color(self) -> str | None:
-        """Return the stored ``fill_color`` as hex (``None`` resolves to ``"black"`` at render time)."""
+        """Return ``fill_color`` as hex; ``None`` renders as ``"black"``."""
         return self.fill_color
 
     def get_stroke_color(self) -> str | None:
-        """Return the stored ``stroke_color`` as hex (``None`` resolves to ``"black"`` at render time)."""
+        """Return ``stroke_color`` as hex; ``None`` renders as ``"black"``."""
         return self.stroke_color
 
     def get_fill_opacity(self) -> float | None:
-        """Return the stored ``fill_opacity`` (``None`` resolves to ``1`` at render time)."""
+        """Return ``fill_opacity``; ``None`` renders as ``1``."""
         return self.fill_opacity
 
     def get_stroke_width(self) -> float | None:
-        """Return the stored ``stroke_width`` (``None`` resolves to ``0`` at render time)."""
+        """Return ``stroke_width``; ``None`` renders as ``0``."""
         return self.stroke_width
 
     def set_fill_color(self, color: str | None, propagate: bool = True) -> Drawable:
-        """Set ``fill_color``; with ``propagate=True`` (default) also rewrites every Drawable descendant."""
-        self._set_field("fill_color", config.colors.get(color) if color is not None else None, propagate)
+        """Set ``fill_color``; ``propagate`` cascades to Drawable descendants."""
+        self._set_field(
+            "fill_color",
+            config.colors.get(color) if color is not None else None,
+            propagate,
+        )
         return self
 
     def set_stroke_color(self, color: str | None, propagate: bool = True) -> Drawable:
-        """Set ``stroke_color``; with ``propagate=True`` (default) also rewrites every Drawable descendant."""
-        self._set_field("stroke_color", config.colors.get(color) if color is not None else None, propagate)
+        """Set ``stroke_color``; ``propagate`` cascades to Drawable descendants."""
+        self._set_field(
+            "stroke_color",
+            config.colors.get(color) if color is not None else None,
+            propagate,
+        )
         return self
 
-    def set_fill_opacity(self, opacity: float | None, propagate: bool = True) -> Drawable:
-        """Set ``fill_opacity``; with ``propagate=True`` (default) also rewrites every Drawable descendant."""
+    def set_fill_opacity(
+        self, opacity: float | None, propagate: bool = True
+    ) -> Drawable:
+        """Set ``fill_opacity``; ``propagate`` cascades to Drawable descendants."""
         self._set_field("fill_opacity", opacity, propagate)
         return self
 
     def set_stroke_width(self, width: float | None, propagate: bool = True) -> Drawable:
-        """Set ``stroke_width``; with ``propagate=True`` (default) also rewrites every Drawable descendant."""
+        """Set ``stroke_width``; ``propagate`` cascades to Drawable descendants."""
         self._set_field("stroke_width", width, propagate)
         return self

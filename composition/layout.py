@@ -93,7 +93,7 @@ class Region:
         bottom: Region | None = None,
         **kw,
     ) -> Region:
-        """Region covering what's left of the slide after subtracting the given side regions."""
+        """Region of the slide not covered by the given side regions."""
         half_w = config.slide_width / 2
         half_h = config.slide_height / 2
         lg = (left.right.x + half_w) if left else 0.0
@@ -175,9 +175,9 @@ class Region:
         rights = [r.right.x for r in regions]
         tops = [r.top.y for r in regions]
         bottoms = [r.bottom.y for r in regions]
-        l, r = min(lefts), max(rights)
+        left, r = min(lefts), max(rights)
         b, t = min(bottoms), max(tops)
-        return Region(((l + r) / 2, (t + b) / 2), r - l, t - b)
+        return Region(((left + r) / 2, (t + b) / 2), r - left, t - b)
 
     def adjust_borders(
         self,
@@ -264,13 +264,13 @@ class Region:
             rows, cols = np.where(grid == label)
             cmin, cmax = int(cols.min()), int(cols.max())
             rmin, rmax = int(rows.min()), int(rows.max())
-            l = left_edges[cmin]
+            left = left_edges[cmin]
             r = left_edges[cmax] + cell_w[cmax]
             t = top_edges[rmin]
             b = top_edges[rmax] - cell_h[rmax]
             out[str(label)] = Region(
-                ((l + r) / 2, (t + b) / 2),
-                r - l,
+                ((left + r) / 2, (t + b) / 2),
+                r - left,
                 t - b,
                 anchor=self._anchor,
                 arrange_gap=self._arrange_gap,
@@ -295,7 +295,7 @@ class Region:
         self.elements.clear()
 
     def arrange(self) -> None:
-        """Stack :attr:`elements` inside this region using :attr:`anchor` and :attr:`arrange_gap`."""
+        """Stack :attr:`elements` using :attr:`anchor` and :attr:`arrange_gap`."""
         _arrange_elements(
             self.elements,
             pos=self.get_anchor_point(self._anchor),
@@ -313,7 +313,7 @@ class Region:
 
 
 class Layout:
-    """A named container of :class:`Region`\\ s, keyed by name."""
+    r"""A named container of :class:`Region`\ s, keyed by name."""
 
     def __init__(self) -> None:
         self.regions: dict[str, Region] = {}
@@ -325,7 +325,7 @@ class Layout:
         return region
 
     def get(self, name: str) -> Region:
-        """Return the region attached under ``name``, or raise with the defined names."""
+        """Return the region under ``name``; raise listing defined names."""
         if name not in self.regions:
             defined = ", ".join(self.regions)
             raise ValueError(

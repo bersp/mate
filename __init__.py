@@ -1,5 +1,16 @@
 from .config import config
-from .core import Vec, Anchor, Element, Drawable, PresentationTemplate, Presentation, Slide, IDRegistry, id_registry, measure_all
+from .core import (
+    Vec,
+    Anchor,
+    Element,
+    Drawable,
+    PresentationTemplate,
+    Presentation,
+    Slide,
+    IDRegistry,
+    id_registry,
+    measure_all,
+)
 from .elements import Circle, Ellipse, Group, Rectangle, Text
 from .composition import arrange, Layout, Region, layout_to_group
 

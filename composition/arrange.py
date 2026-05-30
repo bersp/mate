@@ -113,7 +113,7 @@ _INTRINSIC_SIZE = (Rectangle, Circle, Ellipse)
 
 
 def _needs_bbox(el: Element, line_height: bool, stack_h_mul: float) -> bool:
-    """``True`` if ``arrange`` will end up reading a measured bbox for ``el``.
+    """Return ``True`` if ``arrange`` will read a measured bbox for ``el``.
 
     The positioning loop reads ``get_width`` only for elements whose
     horizontal anchor half differs from the stack's, and ``get_height``

@@ -7,7 +7,7 @@ from ..core.registry import IDKey, id_registry
 from ..core.drawable import Drawable
 from ..core.vec import VecLike
 
-_ID_RE = re.compile(r'\(id=([^)]+)\)')
+_ID_RE = re.compile(r"\(id=([^)]+)\)")
 
 # Hardcoded Typst defaults — kept in sync with `typst query` on a blank doc
 # so the rendered output is independent of any implicit fallback.
@@ -134,15 +134,13 @@ class Text(Drawable):
         return self.content
 
     def get_font(self) -> str:
-        """Return the Typst font family name used for this node."""
         return self.font
 
     def get_size(self) -> float:
-        """Return the font size in points."""
         return self.size
 
     def set_font(self, font: str, propagate: bool = True) -> Text:
-        """Set ``font``; with ``propagate=True`` (default) also rewrites every Text descendant.
+        """Set ``font``; ``propagate`` (default) rewrites every Text descendant.
 
         Geometric mutator: invalidates the bbox cache of this element's tree.
         """
@@ -151,7 +149,7 @@ class Text(Drawable):
         return self
 
     def set_size(self, size: float, propagate: bool = True) -> Text:
-        """Set ``size`` (points); with ``propagate=True`` (default) also rewrites every Text descendant.
+        """Set ``size`` (points); ``propagate`` (default) rewrites Text descendants.
 
         Geometric mutator: invalidates the bbox cache of this element's tree.
         """
@@ -226,9 +224,9 @@ def _match_bracket(raw: str, start: int) -> int | None:
     depth = 1
     i = start + 1
     while i < len(raw):
-        if raw[i] == '[':
+        if raw[i] == "[":
             depth += 1
-        elif raw[i] == ']':
+        elif raw[i] == "]":
             depth -= 1
             if depth == 0:
                 return i
@@ -268,7 +266,7 @@ def _parse_segment(raw: str, subs: list[Text]) -> list[Text]:
     buf: list[str] = []
     i, n = 0, len(raw)
     while i < n:
-        if raw[i] == '[':
+        if raw[i] == "[":
             j = _match_bracket(raw, i)
             if j is not None:
                 m = _ID_RE.match(raw, j + 1)
@@ -279,7 +277,7 @@ def _parse_segment(raw: str, subs: list[Text]) -> list[Text]:
                         buf = []
                     id_value = _parse_id(m.group(1))
                     inner_subs: list[Text] = []
-                    children = _parse_segment(raw[i + 1:j], inner_subs)
+                    children = _parse_segment(raw[i + 1 : j], inner_subs)
                     # Wrap eagerly when the body holds nested id'd subs:
                     # reusing the lone child as the outer sub would alias
                     # them and corrupt `subs` ownership.

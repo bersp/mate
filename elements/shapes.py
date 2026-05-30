@@ -56,15 +56,13 @@ class Rectangle(Drawable):
         self.height: float = height
 
     def get_width(self) -> float:
-        """Return the rectangle's width in cm."""
         return self.width
 
     def get_height(self) -> float:
-        """Return the rectangle's height in cm."""
         return self.height
 
     def set_width(self, width: float, propagate: bool = True) -> Rectangle:
-        """Set ``width``; with ``propagate=True`` (default) also rewrites every descendant that has ``width``.
+        """Set ``width``; ``propagate`` (default) rewrites descendants with ``width``.
 
         Geometric mutator: invalidates the bbox cache of this element's tree.
         """
@@ -73,7 +71,7 @@ class Rectangle(Drawable):
         return self
 
     def set_height(self, height: float, propagate: bool = True) -> Rectangle:
-        """Set ``height``; with ``propagate=True`` (default) also rewrites every descendant that has ``height``.
+        """Set ``height``; ``propagate`` (default) rewrites descendants with ``height``.
 
         Geometric mutator: invalidates the bbox cache of this element's tree.
         """
@@ -127,7 +125,6 @@ class Circle(Drawable):
         self.radius: float = radius
 
     def get_radius(self) -> float:
-        """Return the circle's radius in cm."""
         return self.radius
 
     def get_width(self) -> float:
@@ -139,7 +136,7 @@ class Circle(Drawable):
         return 2 * self.radius
 
     def set_radius(self, radius: float, propagate: bool = True) -> Circle:
-        """Set ``radius``; with ``propagate=True`` (default) also rewrites every descendant that has ``radius``.
+        """Set ``radius``; ``propagate`` (default) rewrites descendants with ``radius``.
 
         Geometric mutator: invalidates the bbox cache of this element's tree.
         """
@@ -196,15 +193,13 @@ class Ellipse(Drawable):
         self.height: float = height
 
     def get_width(self) -> float:
-        """Return the ellipse's bounding-box width in cm."""
         return self.width
 
     def get_height(self) -> float:
-        """Return the ellipse's bounding-box height in cm."""
         return self.height
 
     def set_width(self, width: float, propagate: bool = True) -> "Ellipse":
-        """Set ``width``; with ``propagate=True`` (default) also rewrites every descendant that has ``width``.
+        """Set ``width``; ``propagate`` (default) rewrites descendants with ``width``.
 
         Geometric mutator: invalidates the bbox cache of this element's tree.
         """
@@ -213,7 +208,7 @@ class Ellipse(Drawable):
         return self
 
     def set_height(self, height: float, propagate: bool = True) -> "Ellipse":
-        """Set ``height``; with ``propagate=True`` (default) also rewrites every descendant that has ``height``.
+        """Set ``height``; ``propagate`` (default) rewrites descendants with ``height``.
 
         Geometric mutator: invalidates the bbox cache of this element's tree.
         """

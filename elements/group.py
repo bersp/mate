@@ -63,8 +63,8 @@ class Group(Drawable):
     def add(self, element: Element) -> Element:
         """Append ``element`` to the group, reparenting it.
 
-        Invalidates the tree's bbox cache. Returns ``element`` for
-        chaining (matches :meth:`Slide.add`).
+        Invalidates the tree's bbox cache and returns ``element`` (not the
+        group), so the freshly added child can be chained on.
         """
         element.parent = self
         self.children.append(element)

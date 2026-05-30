@@ -28,9 +28,9 @@ def _escape(s: str) -> str:
     """Escape characters that have special meaning in Typst markup."""
     return (
         s.replace("\\", "\\\\")
-         .replace("[", "\\[")
-         .replace("]", "\\]")
-         .replace("#", "\\#")
+        .replace("[", "\\[")
+        .replace("]", "\\]")
+        .replace("#", "\\#")
     )
 
 
@@ -48,9 +48,7 @@ def _bare(el: Element) -> str:
     """
     if isinstance(el, Text):
         if el.children:
-            inner = "".join(
-                _bare(c) for c in el.children if c.placement != "omitted"
-            )
+            inner = "".join(_bare(c) for c in el.children if c.placement != "omitted")
         else:
             inner = _escape(el.content)
         return _wrap_text_attrs(el, inner)
@@ -103,9 +101,9 @@ def _wrap_text_attrs(el: Text, inner: str) -> str:
     default (black, matching :class:`~mate.core.drawable.Drawable`'s
     visual default).
     """
-    attrs = [f'font: "{el.font}"', f'size: {el.size}pt']
+    attrs = [f'font: "{el.font}"', f"size: {el.size}pt"]
     if not (el.fill_color is None and el.fill_opacity is None):
-        attrs.append(f'fill: {_typst_fill(el.fill_color, el.fill_opacity)}')
+        attrs.append(f"fill: {_typst_fill(el.fill_color, el.fill_opacity)}")
     return f'#text({", ".join(attrs)})[{inner}]'
 
 
@@ -121,17 +119,14 @@ def _shape_markup(el: Rectangle | Circle | Ellipse) -> str:
     stroke = _typst_stroke(el.stroke_color, el.stroke_width)
     if isinstance(el, Rectangle):
         return (
-            f'#rect(width: {el.width}cm, height: {el.height}cm, '
-            f'fill: {fill}, stroke: {stroke})'
+            f"#rect(width: {el.width}cm, height: {el.height}cm, "
+            f"fill: {fill}, stroke: {stroke})"
         )
     if isinstance(el, Circle):
-        return (
-            f'#circle(radius: {el.radius}cm, '
-            f'fill: {fill}, stroke: {stroke})'
-        )
+        return f"#circle(radius: {el.radius}cm, " f"fill: {fill}, stroke: {stroke})"
     return (
-        f'#ellipse(width: {el.width}cm, height: {el.height}cm, '
-        f'fill: {fill}, stroke: {stroke})'
+        f"#ellipse(width: {el.width}cm, height: {el.height}cm, "
+        f"fill: {fill}, stroke: {stroke})"
     )
 
 
@@ -209,7 +204,7 @@ def _render_placed(
     # ancestor's `#hide` wrapper. Apply the effective-hidden flag
     # locally so an ancestor's `hidden=True` reaches it.
     if not el.hidden and el.get_effective_hidden():
-        body = f'#hide[{body}]'
+        body = f"#hide[{body}]"
     h_mul, v_mul = anchor_offsets(el._anchor)
     if canvas is None:
         dx_const = el._pos.x
@@ -229,25 +224,22 @@ def _render_placed(
     # ``"top-left"`` is the only anchor with both multipliers zero
     # (h_mul == 0 and (1 - v_mul) == 0); skip the contextual measure.
     if h_mul == 0 and v_mul == 1:
-        line = (
-            f'#place(top + left, dx: {dx_const}cm, dy: {dy_const}cm, '
-            f'[{body}])'
-        )
+        line = f"#place(top + left, dx: {dx_const}cm, dy: {dy_const}cm, " f"[{body}])"
     else:
-        dx_expr = f'{dx_const}cm'
+        dx_expr = f"{dx_const}cm"
         if h_mul != 0:
-            dx_expr += f' - {h_mul} * __s.width'
-        dy_expr = f'{dy_const}cm'
+            dx_expr += f" - {h_mul} * __s.width"
+        dy_expr = f"{dy_const}cm"
         if v_mul != 1:
             dy_coef = dy_h_sign * (1.0 - v_mul)
-            sign = '-' if dy_coef < 0 else '+'
-            dy_expr += f' {sign} {abs(dy_coef)} * __s.height'
+            sign = "-" if dy_coef < 0 else "+"
+            dy_expr += f" {sign} {abs(dy_coef)} * __s.height"
         line = (
-            '#context { '
-            f'let __b = [{body}]; '
-            'let __s = measure(__b); '
-            f'place(top + left, dx: {dx_expr}, dy: {dy_expr}, __b) '
-            '}'
+            "#context { "
+            f"let __b = [{body}]; "
+            "let __s = measure(__b); "
+            f"place(top + left, dx: {dx_expr}, dy: {dy_expr}, __b) "
+            "}"
         )
     out = [line]
     for sub in _collect_fixed(el):
@@ -294,7 +286,7 @@ class TypstRenderer:
             _write(path, "")
             return
         width, height = canvas
-        preamble = f'#set page(width: {width}cm, height: {height}cm, margin: 0cm)\n'
+        preamble = f"#set page(width: {width}cm, height: {height}cm, margin: 0cm)\n"
         body = "\n#pagebreak()\n".join(fragments)
         _write(path, preamble + "\n" + body + "\n")
 
@@ -327,7 +319,7 @@ class TypstRenderer:
         else:
             inner = ""
         if el.hidden or placeholder:
-            inner = f'#hide[{inner}]'
+            inner = f"#hide[{inner}]"
         return inner
 
 
@@ -417,21 +409,21 @@ class TypstMeasurer:
             self._collect(el)
 
         lines = [
-            '#set page(margin: 0cm)',
-            '',
-            '#context [',
+            "#set page(margin: 0cm)",
+            "",
+            "#context [",
         ]
         # One metadata record per element, asking Typst for its isolated
         # (w, h) via `measure(...)`. Wrapped once in `#context [...]` so
         # the call is valid in template scope.
         for mid, el in self.elements.items():
-            c = '[' + _bare(el) + ']'
+            c = "[" + _bare(el) + "]"
             lines.append(
-                f'  #metadata((id: {mid}, '
-                f'w: measure({c}).width/1cm, '
-                f'h: measure({c}).height/1cm))<bbox>'
+                f"  #metadata((id: {mid}, "
+                f"w: measure({c}).width/1cm, "
+                f"h: measure({c}).height/1cm))<bbox>"
             )
-        lines.append(']')
+        lines.append("]")
         # Mirror the real render so `here().position()` probes see the
         # actual layout flow; fixed roots become `#place` blocks.
         for el in self.roots:
@@ -444,10 +436,10 @@ class TypstMeasurer:
         # records share the same `<bbox>` label because typst-query is
         # invoked once per measurement pass.
         for e in self._query():
-            if 'w' in e:
-                self.sizes[e['id']] = (e['w'], e['h'])
+            if "w" in e:
+                self.sizes[e["id"]] = (e["w"], e["h"])
             else:
-                self.xs[e['id']] = e['x']
+                self.xs[e["id"]] = e["x"]
 
         # Inline-at-root is unusual but tolerated: ancestor_top_y=0 by
         # convention, so the inline root's bbox.y collapses to `-h`.
@@ -461,9 +453,18 @@ class TypstMeasurer:
     def _query(self) -> list[dict[str, Any]]:
         """Run ``typst query`` and return the parsed JSON list."""
         result = subprocess.run(
-            ['typst', 'query', '--ignore-system-fonts',
-             str(self.path), '<bbox>', '--field', 'value'],
-            capture_output=True, text=True, check=True,
+            [
+                "typst",
+                "query",
+                "--ignore-system-fonts",
+                str(self.path),
+                "<bbox>",
+                "--field",
+                "value",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
         )
         return json.loads(result.stdout)
 
@@ -500,7 +501,7 @@ class TypstMeasurer:
         else:
             inner = ""
         if el.hidden or placeholder:
-            inner = f'#hide[{inner}]'
+            inner = f"#hide[{inner}]"
         return inner
 
     def _render_children_with_probes(self, el: Element) -> str:
@@ -527,9 +528,9 @@ class TypstMeasurer:
     def _x_marker(mid: int) -> str:
         """Return the Typst snippet that records ``here().position().x`` for ``mid``."""
         return (
-            '#context { let p = here().position(); '
-            f'[#metadata((id: {mid}, x: p.x/1cm))<bbox>] '
-            '}'
+            "#context { let p = here().position(); "
+            f"[#metadata((id: {mid}, x: p.x/1cm))<bbox>] "
+            "}"
         )
 
     def _assign(self, el: Element, ancestor_top_y: float) -> None:
@@ -575,7 +576,8 @@ class TypstMeasurer:
             self._assign(c, child_top_y)
         if isinstance(el, Group):
             boxes = [
-                c._bbox for c in el.children
+                c._bbox
+                for c in el.children
                 if c.placement != "omitted" and c._bbox is not None
             ]
             if boxes:

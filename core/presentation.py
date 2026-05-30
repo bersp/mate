@@ -62,7 +62,11 @@ class Presentation(PresentationTemplate):
         return slide
 
     def end_slide(self) -> None:
-        """Arrange every region, close the current slide (snapshotting its fragment), then clear the regions for the next slide."""
+        """Arrange every region, snapshot the slide's fragment, then clear regions.
+
+        Snapshotting seals the current slide; the cleared regions are reused
+        by the next slide.
+        """
         for region in self.layout.regions.values():
             region.arrange()
         slide = self.current_slide
@@ -75,12 +79,13 @@ class Presentation(PresentationTemplate):
     def write(self, path: str | Path = "presentation.typ") -> None:
         """Assemble the closed slides into a Typst source file at ``path``.
 
-        Raises if any slide is still open — call :meth:`Slide.close` first.
+        Raises if any slide is still open — call :meth:`Presentation.end_slide`
+        first.
         """
         open_count = sum(not s.is_closed for s in self.slides)
         if open_count:
             raise RuntimeError(
-                f"{open_count} slide(s) still open; call .close() before write()."
+                f"{open_count} slide(s) still open; call .end_slide() before write()."
             )
         self._renderer.write_document(
             [s._fragment for s in self.slides], (self.width, self.height), Path(path)

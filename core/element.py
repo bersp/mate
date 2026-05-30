@@ -19,9 +19,15 @@ def _next_mid() -> int:
 Placement = Literal["fixed", "inline", "omitted"]
 
 Anchor = Literal[
-    "top-left", "top-center", "top-right",
-    "center-left", "center", "center-right",
-    "bottom-left", "bottom-center", "bottom-right",
+    "top-left",
+    "top-center",
+    "top-right",
+    "center-left",
+    "center",
+    "center-right",
+    "bottom-left",
+    "bottom-center",
+    "bottom-right",
 ]
 
 # (h_mul, v_mul) such that the bbox centre is offset from ``_pos`` by
@@ -30,15 +36,15 @@ Anchor = Literal[
 # left=0, center=0.5, right=1; bottom=0, center=0.5, top=1. Slide
 # coordinates are y-up, so ``top-*`` anchors carry the larger ``v_mul``.
 _ANCHOR_OFFSETS: dict[Anchor, tuple[float, float]] = {
-    "top-left":      (0.0, 1.0),
-    "top-center":    (0.5, 1.0),
-    "top-right":     (1.0, 1.0),
-    "center-left":   (0.0, 0.5),
-    "center":        (0.5, 0.5),
-    "center-right":  (1.0, 0.5),
-    "bottom-left":   (0.0, 0.0),
+    "top-left": (0.0, 1.0),
+    "top-center": (0.5, 1.0),
+    "top-right": (1.0, 1.0),
+    "center-left": (0.0, 0.5),
+    "center": (0.5, 0.5),
+    "center-right": (1.0, 0.5),
+    "bottom-left": (0.0, 0.0),
     "bottom-center": (0.5, 0.0),
-    "bottom-right":  (1.0, 0.0),
+    "bottom-right": (1.0, 0.0),
 }
 
 
@@ -66,6 +72,7 @@ def measure_all(elements: Iterable[Element]) -> None:
     if not seen:
         return
     from ..backends.typst import TypstMeasurer
+
     TypstMeasurer(list(seen.values())).measure()
 
 
@@ -218,7 +225,6 @@ class Element:
 
     @property
     def anchor(self) -> Anchor:
-        """Return the stored anchor mode."""
         return self._anchor
 
     @property
@@ -262,11 +268,6 @@ class Element:
         descendant, so the subtree translates as a unit.
 
         Geometric mutator: invalidates the bbox cache of this element's tree.
-
-        Returns
-        -------
-        Element
-            ``self``, to allow chaining.
         """
         new_pos = Vec(p)
         old_anchor = self._current_anchor_point()
@@ -288,11 +289,6 @@ class Element:
         first call against an inline element.
 
         Geometric mutator: invalidates the bbox cache of this element's tree.
-
-        Returns
-        -------
-        Element
-            ``self``, to allow chaining.
         """
         delta = Vec(d)
         if self.placement == "inline":
@@ -310,8 +306,6 @@ class Element:
         shifts to put the new anchor point at the same coordinate.
         Geometric mutator: invalidates the bbox cache of this element's
         tree (the bbox corners move).
-
-        Returns ``self`` for chaining.
         """
         self._anchor = anchor
         self._invalidate_tree()
@@ -343,11 +337,9 @@ class Element:
         return self.hidden
 
     def get_placement(self) -> Placement:
-        """Return the element's :attr:`placement` (``"fixed"``/``"inline"``/``"omitted"``)."""
         return self.placement
 
     def get_anchor(self) -> Anchor:
-        """Return the element's :attr:`anchor` mode."""
         return self._anchor
 
     def get_pos(self) -> Vec:
@@ -359,7 +351,7 @@ class Element:
         return self.parent
 
     def get_children(self) -> list[Element]:
-        """Return the live ``children`` list. Mutation routes through ``add`` / ``_take_children``."""
+        """Return ``children`` list; mutate via ``add``/``_take_children``."""
         return self.children
 
     def get_id(self) -> list[IDKey]:
@@ -367,7 +359,7 @@ class Element:
         return self.id
 
     def get_effective_hidden(self) -> bool:
-        """``True`` if this element or any ancestor has ``hidden=True``."""
+        """Return ``True`` if this element or any ancestor has ``hidden=True``."""
         el: Element | None = self
         while el is not None:
             if el.hidden:
@@ -376,16 +368,11 @@ class Element:
         return False
 
     def set_hidden(self, hidden: bool, propagate: bool = True) -> Element:
-        """Set ``hidden``; with ``propagate=True`` (default) also rewrites every descendant.
+        """Set ``hidden``; ``propagate`` (default) rewrites every descendant.
 
         Visual-only — does not invalidate the bbox cache. Walks every
         descendant regardless of type, since ``hidden`` is an
         :class:`Element` field (not gated by :class:`Drawable`).
-
-        Returns
-        -------
-        Element
-            ``self``, to allow chaining.
         """
         self._set_field("hidden", hidden, propagate)
         return self
@@ -409,6 +396,7 @@ class Element:
                 setattr(el, field, value)
             for c in el.children:
                 walk(c)
+
         walk(self)
 
     def get_bbox(self) -> tuple[float, float, float, float]:
@@ -502,4 +490,5 @@ class Element:
             el._bbox = None
             for c in el.children:
                 clear(c)
+
         clear(root)
