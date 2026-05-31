@@ -5,6 +5,7 @@ import numpy as np
 from ..config import config
 from ..core.element import Anchor, Element, anchor_offsets
 from ..core.vec import Vec, VecLike
+from ..log import logger
 from .arrange import arrange as _arrange_elements
 
 
@@ -280,15 +281,27 @@ class Region:
     def add(self, element: Element) -> Element:
         """Append ``element`` to :attr:`elements` and return it."""
         self.elements.append(element)
+        logger.debug(
+            rf"[yellow]REGION ADD ::[/yellow] {element!r} -> {self!r}",
+            extra={"markup": True, "highlighter": None},
+        )
         return element
 
     def remove(self, element: Element) -> None:
         """Remove ``element`` from :attr:`elements`."""
         self.elements.remove(element)
+        logger.debug(
+            rf"[yellow]REGION REMOVE ::[/yellow] {element!r}",
+            extra={"markup": True, "highlighter": None},
+        )
 
     def replace(self, old: Element, new: Element) -> None:
         """Replace ``old`` with ``new`` in :attr:`elements`, preserving order."""
         self.elements[self.elements.index(old)] = new
+        logger.debug(
+            rf"[yellow]REGION REPLACE ::[/yellow] {old!r} -> {new!r}",
+            extra={"markup": True, "highlighter": None},
+        )
 
     def remove_all(self) -> None:
         """Empty :attr:`elements`."""
@@ -296,6 +309,11 @@ class Region:
 
     def arrange(self) -> None:
         """Stack :attr:`elements` using :attr:`anchor` and :attr:`arrange_gap`."""
+        if self.elements:
+            logger.debug(
+                rf"[yellow]REGION ARRANGE ::[/yellow] {self!r}",
+                extra={"markup": True, "highlighter": None},
+            )
         _arrange_elements(
             self.elements,
             pos=self.get_anchor_point(self._anchor),

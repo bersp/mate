@@ -61,6 +61,9 @@ class Rectangle(Drawable):
     def get_height(self) -> float:
         return self.height
 
+    def _repr_fields(self) -> str:
+        return f"width={self.width:.4g}, height={self.height:.4g}"
+
     def set_width(self, width: float, propagate: bool = True) -> Rectangle:
         """Set ``width``; ``propagate`` (default) rewrites descendants with ``width``.
 
@@ -126,6 +129,9 @@ class Circle(Drawable):
 
     def get_radius(self) -> float:
         return self.radius
+
+    def _repr_fields(self) -> str:
+        return f"radius={self.radius:.4g}"
 
     def get_width(self) -> float:
         """Return the circle's bbox width (``2 * radius``)."""
@@ -197,6 +203,9 @@ class Ellipse(Drawable):
 
     def get_height(self) -> float:
         return self.height
+
+    def _repr_fields(self) -> str:
+        return f"width={self.width:.4g}, height={self.height:.4g}"
 
     def set_width(self, width: float, propagate: bool = True) -> "Ellipse":
         """Set ``width``; ``propagate`` (default) rewrites descendants with ``width``.

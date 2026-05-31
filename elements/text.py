@@ -127,6 +127,9 @@ class Text(Drawable):
     def get_size(self) -> float:
         return self.size
 
+    def _repr_fields(self) -> str:
+        return f"text={self.get_text()!r}"
+
     def set_font(self, font: str, propagate: bool = True) -> Text:
         """Set ``font``; ``propagate`` (default) rewrites every Text descendant.
 

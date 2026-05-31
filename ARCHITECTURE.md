@@ -15,6 +15,7 @@ A Python-driven presentation tool.
 mate/
 ├── __init__.py        # public re-exports
 ├── config.py          # process-global `config` singleton (slide size, color palette)
+├── log.py             # process-global `mate` logger
 ├── demo.py            # usage example
 ├── pyproject.toml
 ├── core/              # primitives and central abstractions
@@ -209,6 +210,14 @@ Everything is emitted under the same `<bbox>` label and recovered in a single `t
 #### Why `ignore_system_fonts`
 
 Without it, Typst scans system fonts on every query (~400 ms). With it the query stays fast, restricted to Typst's embedded faces. The cost is no longer being able to refer to local fonts by name, which we do not use today.
+
+## Logging
+
+### `log.py` — the `mate` logger
+
+A single `logging` logger named `mate`, attached to a rich `RichHandler`, carries both output layers: user-facing progress at INFO and developer narration at DEBUG. "Debug mode" is the logger sitting at DEBUG level — there is no separate flag. `config.set_debug(enabled)` sets it by writing the logger's level, so the level stays the single source of truth (no parallel boolean).
+
+Messages opt into rich markup per call with `extra={"markup": True, "highlighter": None}`; the handler leaves markup off by default so message data containing brackets is not mangled. Narration is hand-placed `logger.debug(...)` at the lifecycle points worth watching, in library code rather than user scripts, so the same presentation script run with debug on streams the events. Guard an expensive debug payload with `if logger.isEnabledFor(logging.DEBUG)` before building it.
 
 ## How to extend
 

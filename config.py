@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 
 _HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})")
@@ -76,6 +77,10 @@ class Config:
     def set_slide_size(self, width: float, height: float) -> None:
         self.slide_width = float(width)
         self.slide_height = float(height)
+
+    def set_debug(self, enabled: bool) -> None:
+        """Enable or disable DEBUG narration on the ``mate`` logger."""
+        logging.getLogger("mate").setLevel(logging.DEBUG if enabled else logging.INFO)
 
     def get(self, key: str) -> object:
         """Return the default value registered under ``key``."""

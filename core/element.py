@@ -221,6 +221,19 @@ class Element:
                 self.id.append(k)
                 id_registry.register(self, k)
 
+    def _repr_fields(self) -> str:
+        """Concrete intrinsic fields for ``repr``; the base contributes none."""
+        return ""
+
+    def __repr__(self) -> str:
+        parts = [f"#{self._mid}"]
+        if self.id:
+            parts.append(f"id={self.id!r}")
+        fields = self._repr_fields()
+        if fields:
+            parts.append(fields)
+        return f"{type(self).__name__}({', '.join(parts)})"
+
     @property
     def pos(self) -> Vec:
         """Return the stored anchor point. Never measures."""

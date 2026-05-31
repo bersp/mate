@@ -60,6 +60,9 @@ class Group(Drawable):
         if children:
             self._take_children(list(children))
 
+    def _repr_fields(self) -> str:
+        return f"children={len(self.children)}"
+
     def add(self, element: Element) -> Element:
         """Append ``element`` to the group, reparenting it.
 

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from ..backends.typst import TypstRenderer as _Renderer
 from ..config import config
+from ..log import logger
 from .element import Element
 from .template import PresentationTemplate
 
@@ -39,6 +40,10 @@ class Slide:
     def add(self, element: Element) -> Element:
         """Append ``element`` to the slide's roots and return it (for chaining)."""
         self.elements.append(element)
+        logger.debug(
+            rf"[yellow]SLIDE ADD ::[/yellow] {element!r}",
+            extra={"markup": True, "highlighter": None},
+        )
         return element
 
 
@@ -60,6 +65,10 @@ class Presentation(PresentationTemplate):
         slide = Slide(title, subtitle)
         self.slides.append(slide)
         self.current_slide = slide
+        logger.debug(
+            rf"[yellow]NEW SLIDE[/yellow] ({len(self.slides)}) {title!r}",
+            extra={"markup": True, "highlighter": None},
+        )
         return slide
 
     def end_slide(self) -> None:
@@ -68,11 +77,17 @@ class Presentation(PresentationTemplate):
         Snapshotting seals the current slide; the cleared regions are reused
         by the next slide.
         """
+        slide = self.current_slide
+        number = self.slides.index(slide) + 1
         for region in self.layout.regions.values():
             region.arrange()
-        slide = self.current_slide
         slide._fragment = self._render_slide(slide)
         self.layout.remove_all_elements()
+        suffix = f" ([u]{slide.title}[/u])" if slide.title else ""
+        logger.info(
+            rf"[yellow b]Generating[/yellow b] Slide {number}{suffix}",
+            extra={"markup": True, "highlighter": None},
+        )
 
     def _render_slide(self, slide: Slide) -> str:
         return self._renderer.render_slide(slide, (self.width, self.height))
@@ -88,8 +103,17 @@ class Presentation(PresentationTemplate):
             raise RuntimeError(
                 f"{open_count} slide(s) still open; call .end_slide() before write()."
             )
+        path = Path(f"{self.name}.pdf")
+        logger.info(
+            rf"[yellow b]Compiling[/yellow b] [magenta]{self.name}.pdf[/magenta]",
+            extra={"markup": True, "highlighter": None},
+        )
         self._renderer.compile_document(
             [s._fragment for s in self.slides],
             (self.width, self.height),
-            Path(f"{self.name}.pdf"),
+            path,
+        )
+        logger.info(
+            "[green b]Ready[/green b]",
+            extra={"markup": True, "highlighter": None},
         )
