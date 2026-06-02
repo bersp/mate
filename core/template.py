@@ -4,7 +4,7 @@ from itertools import cycle
 
 from ..config import config
 from ..elements.group import Group
-from ..elements.text import DEFAULT_FONT, Text
+from ..elements.text import Text
 from ..composition.layout import Layout, Region
 from ..composition.utils import layout_to_group
 from .element import Element
@@ -13,9 +13,19 @@ from .element import Element
 class PresentationTemplate:
     """Base template for a presentation."""
 
-    font: str = DEFAULT_FONT
-
     def __init__(self) -> None:
+        self.text_font: str = config.get("text.font")
+        self.text_fontsize: float = config.get("text.fontsize")
+        self.text_color: str = config.get("text.color")
+        self.title_font: str = config.get("title.font")
+        self.title_fontsize: float = config.get("title.fontsize")
+        self.title_color: str = config.get("title.color")
+        self.subtitle_font: str = config.get("subtitle.font")
+        self.subtitle_fontsize: float = config.get("subtitle.fontsize")
+        self.subtitle_color: str = config.get("subtitle.color")
+        self.math_font: str = config.get("math.font")
+        self.math_fontsize: float = config.get("math.fontsize")
+        self.math_color: str = config.get("math.color")
         self.layout: Layout = self.build_layout()
 
     def build_layout(self) -> Layout:
@@ -73,15 +83,37 @@ class PresentationTemplate:
         self.current_slide.add(group)
         return group
 
-    def add_title(self) -> None:
-        """Build the current slide's title and subtitle into ``Text`` elements.
+    def add_title(self) -> Group:
+        """Build the current slide's title and subtitle into a ``Group``.
 
-        Adds them to the slide and to the title region.
+        The group is added to the slide; its members are also added to the
+        title region so :meth:`Region.arrange` stacks them. Returns the
+        group, which is empty when both title and subtitle are unset.
         """
         slide = self.current_slide
-        for text in (slide.title, slide.subtitle):
-            if text is None:
-                continue
-            el = Text(text, font=self.font)
-            slide.add(el)
-            self.layout.get("title").add(el)
+        title_region = self.layout.get("title")
+        members: list[Text] = []
+
+        if slide.title is not None:
+            title = Text(
+                slide.title,
+                font=self.title_font,
+                fontsize=self.title_fontsize,
+                fill_color=self.title_color,
+            )
+            title_region.add(title)
+            members.append(title)
+
+        if slide.subtitle is not None:
+            subtitle = Text(
+                slide.subtitle,
+                font=self.subtitle_font,
+                fontsize=self.subtitle_fontsize,
+                fill_color=self.subtitle_color,
+            )
+            title_region.add(subtitle)
+            members.append(subtitle)
+
+        group = Group(members)
+        slide.add(group)
+        return group

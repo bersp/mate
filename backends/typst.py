@@ -105,7 +105,7 @@ def _wrap_text_attrs(el: Text, inner: str) -> str:
     default (black, matching :class:`~mate.core.drawable.Drawable`'s
     visual default).
     """
-    attrs = [f'font: "{el.font}"', f"size: {el.size}pt"]
+    attrs = [f'font: "{el.font}"', f"size: {el.fontsize}pt"]
     if not (el.fill_color is None and el.fill_opacity is None):
         attrs.append(f"fill: {_typst_fill(el.fill_color, el.fill_opacity)}")
     return f'#text({", ".join(attrs)})[{inner}]'

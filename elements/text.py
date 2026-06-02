@@ -2,17 +2,13 @@ from __future__ import annotations
 
 import re
 
+from ..config import config
 from ..core.element import Anchor, Element, Placement
 from ..core.registry import IDKey, id_registry
 from ..core.drawable import Drawable
 from ..core.vec import VecLike
 
 _ID_RE = re.compile(r"\(id=([^)]+)\)")
-
-# Hardcoded Typst defaults — kept in sync with `typst query` on a blank doc
-# so the rendered output is independent of any implicit fallback.
-DEFAULT_FONT: str = "libertinus serif"
-DEFAULT_SIZE_PT: float = 11.0
 
 
 class Text(Drawable):
@@ -35,17 +31,22 @@ class Text(Drawable):
     source : str or None, optional
         Source string with optional ``[...](id=K)`` markup. ``None``
         builds an empty Text (typically for internal cloning). Positional.
-    font : str, optional
-        Typst font family name. Default :data:`DEFAULT_FONT`.
-    size : float, optional
-        Font size in points. Default :data:`DEFAULT_SIZE_PT`.
+    font : str or None, optional
+        Typst font family name. ``None`` (default) reads ``text.font``
+        from the config.
+    fontsize : float or None, optional
+        Font size in points. ``None`` (default) reads ``text.fontsize``
+        from the config.
     max_width : float or None, optional
         Maximum line width in cm. When set, the text wraps to stay
         within it and the bbox width shrinks to fit the content
         (``min(natural width, max_width)``); ``None`` (default) lets
         the text run on a single line. Applies to the node it is set
         on, not propagated to ``subs``.
-    pos, anchor, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    fill_color : str or None, optional
+        Palette name or literal hex for the glyph fill. ``None`` (default)
+        reads ``text.color`` from the config.
+    pos, anchor, placement, id, stroke_color, fill_opacity, stroke_width
         Keyword-only. See :class:`~mate.core.drawable.Drawable`. ``stroke_*``
         fields are currently ignored for text rendering.
 
@@ -57,7 +58,7 @@ class Text(Drawable):
         Id'd sub-Texts at this immediate level, in source order.
     font : str
         Typst font family used to render and measure this node.
-    size : float
+    fontsize : float
         Font size in points.
     max_width : float or None
         Wrap width in cm, or ``None`` for no wrapping.
@@ -67,8 +68,8 @@ class Text(Drawable):
         self,
         source: str | None = None,
         *,
-        font: str = DEFAULT_FONT,
-        size: float = DEFAULT_SIZE_PT,
+        font: str | None = None,
+        fontsize: float | None = None,
         max_width: float | None = None,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
@@ -84,15 +85,17 @@ class Text(Drawable):
             anchor=anchor,
             placement=placement,
             id=id,
-            fill_color=fill_color,
+            fill_color=config.get("text.color") if fill_color is None else fill_color,
             stroke_color=stroke_color,
             fill_opacity=fill_opacity,
             stroke_width=stroke_width,
         )
         self.content: str = ""
         self.subs: list[Text] = []
+        font = config.get("text.font") if font is None else font
+        fontsize = config.get("text.fontsize") if fontsize is None else fontsize
         self.font: str = font
-        self.size: float = size
+        self.fontsize: float = fontsize
         self.max_width: float | None = max_width
         if source is not None:
             children = _parse_segment(source, self.subs)
@@ -102,10 +105,10 @@ class Text(Drawable):
                 self.content = children[0].content
             else:
                 self._take_children(children)
-                # Parser-built subs are constructed with the module defaults;
+                # Parser-built subs are constructed with the config defaults;
                 # propagate this node's font/size so they inherit explicitly.
                 self._set_field("font", font, propagate=True)
-                self._set_field("size", size, propagate=True)
+                self._set_field("fontsize", fontsize, propagate=True)
 
     def get_content(self) -> str:
         """Return this node's own raw text (empty when the node has children)."""
@@ -124,8 +127,8 @@ class Text(Drawable):
     def get_font(self) -> str:
         return self.font
 
-    def get_size(self) -> float:
-        return self.size
+    def get_fontsize(self) -> float:
+        return self.fontsize
 
     def _repr_fields(self) -> str:
         return f"text={self.get_text()!r}"
@@ -139,12 +142,12 @@ class Text(Drawable):
         self._invalidate_tree()
         return self
 
-    def set_size(self, size: float, propagate: bool = True) -> Text:
-        """Set ``size`` (points); ``propagate`` (default) rewrites Text descendants.
+    def set_fontsize(self, fontsize: float, propagate: bool = True) -> Text:
+        """Set ``fontsize`` (points); ``propagate`` (default) rewrites Text descendants.
 
         Geometric mutator: invalidates the bbox cache of this element's tree.
         """
-        self._set_field("size", size, propagate)
+        self._set_field("fontsize", fontsize, propagate)
         self._invalidate_tree()
         return self
 

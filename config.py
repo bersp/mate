@@ -9,9 +9,28 @@ _HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})")
 
 # Default values templates may read via ``config.get``. Keys are dotted
 # paths; a template either uses the default or hardcodes its own literal.
+#
+# Typography keys follow ``<role>.<dimension>``: every typographic role
+# (``text``, ``title``, ``subtitle``, ``math``) carries the dimensions it needs
+# (``font``, ``fontsize``, ``color``). The font/size literals are kept in sync
+# with ``typst query`` on a blank doc so the rendered output never relies on
+# Typst's implicit fallback; ``color`` is a palette name resolved via
+# ``config.colors``.
 _DEFAULTS: dict[str, object] = {
     "box.full_with_margins.margins": 0.7,
     "box.content.anchor": "top-left",
+    "text.font": "libertinus serif",
+    "text.fontsize": 11.0,
+    "text.color": "black",
+    "title.font": "libertinus serif",
+    "title.fontsize": 11.0,
+    "title.color": "black",
+    "subtitle.font": "libertinus serif",
+    "subtitle.fontsize": 11.0,
+    "subtitle.color": "black",
+    "math.font": "libertinus serif",
+    "math.fontsize": 11.0,
+    "math.color": "black",
 }
 
 _DEFAULT_PALETTE: dict[str, str] = {
