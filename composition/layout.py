@@ -334,7 +334,11 @@ class Layout:
 
     def __init__(self) -> None:
         self.regions: dict[str, Region] = {}
-        self.active: Region | None = None
+        self._active: Region | None = None
+
+    @property
+    def active(self) -> Region | None:
+        return self._active
 
     def add(self, name: str, region: Region) -> Region:
         """Attach ``region`` to this layout under ``name`` and return it."""
@@ -342,7 +346,13 @@ class Layout:
         return region
 
     def get(self, name: str) -> Region:
-        """Return the region under ``name``; raise listing defined names."""
+        """Return the region under ``name``, or the active one for ``"active"``.
+
+        Raises :class:`ValueError` listing the defined names if ``name`` is
+        neither ``"active"`` nor a region in this layout.
+        """
+        if name == "active":
+            return self._active
         if name not in self.regions:
             defined = ", ".join(self.regions)
             raise ValueError(
@@ -350,15 +360,10 @@ class Layout:
             )
         return self.regions[name]
 
-    def set_active(self, region_or_name: Region | str) -> Region:
-        """Set :attr:`active` to ``region_or_name`` (Region or name)."""
-        region = (
-            self.get(region_or_name)
-            if isinstance(region_or_name, str)
-            else region_or_name
-        )
-        self.active = region
-        return region
+    def set_active(self, name: str) -> Region:
+        """Set the active region to the one under ``name`` and return it."""
+        self._active = self.get(name)
+        return self._active
 
     def remove_all_elements(self) -> None:
         """Clear :attr:`Region.elements` on every region in this layout."""

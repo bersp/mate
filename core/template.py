@@ -117,3 +117,17 @@ class PresentationTemplate:
         group = Group(members)
         slide.add(group)
         return group
+
+    def add_text(self, text: str, region: str = "active", **text_kwargs) -> Text:
+        """Create a wrapped :class:`Text` and add it to a region and the slide.
+
+        ``region`` is the target region name. The text wraps at the region's
+        width unless ``max_width`` is passed in ``text_kwargs``; the remaining
+        keyword arguments are forwarded to :class:`Text`.
+        """
+        target = self.layout.get(region)
+        text_kwargs.setdefault("max_width", target.width)
+        el = Text(text, **text_kwargs)
+        self.current_slide.add(el)
+        target.add(el)
+        return el
