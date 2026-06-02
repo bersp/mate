@@ -44,8 +44,8 @@ def _bare(el: Element) -> str:
     """Render ``el`` without `#place`/`#hide` wrappers (size-measurement form).
 
     Used by the measurer to ask Typst for the *isolated* size of each
-    element via ``measure(...)``. Fill color is preserved since it can
-    affect glyph metrics; positioning and visibility are not.
+    element via ``measure(...)``. Fill is dropped (it does not affect
+    glyph metrics); positioning and visibility are not represented either.
     ``"omitted"`` children contribute nothing to the parent's size.
     """
     if isinstance(el, Text):
@@ -53,7 +53,7 @@ def _bare(el: Element) -> str:
             inner = "".join(_bare(c) for c in el.children if c.placement != "omitted")
         else:
             inner = _escape(el.content)
-        body = _wrap_text_attrs(el, inner)
+        body = _wrap_text_attrs(el, inner, with_fill=False)
         if el.max_width is not None:
             body = _wrap_max_width(body, body, el.max_width)
         return body
@@ -100,7 +100,7 @@ def _typst_stroke(color: str | None, width: float | None) -> str:
     return f"{w}cm + {c}"
 
 
-def _wrap_text_attrs(el: Text, inner: str) -> str:
+def _wrap_text_attrs(el: Text, inner: str, *, with_fill: bool = True) -> str:
     """Wrap ``inner`` in ``#text(font: ..., size: ...pt, fill: ...)``.
 
     ``font`` and ``size`` are always emitted — every :class:`Text` carries
@@ -108,10 +108,12 @@ def _wrap_text_attrs(el: Text, inner: str) -> str:
     implicit fallback. ``fill:`` is added only when the element has
     explicit fill state, otherwise the body inherits Typst's lexical
     default (black, matching :class:`~mate.core.drawable.Drawable`'s
-    visual default).
+    visual default). ``with_fill=False`` drops it entirely: fill does not
+    affect glyph metrics, so the measurement form omits it to keep the
+    aux document small.
     """
     attrs = [f'font: "{el.font}"', f"size: {el.fontsize}pt"]
-    if not (el.fill_color is None and el.fill_opacity is None):
+    if with_fill and not (el.fill_color is None and el.fill_opacity is None):
         attrs.append(f"fill: {_typst_fill(el.fill_color, el.fill_opacity)}")
     return f'#text({", ".join(attrs)})[{inner}]'
 
