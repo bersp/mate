@@ -19,8 +19,9 @@ class Region:
     anchor : Anchor, optional
         Default anchor for :meth:`arrange`, inherited by sub-regions of
         :meth:`grid`. Defaults to ``"top-left"``.
-    arrange_gap : float, optional
-        Default vertical gap for :meth:`arrange`. Defaults to ``0``.
+    arrange_gap : float or None, optional
+        Default vertical gap for :meth:`arrange`. ``None`` (default) reads
+        ``arrange.gap`` from the config.
     """
 
     def __init__(
@@ -30,13 +31,15 @@ class Region:
         height: float,
         *,
         anchor: Anchor = "top-left",
-        arrange_gap: float = 0.0,
+        arrange_gap: float | None = None,
     ) -> None:
         self._center: Vec = Vec(center)
         self._width: float = float(width)
         self._height: float = float(height)
         self._anchor: Anchor = anchor
-        self._arrange_gap: float = float(arrange_gap)
+        self._arrange_gap: float = (
+            config.get("arrange.gap") if arrange_gap is None else float(arrange_gap)
+        )
         self.elements: list[Element] = []
 
     @classmethod

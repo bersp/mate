@@ -44,13 +44,14 @@ class PresentationTemplate:
                 right=right,
                 top=title,
                 bottom=footer,
-                anchor=config.get("box.content.anchor"),
+                anchor=config.get("region.content.anchor"),
+                arrange_gap=config.get("region.content.arrange_gap"),
             ),
         )
 
         layout.add("full", Region.create_full(anchor="top-center"))
 
-        m = config.get("box.full_with_margins.margins")
+        m = config.get("region.full_with_margins.margins")
         layout.add(
             "full_with_margins",
             Region.create_full(anchor="top-center").adjust_borders(
