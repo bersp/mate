@@ -8,7 +8,8 @@ import typst
 
 from ..core.element import anchor_offsets
 from ..elements.group import Group
-from ..elements.shapes import Circle, Ellipse, Rectangle
+from ..elements.shapes import Circle, Ellipse, Line, Rectangle
+from ..elements.spacing import HSpace, VSpace
 from ..elements.text import Text
 
 if TYPE_CHECKING:
@@ -58,6 +59,10 @@ def _bare(el: Element) -> str:
         return body
     if isinstance(el, (Rectangle, Circle, Ellipse)):
         return _shape_markup(el)
+    if isinstance(el, Line):
+        return _line_markup(el)
+    if isinstance(el, (VSpace, HSpace)):
+        return _spacer_markup(el)
     # Groups (and any unknown leaf) contribute nothing to size: the
     # group's bbox is computed as the union of children in `_assign`,
     # so the per-element measurement record is intentionally empty.
@@ -149,6 +154,30 @@ def _shape_markup(el: Rectangle | Circle | Ellipse) -> str:
         f"#ellipse(width: {el.width}cm, height: {el.height}cm, "
         f"fill: {fill}, stroke: {stroke})"
     )
+
+
+def _line_markup(el: Line) -> str:
+    """Emit the Typst body for a :class:`Line`.
+
+    The endpoints are normalized to the bbox's top-left in Typst's
+    y-down local frame, so the segment draws inside its own bounding
+    box and ``measure(...)`` returns ``(|dx|, |dy|)`` — matching the
+    element's intrinsic width/height.
+    """
+    sx, sy = el.start.x, el.start.y
+    ex, ey = el.end.x, el.end.y
+    left = min(sx, ex)
+    top = max(sy, ey)
+    stroke = _typst_stroke(el.stroke_color, el.stroke_width)
+    return (
+        f"#line(start: ({sx - left}cm, {top - sy}cm), "
+        f"end: ({ex - left}cm, {top - ey}cm), stroke: {stroke})"
+    )
+
+
+def _spacer_markup(el: VSpace | HSpace) -> str:
+    """Emit an invisible box matching a spacer's intrinsic size."""
+    return f"#box(width: {el.get_width()}cm, height: {el.get_height()}cm)"
 
 
 def _collect_fixed(el: Element) -> list[Element]:
@@ -352,6 +381,10 @@ class TypstRenderer:
                 inner = _wrap_max_width(inner, inner, el.max_width)
         elif isinstance(el, (Rectangle, Circle, Ellipse)):
             inner = _shape_markup(el)
+        elif isinstance(el, Line):
+            inner = _line_markup(el)
+        elif isinstance(el, (VSpace, HSpace)):
+            inner = _spacer_markup(el)
         elif isinstance(el, Group):
             inner = "".join(
                 self._render_node(c, placeholder=c.placement == "fixed")
@@ -552,6 +585,10 @@ class TypstMeasurer:
                 inner = _wrap_max_width(_bare(el), inner, el.max_width)
         elif isinstance(el, (Rectangle, Circle, Ellipse)):
             inner = _shape_markup(el)
+        elif isinstance(el, Line):
+            inner = _line_markup(el)
+        elif isinstance(el, (VSpace, HSpace)):
+            inner = _spacer_markup(el)
         elif isinstance(el, Group):
             inner = self._render_children_with_probes(el)
         else:

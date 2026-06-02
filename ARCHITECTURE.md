@@ -25,6 +25,7 @@ mate/
 ├── elements/          # concrete visual element types
 │   ├── group.py
 │   ├── shapes.py
+│   ├── spacing.py
 │   └── text.py
 ├── backends/          # backend-specific renderers/measurers
 │   └── typst.py
@@ -132,15 +133,21 @@ Only `fill_color` / `fill_opacity` reach Typst (folded into the same `#text(...)
 
 **`_copy()`** override re-maps the `subs` list using the shared `mapping` from `Element._copy`, so the cloned subs point at the cloned descendants. Clones inherit structure but are not registered in `id_registry`: the registry indexes user-tagged originals.
 
-### `elements/shapes.py` — `Rectangle`, `Circle`, `Ellipse`
+### `elements/shapes.py` — `Rectangle`, `Circle`, `Ellipse`, `Line`
 
-Three filled-shape primitives extending `Drawable` with intrinsic dimensions and no children. With the `Drawable` defaults they render as solid black with no stroke; pass `fill_opacity=0` to make a layout placeholder, and `stroke_width > 0` to draw an outline.
+Geometric primitives extending `Drawable` with intrinsic dimensions and no children. The three filled shapes render as solid black with no stroke under the `Drawable` defaults; pass `fill_opacity=0` to make a layout placeholder, and `stroke_width > 0` to draw an outline.
 
 - `Rectangle(width, height, ...)` → `#rect(width: Wcm, height: Hcm, fill: ..., stroke: ...)`. Bbox is `(width, height)`.
 - `Circle(radius, ...)` → `#circle(radius: Rcm, fill: ..., stroke: ...)`. Bbox is `(2 radius, 2 radius)`.
 - `Ellipse(width, height, ...)` → `#ellipse(width: Wcm, height: Hcm, fill: ..., stroke: ...)`. Bbox is `(width, height)`; semi-axes are `width/2` and `height/2`.
 
-Measurement returns Typst's `measure()` of the emitted body, which matches the intrinsic dimensions for all three. The backend dispatches them through a single `_shape_markup(el)` helper that branches on the concrete type and resolves the four `Drawable` fields via `_typst_fill` / `_typst_stroke`.
+The three filled shapes dispatch through a single `_shape_markup(el)` helper that branches on the concrete type and resolves the four `Drawable` fields via `_typst_fill` / `_typst_stroke`. Measurement returns Typst's `measure()` of the emitted body, which matches the intrinsic dimensions.
+
+- `Line(start, end, ...)` is stroke-only: `start` and `end` are points (cm) in the element's local frame, and the bbox is the axis-aligned box bounding them, so a horizontal line has zero height and a vertical line zero width. Bbox is `(|end.x - start.x|, |end.y - start.y|)`. `stroke_width` defaults to the `line.stroke_width` config value; `fill_*` is inert. The backend's `_line_markup(el)` normalizes the endpoints to the bbox's top-left in Typst's y-down frame and emits `#line(start: ..., end: ..., stroke: ...)`, so the segment draws inside its own bounding box and `measure()` returns `(|dx|, |dy|)`.
+
+### `elements/spacing.py` — `VSpace`, `HSpace`
+
+Invisible spacers extending `Element` (no fill/stroke) with intrinsic size and no rendered body. `VSpace(height)` has bbox `(0, height)`; `HSpace(width)` has bbox `(width, 0)`. The backend's `_spacer_markup(el)` emits an empty `#box(width: ..., height: ...)` so `measure()` returns the exact size while nothing is drawn. They report their size without a Typst query (`_INTRINSIC_SIZE` in `arrange`), and `arrange` drops the inter-element gap next to a spacer so the spacer alone sets the space between its neighbours.
 
 ### `elements/group.py` — `Group`
 
@@ -160,9 +167,11 @@ Movement (`move_to`, `shift`) is inherited from `Element`: every fixed descendan
 
 `arrange(elements, pos, anchor, *, gap=0.0)` stacks elements in a single column, top-to-bottom in list order, with bboxes flush against each other (plus `gap` between them). The stack as a whole is anchored at `pos` with mode `anchor`: the union bbox is sized as `(max(widths), sum(heights))` (conceptually) and positioned so its `anchor` point lands at `pos`. The horizontal half of `anchor` picks the alignment of bboxes inside the stack (`*-left` → flush left, `*-center` → centered, `*-right` → flush right); the vertical half picks where `pos.y` sits relative to the stack (`top-*` → top edge, `center-*` → vertical center, `bottom-*` → bottom edge). Each element is moved via `move_to`, which honors that element's own anchor.
 
+The `gap` is per-pair: it is inserted between two consecutive elements only when neither is a spacer (`VSpace` / `HSpace`). A spacer carries its own height, so it alone sets the space between its neighbours — `arrange([A, VSpace(v), B], gap=g)` puts `v` between `A` and `B`, not `v + 2g`.
+
 Math note: writing out the per-element `pos.x` in terms of the stack's `pos.x`, the stack's `h_mul`, the element's own `h_mul`, and its width, the stack's `total_width` cancels — only the element's own width is needed. So `arrange` never computes `max(widths)` and only reads `get_width()` for elements whose horizontal anchor half differs from the stack's.
 
-Performance is the reason this helper exists as a single function rather than a couple of inlined lines. Before the positioning loop it collects the elements that need a measured bbox — everything except the intrinsic-size primitives (`Rectangle`, `Circle`, `Ellipse`), which report their own dimensions — and runs `measure_all` over that subset, so the worst case is one Typst query for the whole call. A stack of shape primitives pays zero queries.
+Performance is the reason this helper exists as a single function rather than a couple of inlined lines. Before the positioning loop it collects the elements that need a measured bbox — everything except the intrinsic-size types (`Rectangle`, `Circle`, `Ellipse`, `Line`, `VSpace`, `HSpace`), which report their own dimensions — and runs `measure_all` over that subset, so the worst case is one Typst query for the whole call. A stack of intrinsic-size elements pays zero queries.
 
 ### `composition/layout.py` — `Region`, `Layout`
 
@@ -180,7 +189,7 @@ Region owns its elements: `add(el)`, `remove(el)`, `replace(old, new)`, `remove_
 
 ### Why a uniform tree
 
-A `Text` with subs is internally a tree of `Text`s. When `Square`, `Triangle`, `Line`, etc. are added later they all live in the same tree under an `Element` root. Renderer and measurer walk `children` without knowing the concrete type (except where type-specific dispatch is needed, like Text → glyphs).
+A `Text` with subs is internally a tree of `Text`s. When `Square`, `Triangle`, etc. are added later they all live in the same tree under an `Element` root. Renderer and measurer walk `children` without knowing the concrete type (except where type-specific dispatch is needed, like Text → glyphs).
 
 ## Backend
 

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from ..config import config
 from ..core.element import Anchor, Placement
 from ..core.registry import IDKey
 from ..core.drawable import Drawable
-from ..core.vec import VecLike
+from ..core.vec import Vec, VecLike
 
 
 class Rectangle(Drawable):
@@ -222,5 +223,93 @@ class Ellipse(Drawable):
         Geometric mutator: invalidates the bbox cache of this element's tree.
         """
         self._set_field("height", height, propagate)
+        self._invalidate_tree()
+        return self
+
+
+class Line(Drawable):
+    """Straight line segment from ``start`` to ``end``.
+
+    ``start`` and ``end`` are points in cm in the element's local frame.
+    The bbox is the axis-aligned box bounding them, so a horizontal line
+    has zero height and a vertical line zero width. The points fix the
+    shape and size; ``anchor``/``pos`` place that box on the slide like
+    any other element. Only the stroke is drawn (``stroke_color`` /
+    ``stroke_width``); ``fill_*`` is inert.
+
+    Parameters
+    ----------
+    start, end : VecLike
+        Endpoints in cm, in the local frame. Positional.
+    stroke_width : float or None, optional
+        Stroke thickness in cm. ``None`` (default) reads
+        ``line.stroke_width`` from the config.
+    pos, anchor, placement, id, stroke_color, fill_color, fill_opacity
+        Keyword-only. See :class:`~mate.core.drawable.Drawable`.
+
+    Attributes
+    ----------
+    start, end : Vec
+        The endpoints in the local frame.
+    """
+
+    def __init__(
+        self,
+        start: VecLike,
+        end: VecLike,
+        *,
+        pos: VecLike | None = None,
+        anchor: Anchor = "center",
+        placement: Placement = "fixed",
+        id: IDKey | list[IDKey] | None = None,
+        fill_color: str | None = None,
+        stroke_color: str | None = None,
+        fill_opacity: float | None = None,
+        stroke_width: float | None = None,
+    ) -> None:
+        super().__init__(
+            pos=pos,
+            anchor=anchor,
+            placement=placement,
+            id=id,
+            fill_color=fill_color,
+            stroke_color=stroke_color,
+            fill_opacity=fill_opacity,
+            stroke_width=(
+                config.get("line.stroke_width")
+                if stroke_width is None
+                else stroke_width
+            ),
+        )
+        self.start: Vec = Vec(start)
+        self.end: Vec = Vec(end)
+
+    def get_width(self) -> float:
+        return abs(self.end.x - self.start.x)
+
+    def get_height(self) -> float:
+        return abs(self.end.y - self.start.y)
+
+    def _repr_fields(self) -> str:
+        return (
+            f"start=({self.start.x:.4g}, {self.start.y:.4g}), "
+            f"end=({self.end.x:.4g}, {self.end.y:.4g})"
+        )
+
+    def set_start(self, start: VecLike, propagate: bool = False) -> Line:
+        """Set ``start``; ``propagate`` rewrites descendants with ``start``.
+
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        self._set_field("start", Vec(start), propagate)
+        self._invalidate_tree()
+        return self
+
+    def set_end(self, end: VecLike, propagate: bool = False) -> Line:
+        """Set ``end``; ``propagate`` rewrites descendants with ``end``.
+
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        self._set_field("end", Vec(end), propagate)
         self._invalidate_tree()
         return self

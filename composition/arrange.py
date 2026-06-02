@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from ..core.element import Anchor, Element, anchor_offsets, measure_all
 from ..core.vec import Vec, VecLike
-from ..elements.shapes import Circle, Ellipse, Rectangle
+from ..elements.shapes import Circle, Ellipse, Line, Rectangle
+from ..elements.spacing import HSpace, VSpace
 
 
 def arrange(
@@ -50,7 +51,10 @@ def arrange(
     gap : float, optional
         Vertical space (in cm) inserted between consecutive bboxes.
         Defaults to ``0`` (bboxes touch). Counts towards the stack's
-        total height for anchoring purposes.
+        total height for anchoring purposes. No gap is inserted next to
+        a spacer (:class:`~mate.elements.spacing.VSpace` /
+        :class:`~mate.elements.spacing.HSpace`), so a spacer alone sets
+        the space between its neighbours.
 
     Performance
     -----------
@@ -74,7 +78,14 @@ def arrange(
         measure_all(pending)
 
     heights = [el.get_height() for el in elements]
-    total_h = sum(heights) + gap * (len(elements) - 1)
+    # A spacer *is* the spacing, so no gap is inserted on either side of
+    # one: the gap between consecutive elements is dropped whenever either
+    # neighbour is a spacer. `gaps[i]` is the space following element `i`.
+    gaps = [
+        0.0 if isinstance(a, _SPACER) or isinstance(b, _SPACER) else gap
+        for a, b in zip(elements, elements[1:])
+    ]
+    total_h = sum(heights) + sum(gaps)
 
     x0 = anchor_pos.x
     # Slide coords are y-up: list order is top-to-bottom, so the cursor
@@ -82,7 +93,7 @@ def arrange(
     # height (plus gap). Top edge = anchor_pos.y + (1 - v_mul) * total_h.
     y_cursor = anchor_pos.y + (1.0 - stack_v_mul) * total_h
 
-    for el, h in zip(elements, heights):
+    for i, (el, h) in enumerate(zip(elements, heights)):
         h_mul, v_mul = anchor_offsets(el.anchor)
         if h_mul == stack_h_mul:
             pos_x = x0
@@ -91,7 +102,8 @@ def arrange(
         # bbox.bottom = y_cursor - h; pos_y = bbox.bottom + v_mul * h.
         pos_y = y_cursor - (1.0 - v_mul) * h
         el.move_to((pos_x, pos_y))
-        y_cursor -= h + gap
+        y_cursor -= h + (gaps[i] if i < len(gaps) else 0.0)
 
 
-_INTRINSIC_SIZE = (Rectangle, Circle, Ellipse)
+_INTRINSIC_SIZE = (Rectangle, Circle, Ellipse, Line, VSpace, HSpace)
+_SPACER = (VSpace, HSpace)

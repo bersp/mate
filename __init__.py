@@ -11,7 +11,7 @@ from .core import (
     id_registry,
     measure_all,
 )
-from .elements import Circle, Ellipse, Group, Rectangle, Text
+from .elements import Circle, Ellipse, Group, HSpace, Line, Rectangle, Text, VSpace
 from .composition import arrange, Layout, Region, layout_to_group
 
 __all__ = [
@@ -25,8 +25,11 @@ __all__ = [
     "Circle",
     "Ellipse",
     "Group",
+    "HSpace",
+    "Line",
     "Rectangle",
     "Text",
+    "VSpace",
     "IDRegistry",
     "id_registry",
     "measure_all",
