@@ -68,7 +68,12 @@ class Presentation(PresentationTemplate):
         self._renderer = _Renderer()
 
     def new_slide(self, title: str | None = None, subtitle: str | None = None) -> Slide:
-        """Create, attach, and return a fresh open slide."""
+        """Create, attach, and return a fresh open slide.
+
+        When ``template.auto_title`` / ``template.auto_footer`` are enabled,
+        the slide's title block and footer are added on creation; the
+        footer shows ``/<total>`` when ``footer.show_total`` is set.
+        """
         slide = Slide(title, subtitle)
         self.slides.append(slide)
         self.current_slide = slide
@@ -76,6 +81,10 @@ class Presentation(PresentationTemplate):
             rf"[yellow]NEW SLIDE[/yellow] ({len(self.slides)}) {title!r}",
             extra={"markup": True, "highlighter": None},
         )
+        if self.auto_add_title:
+            self.add_title()
+        if self.auto_add_footer:
+            self.add_footer(show_total=self.footer_show_total)
         return slide
 
     def end_slide(self) -> None:

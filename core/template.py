@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from itertools import cycle
 
+from ..composition.layout import Layout, Region
+from ..composition.utils import layout_to_group
 from ..config import config
 from ..elements.group import Group
 from ..elements.image import Image
-from ..elements.text import Text
+from ..elements.shapes import Line
 from ..elements.spacing import VSpace
-from ..composition.layout import Layout, Region
-from ..composition.utils import layout_to_group
+from ..elements.text import Text
+from .vec import Vec
 from .element import Element, HAlign
 
 
@@ -28,18 +30,36 @@ class PresentationTemplate:
         self.math_font: str = config.get("math.font")
         self.math_fontsize: float = config.get("math.fontsize")
         self.math_color: str = config.get("math.color")
+        self.auto_add_title: bool = config.get("template.auto_title")
+        self.auto_add_footer: bool = config.get("template.auto_footer")
+        self.footer_show_total: bool = config.get("footer.show_total")
         self.layout: Layout = self.build_layout()
 
     def build_layout(self) -> Layout:
         """Return the presentation's region layout."""
         layout = Layout()
 
+        left_margin = 0.7
+        right_margin = 0.7
+
         title = layout.add(
-            "title", Region.create_top(2, anchor="top-center", arrange_gap=0.3)
+            "title",
+            Region.create_top(2, anchor="center-left", arrange_gap=0.2).adjust_borders(
+                left=-left_margin, right=-right_margin
+            ),
         )
-        footer = layout.add("footer", Region.create_bottom(0.5, anchor="bottom-center"))
-        left = layout.add("left_margin", Region.create_left(0.7, anchor="center"))
-        right = layout.add("right_margin", Region.create_right(0.7, anchor="center"))
+        footer = layout.add(
+            "footer",
+            Region.create_bottom(0.5, anchor="bottom-center").adjust_borders(
+                left=-left_margin, right=-right_margin
+            ),
+        )
+        left = layout.add(
+            "left_margin", Region.create_left(left_margin, anchor="center")
+        )
+        right = layout.add(
+            "right_margin", Region.create_right(right_margin, anchor="center")
+        )
 
         layout.add(
             "content",
@@ -98,19 +118,17 @@ class PresentationTemplate:
         slide = self.current_slide
         title_region = self.layout.get("title")
 
-        title_region.add(VSpace(0.6))
-
-        members: list[Text] = []
+        members: Group[Text] = Group()
 
         if slide.title is not None:
             title = Text(
-                slide.title,
+                f"*{slide.title}*",
                 font=self.title_font,
                 fontsize=self.title_fontsize,
                 fill_color=self.title_color,
             )
             title_region.add(title)
-            members.append(title)
+            members.add(title)
 
         if slide.subtitle is not None:
             subtitle = Text(
@@ -120,11 +138,49 @@ class PresentationTemplate:
                 fill_color=self.subtitle_color,
             )
             title_region.add(subtitle)
-            members.append(subtitle)
+            members.add(subtitle)
 
-        group = Group(members)
-        slide.add(group)
-        return group
+        title_region.add(VSpace(0.3))
+
+        line = Line(
+            title_region.get_anchor_point("bottom-left"),
+            title_region.get_anchor_point("bottom-right"),
+        ).shift(Vec(0, 0.35))
+        members.add(line)
+
+        slide.add(members)
+        return members
+
+    def add_footer(self, show_total: bool = False) -> Group:
+        """Build the current slide's footer: a separator line and a page number.
+
+        The page number sits at the footer's right edge. ``show_total``
+        appends ``/<total>`` from the presentation's ``total_slides``;
+        asking for it without a declared total raises :class:`ValueError`.
+        """
+        footer_region = self.layout.get("footer")
+        number = self.slides.index(self.current_slide) + 1
+
+        if show_total and self.total_slides is None:
+            raise ValueError(
+                "add_footer(show_total=True) needs a declared total in the presentation"
+            )
+        label = f"{number}/{self.total_slides}" if show_total else str(number)
+
+        members = Group()
+        num_el = Text(
+            label,
+            font=self.text_font,
+            fontsize=self.text_fontsize,
+            fill_color=self.text_color,
+            pos=footer_region.get_anchor_point("top-right"),
+            anchor="top-right",
+        )
+        members.add(num_el)
+
+        self.current_slide.add(members)
+
+        return members
 
     def add_text(
         self,
