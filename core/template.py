@@ -34,7 +34,9 @@ class PresentationTemplate:
         """Return the presentation's region layout."""
         layout = Layout()
 
-        title = layout.add("title", Region.create_top(1.7, anchor="top-center"))
+        title = layout.add(
+            "title", Region.create_top(2, anchor="top-center", arrange_gap=0.3)
+        )
         footer = layout.add("footer", Region.create_bottom(0.5, anchor="bottom-center"))
         left = layout.add("left_margin", Region.create_left(0.7, anchor="center"))
         right = layout.add("right_margin", Region.create_right(0.7, anchor="center"))
@@ -96,7 +98,7 @@ class PresentationTemplate:
         slide = self.current_slide
         title_region = self.layout.get("title")
 
-        title_region.add(VSpace(0.5))
+        title_region.add(VSpace(0.6))
 
         members: list[Text] = []
 
@@ -125,7 +127,12 @@ class PresentationTemplate:
         return group
 
     def add_text(
-        self, text: str, region: str = "active", *, align: HAlign | None = None, **text_kwargs
+        self,
+        text: str,
+        region: str = "active",
+        *,
+        align: HAlign | None = None,
+        **text_kwargs,
     ) -> Text:
         """Create a wrapped :class:`Text` and add it to a region and the slide.
 
@@ -134,11 +141,14 @@ class PresentationTemplate:
         keyword arguments are forwarded to :class:`Text`. ``text_align`` (line
         alignment within the box) defaults to ``align``, so a single ``align``
         both places the box in the region and aligns its lines; pass
-        ``text_align`` explicitly to decouple the two.
+        ``text_align`` explicitly to decouple the two. ``line_gap`` defaults to
+        the region's ``arrange_gap``, so a wrapped paragraph's inter-line gap
+        matches the gap between elements stacked in the region.
         """
         target_region = self.layout.get(region)
         text_kwargs.setdefault("max_width", target_region.width)
         text_kwargs.setdefault("text_align", align)
+        text_kwargs.setdefault("line_gap", target_region.arrange_gap)
         el = Text(text, align=align, **text_kwargs)
         self.current_slide.add(el)
         target_region.add(el)

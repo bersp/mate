@@ -56,7 +56,10 @@ def _bare(el: Element) -> str:
             inner = _escape(el.content)
         body = _wrap_text_attrs(el, inner, with_fill=False)
         if el.max_width is not None:
-            body = _wrap_max_width(body, body, el.max_width)
+            # Width is measured from the leading-free body (leading does
+            # not affect width); height from the leading-carrying body so
+            # the recorded bbox reflects the wrapped line spacing.
+            body = _wrap_max_width(body, _wrap_line_gap(body, el.line_gap), el.max_width)
         return body
     if isinstance(el, (Rectangle, Circle, Ellipse)):
         return _shape_markup(el)
@@ -136,6 +139,18 @@ def _wrap_max_width(measure_body: str, render_body: str, max_width: float) -> st
         f"#context {{ let __w = calc.min(measure([{measure_body}]).width, "
         f"{max_width}cm); box(width: __w)[{render_body}] }}"
     )
+
+
+def _wrap_line_gap(body: str, line_gap: float) -> str:
+    """Prefix ``body`` with a ``#set par(leading: ...)`` rule.
+
+    ``leading`` is the gap between the bottom edge of one line box and
+    the top edge of the next, so this fixes a wrapped paragraph's
+    inter-line gap at ``line_gap`` cm. Meaningful only inside the
+    width-constrained box where the text wraps; on a single line it has
+    no visible effect. The rule scopes to the enclosing content block.
+    """
+    return f"#set par(leading: {line_gap}cm); {body}"
 
 
 def _wrap_align(body: str, text_align: str | None) -> str:
@@ -419,7 +434,9 @@ class TypstRenderer:
             inner = _wrap_text_attrs(el, inner)
             if el.max_width is not None:
                 inner = _wrap_max_width(
-                    inner, _wrap_align(inner, el.text_align), el.max_width
+                    inner,
+                    _wrap_line_gap(_wrap_align(inner, el.text_align), el.line_gap),
+                    el.max_width,
                 )
         elif isinstance(el, (Rectangle, Circle, Ellipse)):
             inner = _shape_markup(el)
@@ -632,7 +649,9 @@ class TypstMeasurer:
                 # Alignment shifts where inline-x probes land, so it wraps
                 # the probe-carrying render body to match the renderer.
                 inner = _wrap_max_width(
-                    _bare(el), _wrap_align(inner, el.text_align), el.max_width
+                    _bare(el),
+                    _wrap_line_gap(_wrap_align(inner, el.text_align), el.line_gap),
+                    el.max_width,
                 )
         elif isinstance(el, (Rectangle, Circle, Ellipse)):
             inner = _shape_markup(el)

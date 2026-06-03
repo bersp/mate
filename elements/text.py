@@ -50,6 +50,12 @@ class Text(Drawable):
         single line). ``None`` (default) leaves the lines ragged-left.
         Distinct from :attr:`~mate.core.element.Element.align`, which
         places the whole box within the region.
+    line_gap : float or None, optional
+        Gap in cm between consecutive line boxes of the wrapped text
+        (Typst's paragraph leading). Visible only when ``max_width``
+        makes the text wrap. ``None`` (default) reads ``text.line_gap``
+        from the config. Matching it to a region's ``arrange_gap`` makes
+        a multi-line paragraph share the region's inter-element rhythm.
     fill_color : str or None, optional
         Palette name or literal hex for the glyph fill. ``None`` (default)
         reads ``text.color`` from the config.
@@ -71,6 +77,8 @@ class Text(Drawable):
         Wrap width in cm, or ``None`` for no wrapping.
     text_align : HAlign or None
         See ``text_align`` parameter.
+    line_gap : float
+        Inter-line gap in cm for the wrapped text.
     """
 
     def __init__(
@@ -81,6 +89,7 @@ class Text(Drawable):
         fontsize: float | None = None,
         max_width: float | None = None,
         text_align: HAlign | None = None,
+        line_gap: float | None = None,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
         align: HAlign | None = None,
@@ -110,6 +119,9 @@ class Text(Drawable):
         self.fontsize: float = fontsize
         self.max_width: float | None = max_width
         self.text_align: HAlign | None = text_align
+        self.line_gap: float = (
+            config.get("text.line_gap") if line_gap is None else line_gap
+        )
         if source is not None:
             children = _parse_segment(source, self.subs)
             # Collapse to a leaf when parsing yields a single childless node;
