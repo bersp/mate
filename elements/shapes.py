@@ -234,29 +234,32 @@ class Ellipse(Drawable):
 
 
 class Line(Drawable):
-    """Straight line segment from ``start`` to ``end``.
+    """Straight segment drawn between two endpoints ``start`` and ``end``.
 
-    ``start`` and ``end`` are points in cm in the element's local frame.
-    The bbox is the axis-aligned box bounding them, so a horizontal line
-    has zero height and a vertical line zero width. The points fix the
-    shape and size; ``anchor``/``pos`` place that box on the slide like
-    any other element. Only the stroke is drawn (``stroke_color`` /
-    ``stroke_width``); ``fill_*`` is inert.
+    The segment runs from one endpoint to the other. ``_pos`` is the
+    midpoint of the two, so the line moves rigidly under
+    :meth:`~mate.core.element.Element.move_to`,
+    :meth:`~mate.core.element.Element.shift`, and region arrangement.
+    The bbox is the axis-aligned box bounding the endpoints, so a
+    horizontal line has zero height and a vertical one zero width. Only
+    the stroke is drawn (``stroke_color`` / ``stroke_width``); a line
+    carries no fill.
 
     Parameters
     ----------
     start, end : VecLike
-        Endpoints in cm, in the local frame. Positional.
+        Endpoints in cm. Positional.
     stroke_width : float or None, optional
         Stroke thickness in cm. ``None`` (default) reads
         ``line.stroke_width`` from the config.
-    pos, anchor, align, placement, id, stroke_color, fill_color, fill_opacity
+    placement, id, stroke_color
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
     ----------
     start, end : Vec
-        The endpoints in the local frame.
+        The endpoints relative to the segment's midpoint (``_pos``);
+        :meth:`get_start` / :meth:`get_end` return the endpoints themselves.
     """
 
     def __init__(
@@ -264,33 +267,36 @@ class Line(Drawable):
         start: VecLike,
         end: VecLike,
         *,
-        pos: VecLike | None = None,
-        anchor: Anchor = "center",
-        align: HAlign | None = None,
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
-        fill_color: str | None = None,
         stroke_color: str | None = None,
-        fill_opacity: float | None = None,
         stroke_width: float | None = None,
     ) -> None:
+        start = Vec(start)
+        end = Vec(end)
+        center = Vec((start + end) / 2)
         super().__init__(
-            pos=pos,
-            anchor=anchor,
-            align=align,
+            pos=center,
+            anchor="center",
             placement=placement,
             id=id,
-            fill_color=fill_color,
             stroke_color=stroke_color,
-            fill_opacity=fill_opacity,
             stroke_width=(
                 config.get("line.stroke_width")
                 if stroke_width is None
                 else stroke_width
             ),
         )
-        self.start: Vec = Vec(start)
-        self.end: Vec = Vec(end)
+        self.start: Vec = Vec(start - center)
+        self.end: Vec = Vec(end - center)
+
+    def get_start(self) -> Vec:
+        """Return the start endpoint."""
+        return Vec(self._pos + self.start)
+
+    def get_end(self) -> Vec:
+        """Return the end endpoint."""
+        return Vec(self._pos + self.end)
 
     def get_width(self) -> float:
         return abs(self.end.x - self.start.x)
@@ -299,25 +305,29 @@ class Line(Drawable):
         return abs(self.end.y - self.start.y)
 
     def _repr_fields(self) -> str:
-        return (
-            f"start=({self.start.x:.4g}, {self.start.y:.4g}), "
-            f"end=({self.end.x:.4g}, {self.end.y:.4g})"
-        )
+        s, e = self.get_start(), self.get_end()
+        return f"start=({s.x:.4g}, {s.y:.4g}), end=({e.x:.4g}, {e.y:.4g})"
 
-    def set_start(self, start: VecLike, propagate: bool = False) -> Line:
-        """Set ``start``; ``propagate`` rewrites descendants with ``start``.
+    def set_start(self, start: VecLike) -> Line:
+        """Set the start endpoint, keeping ``end`` fixed.
 
         Geometric mutator: invalidates the bbox cache of this element's tree.
         """
-        self._set_field("start", Vec(start), propagate)
-        self._invalidate_tree()
+        self._reseat(Vec(start), self.get_end())
         return self
 
-    def set_end(self, end: VecLike, propagate: bool = False) -> Line:
-        """Set ``end``; ``propagate`` rewrites descendants with ``end``.
+    def set_end(self, end: VecLike) -> Line:
+        """Set the end endpoint, keeping ``start`` fixed.
 
         Geometric mutator: invalidates the bbox cache of this element's tree.
         """
-        self._set_field("end", Vec(end), propagate)
-        self._invalidate_tree()
+        self._reseat(self.get_start(), Vec(end))
         return self
+
+    def _reseat(self, start: Vec, end: Vec) -> None:
+        """Re-anchor on the new endpoints: recenter ``_pos`` and re-store offsets."""
+        center = Vec((start + end) / 2)
+        self._pos = center
+        self.start = Vec(start - center)
+        self.end = Vec(end - center)
+        self._invalidate_tree()
