@@ -50,10 +50,17 @@ class Slide:
 class Presentation(PresentationTemplate):
     """Top-level presentation built on a template."""
 
-    def __init__(self, name: str, width: float = 20, height: float = 15) -> None:
+    def __init__(
+        self,
+        name: str,
+        width: float = 20,
+        height: float = 15,
+        total_slides: int | None = None,
+    ) -> None:
         self.name: str = name
         self.width: float = width
         self.height: float = height
+        self.total_slides: int | None = total_slides
         config.set_slide_size(width, height)
         super().__init__()
         self.slides: list[Slide] = []
@@ -96,12 +103,17 @@ class Presentation(PresentationTemplate):
         """Compile the closed slides into ``<name>.pdf`` in the working directory.
 
         Raises if any slide is still open — call :meth:`Presentation.end_slide`
-        first.
+        first — or, when ``total_slides`` was declared, if the built slide
+        count differs from it.
         """
         open_count = sum(not s.is_closed for s in self.slides)
         if open_count:
             raise RuntimeError(
                 f"{open_count} slide(s) still open; call .end_slide() before write()."
+            )
+        if self.total_slides is not None and len(self.slides) != self.total_slides:
+            raise RuntimeError(
+                f"declared {self.total_slides} slide(s) but built {len(self.slides)}."
             )
         path = Path(f"{self.name}.pdf")
         logger.info(
