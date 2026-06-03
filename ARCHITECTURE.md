@@ -33,7 +33,7 @@ mate/
 │   ├── arrange.py
 │   ├── layout.py
 │   └── utils.py
-└── .cache/            # regenerated artifacts (measurement); safe to delete
+└── .mate_cache/            # regenerated artifacts (measurement); safe to delete
 ```
 
 ## Coordinate system
@@ -199,7 +199,7 @@ Two classes with separate responsibilities:
 
 **`TypstRenderer`** — assembles the document source and compiles it to PDF. `render_slide(slide, canvas)` returns one slide's fixed-element placements as a fragment string (no page preamble, no pagebreak); `compile_document(fragments, canvas, path)` emits the `#set page(...)` preamble once, joins the fragments with `#pagebreak()`, and hands the in-memory source to the bundled Typst compiler — no intermediate `.typ` is written. A `Slide` captures its fragment when `end_slide` seals it — the renderer never measures to render, so this is a cheap string build. Slide coords are y-up with origin at the slide centre; the renderer applies the user→Typst transform (`dx = _pos.x + W/2`, `dy = H/2 - _pos.y`) so user `(0, 0)` lands at the page centre. Each fixed element with `_anchor == "top-left"` becomes a plain `#place(top + left, dx: (_pos.x + W/2) cm, dy: (H/2 - _pos.y) cm, [body])` — no inline measure (it's the only anchor where both `h_mul == 0` and `(1 - v_mul) == 0`). Every other anchor becomes a `#context { let __b = [body]; let __s = measure(__b); place(top + left, dx: (_pos.x + W/2) cm - h_mul * __s.width, dy: (H/2 - _pos.y) cm - (1 - v_mul) * __s.height, __b) }` block, where `(h_mul, v_mul) = anchor_offsets(_anchor)`. Typst evaluates `measure(...)` at compile time, so Python never measures to render. Other emitted forms: `#text(font:, size:, fill:)[...]`, `#hide[...]`, `#pagebreak()`.
 
-**`TypstMeasurer`** — writes an auxiliary `.typ` (at `.cache/measure.typ`) and runs an in-process `typst.query` to obtain bboxes. Constructed with a list of root elements (any subtree, attached to a slide or not) and writes results into `el._bbox` for every reachable node. The aux document opens with `#set page(margin: 0cm)` — page width/height are intentionally left at Typst's default (measurement is page-size agnostic) but the margin must be zero so that `#place(top + left, dx, dy)` (body-relative) and `here().position()` (page-absolute) share the same coordinate system. The measurer invokes `_render_placed` with `canvas=None`, which skips the user→Typst centring/y-flip the renderer applies: the aux doc keeps fixed ancestors at their raw user-coord `(dx, dy)`, which lets each inline `here().position().x` probe return the user-x directly (no offset to subtract). The aux doc never has to be visually correct; only the x probe values are read back.
+**`TypstMeasurer`** — writes an auxiliary `.typ` (at `.mate_cache/measure.typ`) and runs an in-process `typst.query` to obtain bboxes. Constructed with a list of root elements (any subtree, attached to a slide or not) and writes results into `el._bbox` for every reachable node. The aux document opens with `#set page(margin: 0cm)` — page width/height are intentionally left at Typst's default (measurement is page-size agnostic) but the margin must be zero so that `#place(top + left, dx, dy)` (body-relative) and `here().position()` (page-absolute) share the same coordinate system. The measurer invokes `_render_placed` with `canvas=None`, which skips the user→Typst centring/y-flip the renderer applies: the aux doc keeps fixed ancestors at their raw user-coord `(dx, dy)`, which lets each inline `here().position().x` probe return the user-x directly (no offset to subtract). The aux doc never has to be visually correct; only the x probe values are read back.
 
 Module-level helpers (shared by both classes):
 - `_collect_fixed(el)` — recursively gathers descendants with `placement == "fixed"`.
@@ -243,6 +243,6 @@ Messages opt into rich markup per call with `extra={"markup": True, "highlighter
 
 ## Notes
 
-- `.cache/` is created automatically. Deleting it breaks nothing — it is regenerated on the next measurement.
-- Default path of `Presentation.write` is `"presentation.typ"` in cwd. The measurement path is internal to the backend (`.cache/measure.typ`).
+- `.mate_cache/` is created automatically. Deleting it breaks nothing — it is regenerated on the next measurement.
+- Default path of `Presentation.write` is `"presentation.typ"` in cwd. The measurement path is internal to the backend (`.mate_cache/measure.typ`).
 - `_mid` is global and monotonic. Sufficient as long as a single Presentation is built per process. If isolation is needed later, move it to a per-`Presentation` counter.

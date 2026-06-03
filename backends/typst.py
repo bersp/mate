@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from ..core.presentation import Slide
 
 
-_CACHE_MEASURE = Path(".cache/measure.typ")
+_CACHE_MEASURE = Path(".mate_cache/measure.typ")
 
 # Function that turns an element into its rendered Typst string. The
 # `placeholder` flag means "still take space but emit `#hide[...]`": used
@@ -465,7 +465,7 @@ class TypstMeasurer:
     The measurer is independent of :class:`Slide` and
     :class:`Presentation`: it is a pure function of the element tree
     rooted at each entry of ``roots``. Generates an auxiliary ``.typ``
-    (at ``.cache/measure.typ`` by default) and runs ``typst query`` on
+    (at ``.mate_cache/measure.typ`` by default) and runs ``typst query`` on
     it. The auxiliary document contains up to two regions, both
     labeled ``<bbox>``:
 
@@ -503,7 +503,7 @@ class TypstMeasurer:
         Top-level elements to measure (together with their subtrees).
     path : str or Path, optional
         Where to write the auxiliary document. Defaults to
-        ``.cache/measure.typ``.
+        ``.mate_cache/measure.typ``.
 
     Attributes
     ----------
