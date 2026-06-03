@@ -5,6 +5,7 @@ from itertools import cycle
 from ..config import config
 from ..elements.group import Group
 from ..elements.text import Text
+from ..elements.spacing import VSpace
 from ..composition.layout import Layout, Region
 from ..composition.utils import layout_to_group
 from .element import Element
@@ -93,6 +94,9 @@ class PresentationTemplate:
         """
         slide = self.current_slide
         title_region = self.layout.get("title")
+
+        title_region.add(VSpace(0.5))
+
         members: list[Text] = []
 
         if slide.title is not None:
@@ -126,9 +130,9 @@ class PresentationTemplate:
         width unless ``max_width`` is passed in ``text_kwargs``; the remaining
         keyword arguments are forwarded to :class:`Text`.
         """
-        target = self.layout.get(region)
-        text_kwargs.setdefault("max_width", target.width)
+        target_region = self.layout.get(region)
+        text_kwargs.setdefault("max_width", target_region.width)
         el = Text(text, **text_kwargs)
         self.current_slide.add(el)
-        target.add(el)
+        target_region.add(el)
         return el
