@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import NoReturn
+
 from ..config import config
 from .element import Anchor, Element, HAlign, Placement
 from .registry import IDKey
@@ -79,6 +81,12 @@ class Drawable(Element):
         """Return ``stroke_color`` as hex; ``None`` renders as ``"black"``."""
         return self.stroke_color
 
+    def get_color(self) -> NoReturn:
+        """Raise: a Drawable has two colors; use ``get_fill_color`` or ``get_stroke_color``."""
+        raise AttributeError(
+            "Drawable has no single color; use get_fill_color() or get_stroke_color()."
+        )
+
     def get_fill_opacity(self) -> float | None:
         """Return ``fill_opacity``; ``None`` renders as ``1``."""
         return self.fill_opacity
@@ -103,6 +111,12 @@ class Drawable(Element):
             config.colors.get(color) if color is not None else None,
             propagate,
         )
+        return self
+
+    def set_color(self, color: str | None, propagate: bool = True) -> Drawable:
+        """Set both ``fill_color`` and ``stroke_color``; ``propagate`` cascades."""
+        self.set_fill_color(color, propagate)
+        self.set_stroke_color(color, propagate)
         return self
 
     def set_fill_opacity(
