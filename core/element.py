@@ -276,6 +276,16 @@ class Element:
         cx, cy, _, _ = self.get_bbox()
         return Vec(cx, cy)
 
+    def get_anchor_point(self, anchor: Anchor) -> Vec:
+        """Return the position of ``anchor`` on this element's bbox.
+
+        Measures the bbox on cache miss (one Typst query), then offsets
+        from its centre by the anchor's multipliers.
+        """
+        cx, cy, w, h = self.get_bbox()
+        h_mul, v_mul = _ANCHOR_OFFSETS[anchor]
+        return Vec(cx + (h_mul - 0.5) * w, cy + (v_mul - 0.5) * h)
+
     def _current_anchor_point(self) -> Vec:
         """Return the current visual position of this element's anchor.
 
