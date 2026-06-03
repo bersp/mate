@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..core.element import Anchor, Element, Placement
+from ..core.element import Anchor, Element, HAlign, Placement
 from ..core.registry import IDKey
 from ..core.vec import VecLike
 
@@ -16,7 +16,7 @@ class VSpace(Element):
     ----------
     height : float
         Spacer height in cm. Positional.
-    pos, anchor, placement, id
+    pos, anchor, align, placement, id
         Keyword-only. See :class:`~mate.core.element.Element`.
 
     Attributes
@@ -31,10 +31,11 @@ class VSpace(Element):
         *,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
+        align: HAlign | None = None,
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
     ) -> None:
-        super().__init__(pos=pos, anchor=anchor, placement=placement, id=id)
+        super().__init__(pos=pos, anchor=anchor, align=align, placement=placement, id=id)
         self.height: float = height
 
     def get_width(self) -> float:
@@ -66,7 +67,7 @@ class HSpace(Element):
     ----------
     width : float
         Spacer width in cm. Positional.
-    pos, anchor, placement, id
+    pos, anchor, align, placement, id
         Keyword-only. See :class:`~mate.core.element.Element`.
 
     Attributes
@@ -81,10 +82,11 @@ class HSpace(Element):
         *,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
+        align: HAlign | None = None,
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
     ) -> None:
-        super().__init__(pos=pos, anchor=anchor, placement=placement, id=id)
+        super().__init__(pos=pos, anchor=anchor, align=align, placement=placement, id=id)
         self.width: float = width
 
     def get_width(self) -> float:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 
 from ..config import config
-from ..core.element import Anchor, Element, Placement
+from ..core.element import Anchor, Element, HAlign, Placement
 from ..core.registry import IDKey, id_registry
 from ..core.drawable import Drawable
 from ..core.vec import VecLike
@@ -43,10 +43,17 @@ class Text(Drawable):
         (``min(natural width, max_width)``); ``None`` (default) lets
         the text run on a single line. Applies to the node it is set
         on, not propagated to ``subs``.
+    text_align : HAlign or None, optional
+        Alignment of the wrapped lines within the text's own box:
+        ``"left"``, ``"center"``, or ``"right"``. Only visible when
+        ``max_width`` makes the text wrap (otherwise the box hugs a
+        single line). ``None`` (default) leaves the lines ragged-left.
+        Distinct from :attr:`~mate.core.element.Element.align`, which
+        places the whole box within the region.
     fill_color : str or None, optional
         Palette name or literal hex for the glyph fill. ``None`` (default)
         reads ``text.color`` from the config.
-    pos, anchor, placement, id, stroke_color, fill_opacity, stroke_width
+    pos, anchor, align, placement, id, stroke_color, fill_opacity, stroke_width
         Keyword-only. See :class:`~mate.core.drawable.Drawable`. ``stroke_*``
         fields are currently ignored for text rendering.
 
@@ -62,6 +69,8 @@ class Text(Drawable):
         Font size in points.
     max_width : float or None
         Wrap width in cm, or ``None`` for no wrapping.
+    text_align : HAlign or None
+        See ``text_align`` parameter.
     """
 
     def __init__(
@@ -71,8 +80,10 @@ class Text(Drawable):
         font: str | None = None,
         fontsize: float | None = None,
         max_width: float | None = None,
+        text_align: HAlign | None = None,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
+        align: HAlign | None = None,
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
@@ -83,6 +94,7 @@ class Text(Drawable):
         super().__init__(
             pos=pos,
             anchor=anchor,
+            align=align,
             placement=placement,
             id=id,
             fill_color=config.get("text.color") if fill_color is None else fill_color,
@@ -97,6 +109,7 @@ class Text(Drawable):
         self.font: str = font
         self.fontsize: float = fontsize
         self.max_width: float | None = max_width
+        self.text_align: HAlign | None = text_align
         if source is not None:
             children = _parse_segment(source, self.subs)
             # Collapse to a leaf when parsing yields a single childless node;
@@ -149,6 +162,15 @@ class Text(Drawable):
         """
         self._set_field("fontsize", fontsize, propagate)
         self._invalidate_tree()
+        return self
+
+    def set_text_align(self, text_align: HAlign | None) -> Text:
+        """Set the line alignment within the text box.
+
+        Visual-only: line alignment leaves the box size unchanged, so the
+        bbox cache is untouched.
+        """
+        self.text_align = text_align
         return self
 
     def _copy(self, mapping: dict[int, Element]) -> Text:

@@ -5,6 +5,10 @@ from ..core.vec import Vec, VecLike
 from ..elements.shapes import Circle, Ellipse, Line, Rectangle
 from ..elements.spacing import HSpace, VSpace
 
+# Fraction of the region's horizontal extent at which an element's
+# matching bbox edge sits: left edge at 0, center at 0.5, right at 1.
+_ALIGN_FRACTION = {"left": 0.0, "center": 0.5, "right": 1.0}
+
 
 def arrange(
     elements: list[Element],
@@ -12,6 +16,7 @@ def arrange(
     anchor: Anchor,
     *,
     gap: float = 0.0,
+    width: float | None = None,
 ) -> None:
     """Stack ``elements`` in a single column with optional gap.
 
@@ -19,12 +24,14 @@ def arrange(
     the union bbox is positioned so that its ``anchor`` point lands at
     ``pos``. Elements are laid out in list order, top to bottom.
 
-    Horizontal alignment within the stack is driven by the horizontal
-    half of ``anchor``:
-
-    - ``"*-left"``   — all bboxes share the same left ``x`` (= ``pos.x``).
-    - ``"*-center"`` — all bboxes share the same center ``x``.
-    - ``"*-right"``  — all bboxes share the same right ``x``.
+    Horizontal alignment is per element: each one is placed within the
+    region's horizontal extent according to its own
+    :attr:`~mate.core.element.Element.align` (``"left"``/``"center"``/
+    ``"right"``), falling back to the horizontal half of ``anchor`` when
+    ``align`` is ``None``. So a left-anchored region can still hold a
+    centered image among left-flush text. The extent is ``width``
+    (defaulting to the widest element when omitted), positioned so that
+    the stack's ``anchor`` edge lands at ``pos.x``.
 
     The vertical half decides where ``pos.y`` sits in the stack
     (slide coords are y-up, so the list's first element is at the
@@ -55,6 +62,11 @@ def arrange(
         a spacer (:class:`~mate.elements.spacing.VSpace` /
         :class:`~mate.elements.spacing.HSpace`), so a spacer alone sets
         the space between its neighbours.
+    width : float or None, optional
+        Horizontal extent (in cm) within which each element's
+        :attr:`~mate.core.element.Element.align` resolves. ``None``
+        (default) uses the widest element's width, so per-element
+        alignment still has an extent to act in for a standalone call.
 
     Performance
     -----------
@@ -78,6 +90,7 @@ def arrange(
         measure_all(pending)
 
     heights = [el.get_height() for el in elements]
+    widths = [el.get_width() for el in elements]
     # A spacer *is* the spacing, so no gap is inserted on either side of
     # one: the gap between consecutive elements is dropped whenever either
     # neighbour is a spacer. `gaps[i]` is the space following element `i`.
@@ -87,18 +100,24 @@ def arrange(
     ]
     total_h = sum(heights) + sum(gaps)
 
-    x0 = anchor_pos.x
+    # Horizontal extent the per-element `align` resolves within, and its
+    # left edge: the stack's `anchor` edge is at `anchor_pos.x`, which is
+    # `stack_h_mul` of the way across that extent.
+    extent = max(widths) if width is None else width
+    left_x = anchor_pos.x - stack_h_mul * extent
     # Slide coords are y-up: list order is top-to-bottom, so the cursor
     # starts at the stack's top edge and decreases by each element's
     # height (plus gap). Top edge = anchor_pos.y + (1 - v_mul) * total_h.
     y_cursor = anchor_pos.y + (1.0 - stack_v_mul) * total_h
 
-    for i, (el, h) in enumerate(zip(elements, heights)):
+    for i, (el, h, w) in enumerate(zip(elements, heights, widths)):
         h_mul, v_mul = anchor_offsets(el.anchor)
-        if h_mul == stack_h_mul:
-            pos_x = x0
-        else:
-            pos_x = x0 + (h_mul - stack_h_mul) * el.get_width()
+        a = stack_h_mul if el.align is None else _ALIGN_FRACTION[el.align]
+        # Place the element so its left edge sits at `a` of the way
+        # through the free space `extent - w`; `move_to` then honors the
+        # element's own anchor to land that left edge.
+        left_edge = left_x + a * (extent - w)
+        pos_x = left_edge + h_mul * w
         # bbox.bottom = y_cursor - h; pos_y = bbox.bottom + v_mul * h.
         pos_y = y_cursor - (1.0 - v_mul) * h
         el.move_to((pos_x, pos_y))

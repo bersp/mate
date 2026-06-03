@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ..config import config
-from .element import Anchor, Element, Placement
+from .element import Anchor, Element, HAlign, Placement
 from .registry import IDKey
 from .vec import VecLike
 
@@ -44,7 +44,7 @@ class Drawable(Element):
         Default ``None`` → ``1``. Set to ``0`` for no fill.
     stroke_width : float or None, optional
         Default ``None`` → ``0`` (no stroke).
-    pos, anchor, placement, id
+    pos, anchor, align, placement, id
         See :class:`Element`.
     """
 
@@ -53,6 +53,7 @@ class Drawable(Element):
         *,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
+        align: HAlign | None = None,
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
@@ -60,7 +61,7 @@ class Drawable(Element):
         fill_opacity: float | None = None,
         stroke_width: float | None = None,
     ) -> None:
-        super().__init__(pos=pos, anchor=anchor, placement=placement, id=id)
+        super().__init__(pos=pos, anchor=anchor, align=align, placement=placement, id=id)
         self.fill_color: str | None = (
             config.colors.get(fill_color) if fill_color is not None else None
         )

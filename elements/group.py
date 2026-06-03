@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from ..core.element import Anchor, Element, Placement, anchor_offsets
+from ..core.element import Anchor, Element, HAlign, Placement, anchor_offsets
 from ..core.registry import IDKey
 from ..core.drawable import Drawable
 from ..core.vec import Vec, VecLike
@@ -30,7 +30,7 @@ class Group(Drawable):
     children : iterable of :class:`Element`, optional
         Initial members. Each one's ``parent`` is set to this group.
         More can be appended later via :meth:`add`. Positional.
-    pos, anchor, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
     """
 
@@ -40,6 +40,7 @@ class Group(Drawable):
         *,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
+        align: HAlign | None = None,
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
@@ -50,6 +51,7 @@ class Group(Drawable):
         super().__init__(
             pos=pos,
             anchor=anchor,
+            align=align,
             placement=placement,
             id=id,
             fill_color=fill_color,

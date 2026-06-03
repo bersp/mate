@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ..config import config
-from ..core.element import Anchor, Placement
+from ..core.element import Anchor, HAlign, Placement
 from ..core.registry import IDKey
 from ..core.drawable import Drawable
 from ..core.vec import Vec, VecLike
@@ -20,7 +20,7 @@ class Rectangle(Drawable):
     ----------
     width, height : float
         Width and height in cm. Positional.
-    pos, anchor, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -36,6 +36,7 @@ class Rectangle(Drawable):
         *,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
+        align: HAlign | None = None,
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
@@ -46,6 +47,7 @@ class Rectangle(Drawable):
         super().__init__(
             pos=pos,
             anchor=anchor,
+            align=align,
             placement=placement,
             id=id,
             fill_color=fill_color,
@@ -94,7 +96,7 @@ class Circle(Drawable):
     ----------
     radius : float
         Radius in cm. Positional.
-    pos, anchor, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -109,6 +111,7 @@ class Circle(Drawable):
         *,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
+        align: HAlign | None = None,
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
@@ -119,6 +122,7 @@ class Circle(Drawable):
         super().__init__(
             pos=pos,
             anchor=anchor,
+            align=align,
             placement=placement,
             id=id,
             fill_color=fill_color,
@@ -163,7 +167,7 @@ class Ellipse(Drawable):
     ----------
     width, height : float
         Bounding box width and height in cm. Positional.
-    pos, anchor, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -179,6 +183,7 @@ class Ellipse(Drawable):
         *,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
+        align: HAlign | None = None,
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
@@ -189,6 +194,7 @@ class Ellipse(Drawable):
         super().__init__(
             pos=pos,
             anchor=anchor,
+            align=align,
             placement=placement,
             id=id,
             fill_color=fill_color,
@@ -244,7 +250,7 @@ class Line(Drawable):
     stroke_width : float or None, optional
         Stroke thickness in cm. ``None`` (default) reads
         ``line.stroke_width`` from the config.
-    pos, anchor, placement, id, stroke_color, fill_color, fill_opacity
+    pos, anchor, align, placement, id, stroke_color, fill_color, fill_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -260,6 +266,7 @@ class Line(Drawable):
         *,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
+        align: HAlign | None = None,
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
@@ -270,6 +277,7 @@ class Line(Drawable):
         super().__init__(
             pos=pos,
             anchor=anchor,
+            align=align,
             placement=placement,
             id=id,
             fill_color=fill_color,

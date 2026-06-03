@@ -4,11 +4,12 @@ from itertools import cycle
 
 from ..config import config
 from ..elements.group import Group
+from ..elements.image import Image
 from ..elements.text import Text
 from ..elements.spacing import VSpace
 from ..composition.layout import Layout, Region
 from ..composition.utils import layout_to_group
-from .element import Element
+from .element import Element, HAlign
 
 
 class PresentationTemplate:
@@ -123,16 +124,69 @@ class PresentationTemplate:
         slide.add(group)
         return group
 
-    def add_text(self, text: str, region: str = "active", **text_kwargs) -> Text:
+    def add_text(
+        self, text: str, region: str = "active", *, align: HAlign | None = None, **text_kwargs
+    ) -> Text:
         """Create a wrapped :class:`Text` and add it to a region and the slide.
 
         ``region`` is the target region name. The text wraps at the region's
         width unless ``max_width`` is passed in ``text_kwargs``; the remaining
-        keyword arguments are forwarded to :class:`Text`.
+        keyword arguments are forwarded to :class:`Text`. ``text_align`` (line
+        alignment within the box) defaults to ``align``, so a single ``align``
+        both places the box in the region and aligns its lines; pass
+        ``text_align`` explicitly to decouple the two.
         """
         target_region = self.layout.get(region)
         text_kwargs.setdefault("max_width", target_region.width)
-        el = Text(text, **text_kwargs)
+        text_kwargs.setdefault("text_align", align)
+        el = Text(text, align=align, **text_kwargs)
         self.current_slide.add(el)
         target_region.add(el)
         return el
+
+    def add_image(
+        self,
+        path: str,
+        region: str = "active",
+        *,
+        width: float | str | None = None,
+        height: float | str | None = None,
+        **image_kwargs,
+    ) -> Image:
+        """Create an :class:`Image` and add it to a region and the slide.
+
+        ``region`` is the target region name. ``width`` and ``height`` are
+        each either a length in cm or a ``"<n>%"`` string read as that
+        percentage of the region's width/height. Setting one alone lets the
+        other follow the file's aspect ratio; setting neither sizes the
+        image's longer side to the full matching region extent. The
+        remaining keyword arguments are forwarded to :class:`Image`.
+        """
+        target_region = self.layout.get(region)
+        width_cm = self._resolve_image_extent(width, target_region.width)
+        height_cm = self._resolve_image_extent(height, target_region.height)
+        if width_cm is None and height_cm is None:
+            natural = Image(path)
+            if natural.get_width() >= natural.get_height():
+                width_cm = target_region.width
+            else:
+                height_cm = target_region.height
+        el = Image(path, width=width_cm, height=height_cm, **image_kwargs)
+        self.current_slide.add(el)
+        target_region.add(el)
+        return el
+
+    @staticmethod
+    def _resolve_image_extent(
+        value: float | str | None, region_extent: float
+    ) -> float | None:
+        """Resolve an image dimension to cm.
+
+        ``None`` stays ``None``; a number is taken as centimetres; a
+        ``"<n>%"`` string is that percentage of ``region_extent``.
+        """
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return float(value.rstrip("%")) / 100.0 * region_extent
+        return value

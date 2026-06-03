@@ -8,6 +8,7 @@ import typst
 
 from ..core.element import anchor_offsets
 from ..elements.group import Group
+from ..elements.image import Image
 from ..elements.shapes import Circle, Ellipse, Line, Rectangle
 from ..elements.spacing import HSpace, VSpace
 from ..elements.text import Text
@@ -61,6 +62,8 @@ def _bare(el: Element) -> str:
         return _shape_markup(el)
     if isinstance(el, Line):
         return _line_markup(el)
+    if isinstance(el, Image):
+        return _image_markup(el)
     if isinstance(el, (VSpace, HSpace)):
         return _spacer_markup(el)
     # Groups (and any unknown leaf) contribute nothing to size: the
@@ -135,6 +138,18 @@ def _wrap_max_width(measure_body: str, render_body: str, max_width: float) -> st
     )
 
 
+def _wrap_align(body: str, text_align: str | None) -> str:
+    """Wrap ``body`` in ``#align(...)`` to align its lines, or return it as is.
+
+    Only meaningful inside a width-constrained box (the wrapped text);
+    the alignment value (``"left"``/``"center"``/``"right"``) is a valid
+    Typst alignment keyword.
+    """
+    if text_align is None:
+        return body
+    return f"#align({text_align})[{body}]"
+
+
 def _shape_markup(el: Rectangle | Circle | Ellipse) -> str:
     """Emit the Typst body for a filled shape primitive.
 
@@ -180,6 +195,29 @@ def _line_markup(el: Line) -> str:
 def _spacer_markup(el: VSpace | HSpace) -> str:
     """Emit an invisible box matching a spacer's intrinsic size."""
     return f"#box(width: {el.get_width()}cm, height: {el.get_height()}cm)"
+
+
+def _escape_typst_string(s: str) -> str:
+    """Escape ``s`` for a Typst double-quoted string literal."""
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _image_markup(el: Image) -> str:
+    """Emit the Typst body for an :class:`Image`.
+
+    The path is resolved to an absolute filesystem path so it loads
+    identically from the measurer's aux ``.typ`` and the renderer's
+    in-memory source — both compile with the Typst root at ``/``. Only
+    the dimensions that are set are emitted, so Typst keeps the file's
+    aspect ratio for any left free.
+    """
+    path = _escape_typst_string(str(Path(el.path).resolve()))
+    attrs = [f'"{path}"']
+    if el.width is not None:
+        attrs.append(f"width: {el.width}cm")
+    if el.height is not None:
+        attrs.append(f"height: {el.height}cm")
+    return f"#image({', '.join(attrs)})"
 
 
 def _collect_fixed(el: Element) -> list[Element]:
@@ -359,7 +397,7 @@ class TypstRenderer:
         preamble = f"#set page(width: {width}cm, height: {height}cm, margin: 0cm)\n"
         body = "\n#pagebreak()\n".join(fragments)
         source = preamble + "\n" + body + "\n"
-        typst.compile(source.encode("utf-8"), output=str(path))
+        typst.compile(source.encode("utf-8"), output=str(path), root="/")
 
     def _render_node(self, el: Element, placeholder: bool) -> str:
         """Render an element body (no ``#place`` wrapper).
@@ -380,11 +418,15 @@ class TypstRenderer:
                 inner = _escape(el.content)
             inner = _wrap_text_attrs(el, inner)
             if el.max_width is not None:
-                inner = _wrap_max_width(inner, inner, el.max_width)
+                inner = _wrap_max_width(
+                    inner, _wrap_align(inner, el.text_align), el.max_width
+                )
         elif isinstance(el, (Rectangle, Circle, Ellipse)):
             inner = _shape_markup(el)
         elif isinstance(el, Line):
             inner = _line_markup(el)
+        elif isinstance(el, Image):
+            inner = _image_markup(el)
         elif isinstance(el, (VSpace, HSpace)):
             inner = _spacer_markup(el)
         elif isinstance(el, Group):
@@ -545,13 +587,16 @@ class TypstMeasurer:
 
         Runs in-process against the bundled Typst compiler;
         ``ignore_system_fonts`` keeps the font set to Typst's embedded
-        faces so no system-font scan happens.
+        faces so no system-font scan happens. ``root="/"`` lets the
+        absolute image paths emitted by ``_image_markup`` resolve to the
+        filesystem.
         """
         out = typst.query(
             str(self.path),
             "<bbox>",
             field="value",
             ignore_system_fonts=True,
+            root="/",
         )
         return json.loads(out)
 
@@ -584,11 +629,17 @@ class TypstMeasurer:
             if el.max_width is not None:
                 # Width comes from the probe-free body; probes are
                 # zero-width and must not leak into the measurement.
-                inner = _wrap_max_width(_bare(el), inner, el.max_width)
+                # Alignment shifts where inline-x probes land, so it wraps
+                # the probe-carrying render body to match the renderer.
+                inner = _wrap_max_width(
+                    _bare(el), _wrap_align(inner, el.text_align), el.max_width
+                )
         elif isinstance(el, (Rectangle, Circle, Ellipse)):
             inner = _shape_markup(el)
         elif isinstance(el, Line):
             inner = _line_markup(el)
+        elif isinstance(el, Image):
+            inner = _image_markup(el)
         elif isinstance(el, (VSpace, HSpace)):
             inner = _spacer_markup(el)
         elif isinstance(el, Group):

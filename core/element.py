@@ -30,6 +30,10 @@ Anchor = Literal[
     "bottom-right",
 ]
 
+# Horizontal alignment of an element within its region, resolved by
+# ``arrange``. ``None`` inherits the region's horizontal half.
+HAlign = Literal["left", "center", "right"]
+
 # (h_mul, v_mul) such that the bbox centre is offset from ``_pos`` by
 # ``((0.5 - h_mul) * w, (0.5 - v_mul) * h)``. Equivalently the anchor
 # point is at ``bbox.centre + ((h_mul - 0.5) * w, (v_mul - 0.5) * h)``.
@@ -158,6 +162,12 @@ class Element:
         Initial anchor point in cm. Defaults to ``Vec(0, 0)``.
     anchor : Anchor, optional
         Which bbox point sits at ``pos``. Defaults to ``"center"``.
+    align : HAlign or None, optional
+        Horizontal alignment within the region that arranges this
+        element: ``"left"``, ``"center"``, or ``"right"``. ``None``
+        (default) inherits the region's horizontal half. Read by
+        :func:`~mate.composition.arrange.arrange`; has no effect on a
+        free element until it is arranged.
     placement : Placement, optional
         Initial placement state. Defaults to ``"fixed"``.
     id : IDKey or list[IDKey] or None, optional
@@ -171,6 +181,8 @@ class Element:
         Stored anchor point (read via the :attr:`pos` property).
     anchor : Anchor
         Stored anchor mode.
+    align : HAlign or None
+        See ``align`` parameter.
     center : Vec
         Visual center in slide coordinates. Property — measures on
         cache miss when the stored anchor is not already the center.
@@ -203,11 +215,13 @@ class Element:
         *,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
+        align: HAlign | None = None,
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
     ) -> None:
         self._pos: Vec = Vec(pos) if pos is not None else Vec(0, 0)
         self._anchor: Anchor = anchor
+        self.align: HAlign | None = align
         self.placement: Placement = placement
         self.parent: Element | None = None
         self.hidden: bool = False
@@ -338,6 +352,15 @@ class Element:
         """
         self._anchor = anchor
         self._invalidate_subtree_and_ancestors()
+        return self
+
+    def set_align(self, align: HAlign | None) -> Element:
+        """Set the horizontal alignment within the arranging region.
+
+        Takes effect at the next :meth:`Region.arrange`; it does not
+        move an already-placed element, so the bbox cache is untouched.
+        """
+        self.align = align
         return self
 
     def _translate_children(self, delta: Vec) -> None:
