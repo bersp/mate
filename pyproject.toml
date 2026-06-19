@@ -11,6 +11,9 @@ authors = [
   {name = "Bernardo L. Español", email = "esp.bernardo@gmail.com"},
 ]
 
+[project.scripts]
+mate = "mate.cli:main"
+
 [tool.setuptools]
 packages = ["mate", "mate.core", "mate.elements", "mate.backends", "mate.composition", "mate.parser"]
 package-dir = {"mate" = "."}
