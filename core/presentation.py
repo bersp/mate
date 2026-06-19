@@ -53,8 +53,8 @@ class Presentation(PresentationTemplate):
     def __init__(
         self,
         name: str,
-        width: float = 20,
-        height: float = 15,
+        width: float = 16,
+        height: float = 9,
         total_slides: int | None = None,
     ) -> None:
         self.name: str = name
