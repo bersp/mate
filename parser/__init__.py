@@ -16,9 +16,11 @@ from .ir import (
     TextRun,
 )
 from .markdown import parse_markdown
+from .serialize import inlines_to_markdown
 
 __all__ = [
     "parse_markdown",
+    "inlines_to_markdown",
     "ParsedDocument",
     "ParsedSlide",
     "Block",

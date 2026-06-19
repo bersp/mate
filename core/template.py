@@ -10,6 +10,15 @@ from ..elements.image import Image
 from ..elements.shapes import Line
 from ..elements.spacing import VSpace
 from ..elements.text import Text
+from ..parser.ir import (
+    BulletList,
+    Heading,
+    MathBlock,
+    OrderedList,
+    Paragraph,
+    ParsedSlide,
+)
+from ..parser.serialize import inlines_to_markdown
 from .vec import Vec
 from .element import Element, HAlign
 
@@ -30,7 +39,6 @@ class PresentationTemplate:
         self.math_font: str = config.get("math.font")
         self.math_fontsize: float = config.get("math.fontsize")
         self.math_color: str = config.get("math.color")
-        self.auto_add_title: bool = config.get("template.auto_title")
         self.auto_add_footer: bool = config.get("template.auto_footer")
         self.footer_show_total: bool = config.get("footer.show_total")
         self.layout: Layout = self.build_layout()
@@ -108,6 +116,57 @@ class PresentationTemplate:
         self.current_slide.add(group)
         return group
 
+    def add_parsed_slide(self, parsed: ParsedSlide) -> None:
+        """Render a :class:`~mate.parser.ir.ParsedSlide` onto the current slide.
+
+        Serializes the slide's title/subtitle and each body block back to
+        Markdown text and dispatches every block to the matching ``add_*``
+        method. A block type without a handler raises
+        :class:`NotImplementedError`, so a subclass can supply its own.
+        """
+        slide = self.current_slide
+        if parsed.title is not None:
+            slide.title = inlines_to_markdown(parsed.title)
+        if parsed.subtitle is not None:
+            slide.subtitle = inlines_to_markdown(parsed.subtitle)
+        if parsed.title is not None or parsed.subtitle is not None:
+            self.add_title()
+
+        for block in parsed.blocks:
+            match block:
+                case Paragraph(inlines):
+                    self.add_paragraph(inlines_to_markdown(inlines))
+                case Heading(level, inlines):
+                    self.add_heading(level, inlines_to_markdown(inlines))
+                case MathBlock(raw):
+                    self.add_math_block(raw)
+                case BulletList():
+                    self.add_bullet_list(block)
+                case OrderedList():
+                    self.add_ordered_list(block)
+
+    def add_paragraph(self, text: str) -> Text:
+        """Render a paragraph of Markdown ``text`` into the active region."""
+        return self.add_text(text)
+
+    def add_math_block(self, raw: str) -> Text:
+        """Render a display equation from its Markdown math body ``raw``."""
+        return self.add_text(f"$$ {raw} $$")
+
+    def add_heading(self, level: int, text: str) -> None:
+        """Render an in-body heading of the given ``level``."""
+        raise NotImplementedError(
+            f"add_heading is not implemented (level {level} heading: {text!r})"
+        )
+
+    def add_bullet_list(self, block: BulletList) -> None:
+        """Render a bullet list."""
+        raise NotImplementedError("add_bullet_list is not implemented")
+
+    def add_ordered_list(self, block: OrderedList) -> None:
+        """Render an ordered list."""
+        raise NotImplementedError("add_ordered_list is not implemented")
+
     def add_title(self) -> Group:
         """Build the current slide's title and subtitle into a ``Group``.
 
@@ -122,7 +181,7 @@ class PresentationTemplate:
 
         if slide.title is not None:
             title = Text(
-                f"*{slide.title}*",
+                f"**{slide.title}**",
                 font=self.title_font,
                 fontsize=self.title_fontsize,
                 fill_color=self.title_color,

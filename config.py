@@ -35,7 +35,6 @@ _DEFAULTS: dict[str, object] = {
     "math.font": "libertinus serif",
     "math.fontsize": 12.0,
     "math.color": "black",
-    "template.auto_title": True,
     "template.auto_footer": True,
     "footer.show_total": False,
 }

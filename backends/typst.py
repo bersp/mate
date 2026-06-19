@@ -27,14 +27,106 @@ _CACHE_MEASURE = Path(".mate_cache/measure.typ")
 RenderNode = Callable[["Element", bool], str]
 
 
-def _escape(s: str) -> str:
-    """Escape characters that have special meaning in Typst markup."""
-    return (
-        s.replace("\\", "\\\\")
-        .replace("[", "\\[")
-        .replace("]", "\\]")
-        .replace("#", "\\#")
-    )
+_TYPST_SPECIAL = set("\\`*_$#[]")
+
+
+def _escape_char(c: str) -> str:
+    """Backslash-escape ``c`` if it has special meaning in Typst markup."""
+    return f"\\{c}" if c in _TYPST_SPECIAL else c
+
+
+def _markdown_to_typst(s: str) -> str:
+    """Translate the Markdown markup of ``s`` into Typst markup.
+
+    Handles the constructs the parser emits — ``**bold**``, ``*italic*`` /
+    ``_italic_``, ``` `code` ```, inline ``$math$`` and display ``$$math$$`` —
+    plus backslash escapes; every other character is emitted as a Typst
+    literal. Code and math span bodies are passed through verbatim. A
+    deliberately simple scanner, not a full CommonMark engine.
+    """
+    return _scan_markdown(s, 0, len(s))
+
+
+def _scan_markdown(s: str, i: int, end: int) -> str:
+    out: list[str] = []
+    while i < end:
+        c = s[i]
+        if c == "\\" and i + 1 < end:
+            out.append(_escape_char(s[i + 1]))
+            i += 2
+        elif c == "`":
+            j = s.find("`", i + 1, end)
+            if j == -1:
+                out.append(_escape_char(c))
+                i += 1
+            else:
+                out.append(f"`{s[i + 1 : j]}`")
+                i = j + 1
+        elif c == "$":
+            if s.startswith("$$", i):
+                j = s.find("$$", i + 2, end)
+                if j == -1:
+                    out.append(_escape_char(c))
+                    i += 1
+                else:
+                    out.append(f"$ {s[i + 2 : j].strip()} $")
+                    i = j + 2
+            else:
+                j = s.find("$", i + 1, end)
+                if j == -1:
+                    out.append(_escape_char(c))
+                    i += 1
+                else:
+                    out.append(f"${s[i + 1 : j]}$")
+                    i = j + 1
+        elif s.startswith("**", i):
+            j = _find_delim(s, i + 2, end, "**")
+            if j == -1:
+                out.append(_escape_char(c))
+                i += 1
+            else:
+                out.append(f"*{_scan_markdown(s, i + 2, j)}*")
+                i = j + 2
+        elif c in "*_":
+            j = _find_delim(s, i + 1, end, c)
+            if j == -1:
+                out.append(_escape_char(c))
+                i += 1
+            else:
+                out.append(f"_{_scan_markdown(s, i + 1, j)}_")
+                i = j + 1
+        else:
+            out.append(_escape_char(c))
+            i += 1
+    return "".join(out)
+
+
+def _find_delim(s: str, i: int, end: int, delim: str) -> int:
+    """Index of the closing ``delim`` run, or ``-1``.
+
+    Skips backslash escapes and steps over code and math spans so a
+    delimiter character inside them does not close the emphasis. When
+    looking for a single ``*``/``_``, a doubled run is stepped over rather
+    than matched, so it stays available to close an enclosing bold span.
+    """
+    while i < end:
+        c = s[i]
+        if c == "\\":
+            i += 2
+        elif c == "`":
+            j = s.find("`", i + 1, end)
+            i = end if j == -1 else j + 1
+        elif c == "$":
+            close = "$$" if s.startswith("$$", i) else "$"
+            j = s.find(close, i + len(close), end)
+            i = end if j == -1 else j + len(close)
+        elif len(delim) == 1 and s.startswith(delim * 2, i):
+            i += 2
+        elif s.startswith(delim, i):
+            return i
+        else:
+            i += 1
+    return -1
 
 
 _DEFAULT_FILL_COLOR = "black"
@@ -53,7 +145,7 @@ def _bare(el: Element) -> str:
         if el.children:
             inner = "".join(_bare(c) for c in el.children if c.placement != "omitted")
         else:
-            inner = _escape(el.content)
+            inner = _markdown_to_typst(el.content)
         body = _wrap_text_attrs(el, inner, with_fill=False)
         if el.max_width is not None:
             # Width is measured from the leading-free body (leading does
@@ -430,7 +522,7 @@ class TypstRenderer:
                     if c.placement != "omitted"
                 )
             else:
-                inner = _escape(el.content)
+                inner = _markdown_to_typst(el.content)
             inner = _wrap_text_attrs(el, inner)
             if el.max_width is not None:
                 inner = _wrap_max_width(
@@ -641,7 +733,7 @@ class TypstMeasurer:
             if el.children:
                 inner = self._render_children_with_probes(el)
             else:
-                inner = _escape(el.content)
+                inner = _markdown_to_typst(el.content)
             inner = _wrap_text_attrs(el, inner)
             if el.max_width is not None:
                 # Width comes from the probe-free body; probes are
