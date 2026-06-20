@@ -172,6 +172,7 @@ class PresentationTemplate:
         """Render a display equation from its Markdown math body ``raw``."""
         return self.add_text(
             f"$$ {raw} $$",
+            align="center",
             font=self.math_font,
             fontsize=self.math_fontsize,
             fill_color=self.math_color,
