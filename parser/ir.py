@@ -1,9 +1,10 @@
 """Tokenized representation of a parsed Markdown document.
 
-A :class:`ParsedDocument` is a list of :class:`ParsedSlide`s; each slide holds
-its title and subtitle as inline tokens plus a list of body blocks. Blocks and
-inlines are dataclasses so the later element-mapping step consumes a typed tree
-rather than a backend-specific token stream.
+A :class:`ParsedDocument` holds a :class:`FrontMatter` config block and a list
+of :class:`ParsedSlide`s; each slide holds its title and subtitle as inline
+tokens plus a list of body blocks. Blocks and inlines are dataclasses so the
+later element-mapping step consumes a typed tree rather than a backend-specific
+token stream.
 """
 
 from __future__ import annotations
@@ -120,5 +121,20 @@ class ParsedSlide:
 
 
 @dataclass
+class FrontMatter:
+    """A document's leading YAML config block.
+
+    ``templates`` names the template files to inherit (see
+    ``config.templates``); ``config`` maps dotted config keys to override
+    values; ``colors`` maps palette names to hex strings.
+    """
+
+    templates: list[str] = field(default_factory=list)
+    config: dict[str, object] = field(default_factory=dict)
+    colors: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class ParsedDocument:
     slides: list[ParsedSlide] = field(default_factory=list)
+    frontmatter: FrontMatter = field(default_factory=FrontMatter)

@@ -5,6 +5,7 @@ from pathlib import Path
 from ..backends.typst import TypstRenderer as _Renderer
 from ..config import config
 from ..log import logger
+from ..parser.ir import FrontMatter
 from .element import Element
 from .template import PresentationTemplate
 
@@ -61,16 +62,24 @@ class Presentation(PresentationTemplate):
     def __init__(
         self,
         name: str,
-        width: float = 16,
-        height: float = 9,
+        width: float | None = None,
+        height: float | None = None,
         total_slides: int | None = None,
+        frontmatter: FrontMatter | None = None,
     ) -> None:
         self.name: str = name
-        self.width: float = width
-        self.height: float = height
         self.total_slides: int | None = total_slides
-        config.set_slide_size(width, height)
+        # Read by PresentationTemplate.__init__ during super(): the front
+        # matter is applied after the templates set their config but before
+        # the base reads it, so a deck's explicit config wins over a template.
+        self._frontmatter: FrontMatter = frontmatter or FrontMatter()
+        if width is not None:
+            config.set("slide.width", float(width))
+        if height is not None:
+            config.set("slide.height", float(height))
         super().__init__()
+        self.width: float = config.slide_width
+        self.height: float = config.slide_height
         self.slides: list[Slide] = []
         self.current_slide: Slide | None = None
         self._renderer = _Renderer()

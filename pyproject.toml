@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "mate"
 version = "0.0.1"
 requires-python = ">=3.10"
-dependencies = ["numpy", "typst>=0.14", "rich>=13", "markdown-it-py>=3", "mdit-py-plugins>=0.4"]
+dependencies = ["numpy", "typst>=0.14", "rich>=13", "markdown-it-py>=3", "mdit-py-plugins>=0.4", "pyyaml>=6"]
 authors = [
   {name = "Bernardo L. Español", email = "esp.bernardo@gmail.com"},
 ]
@@ -15,7 +15,7 @@ authors = [
 mate = "mate.cli:main"
 
 [tool.setuptools]
-packages = ["mate", "mate.core", "mate.elements", "mate.backends", "mate.composition", "mate.parser"]
+packages = ["mate", "mate.core", "mate.elements", "mate.backends", "mate.composition", "mate.parser", "mate.templates"]
 package-dir = {"mate" = "."}
 
 [tool.ruff]

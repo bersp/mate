@@ -28,6 +28,10 @@ class PresentationTemplate:
     """Base template for a presentation."""
 
     def __init__(self) -> None:
+        frontmatter = getattr(self, "_frontmatter", None)
+        if frontmatter is not None:
+            config.apply_overrides(frontmatter.config)
+            config.colors.set_multiple(frontmatter.colors)
         self.text_font: str = config.get("text.font")
         self.text_fontsize: float = config.get("text.fontsize")
         self.text_color: str = config.get("text.color")

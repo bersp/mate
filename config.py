@@ -17,6 +17,8 @@ _HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})")
 # Typst's implicit fallback; ``color`` is a palette name resolved via
 # ``config.colors``.
 _DEFAULTS: dict[str, object] = {
+    "slide.width": 16.0,
+    "slide.height": 9.0,
     "region.full_with_margins.margins": 0.7,
     "region.content.anchor": "top-left",
     "region.content.arrange_gap": 0.25,
@@ -95,15 +97,17 @@ class Config:
     """Process-global configuration knobs."""
 
     def __init__(self) -> None:
-        self.slide_width: float = 0.0
-        self.slide_height: float = 0.0
         self.colors: Colors = Colors()
         self.templates: list[str] = []
         self._defaults: dict[str, object] = dict(_DEFAULTS)
 
-    def set_slide_size(self, width: float, height: float) -> None:
-        self.slide_width = float(width)
-        self.slide_height = float(height)
+    @property
+    def slide_width(self) -> float:
+        return float(self._defaults["slide.width"])
+
+    @property
+    def slide_height(self) -> float:
+        return float(self._defaults["slide.height"])
 
     def set_debug(self, enabled: bool) -> None:
         """Enable or disable DEBUG narration on the ``mate`` logger."""
@@ -122,6 +126,21 @@ class Config:
     def set(self, key: str, value: object) -> None:
         """Override the default for ``key`` process-wide."""
         self._defaults[key] = value
+
+    def apply_overrides(self, values: dict[str, object]) -> None:
+        """Apply user-supplied config overrides, validating each key first.
+
+        Every key must already be a defined config key; an unknown key (a typo
+        in a presentation's front matter) raises :class:`ValueError` before any
+        value is applied.
+        """
+        for key in values:
+            if key not in self._defaults:
+                defined = ", ".join(sorted(self._defaults))
+                raise ValueError(
+                    f"{key!r} is not a defined config key. Defined keys: {defined}."
+                )
+        self._defaults.update(values)
 
 
 config = Config()

@@ -1,8 +1,10 @@
 """Parse a Markdown source string into a :class:`ParsedDocument`.
 
-Slide syntax: a ``#`` (h1) heading opens a new slide and is its title; a ``##``
-(h2) heading that is the slide's first block is its subtitle. Every other
-construct becomes a body block. Supported v1 content: paragraphs with inline
+An optional leading YAML front matter block, fenced by ``---`` lines, carries
+the presentation's config (see :class:`~mate.parser.ir.FrontMatter`). Slide
+syntax: a ``#`` (h1) heading opens a new slide and is its title; a ``##`` (h2)
+heading that is the slide's first block is its subtitle. Every other construct
+becomes a body block. Supported v1 content: paragraphs with inline
 bold/italic/code, Typst-style ``$...$`` and ``$$...$$`` math, bullet and ordered
 lists (nested), in-body headings, and blockquotes that call a presentation
 method, one ``> method name : args`` (or no-arg ``> method name``) call per
@@ -13,6 +15,9 @@ parse time.
 
 from __future__ import annotations
 
+import re
+
+import yaml
 from markdown_it import MarkdownIt
 from markdown_it.tree import SyntaxTreeNode
 from mdit_py_plugins.dollarmath import dollarmath_plugin
@@ -22,6 +27,7 @@ from .ir import (
     Bold,
     BulletList,
     Code,
+    FrontMatter,
     Heading,
     Inline,
     Italic,
@@ -36,13 +42,16 @@ from .ir import (
     TextRun,
 )
 
+_FRONTMATTER_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n?", re.DOTALL)
+
 
 def parse_markdown(source: str) -> ParsedDocument:
     """Parse ``source`` into a :class:`ParsedDocument` of tokenized slides."""
+    frontmatter, body = _split_frontmatter(source)
     md = MarkdownIt("commonmark").use(dollarmath_plugin)
-    tree = SyntaxTreeNode(md.parse(source))
+    tree = SyntaxTreeNode(md.parse(body))
 
-    doc = ParsedDocument()
+    doc = ParsedDocument(frontmatter=frontmatter)
     current: ParsedSlide | None = None
 
     for node in tree.children:
@@ -72,6 +81,43 @@ def parse_markdown(source: str) -> ParsedDocument:
             current.blocks.append(_fold_block(node))
 
     return doc
+
+
+def _split_frontmatter(source: str) -> tuple[FrontMatter, str]:
+    """Peel an optional leading ``---`` YAML block off ``source``.
+
+    Returns the parsed :class:`FrontMatter` (empty when absent) and the
+    remaining Markdown body.
+    """
+    match = _FRONTMATTER_RE.match(source)
+    if match is None:
+        return FrontMatter(), source
+    data = yaml.safe_load(match.group(1)) or {}
+    return _build_frontmatter(data), source[match.end() :]
+
+
+def _build_frontmatter(data: dict) -> FrontMatter:
+    """Validate the raw YAML mapping and fold it into a :class:`FrontMatter`."""
+    if not isinstance(data, dict):
+        raise ValueError("Front matter must be a YAML mapping")
+    unknown = set(data) - {"templates", "config", "colors"}
+    if unknown:
+        raise ValueError(
+            f"Unknown front matter section(s): {sorted(unknown)}. "
+            "Allowed: templates, config, colors."
+        )
+    colors = data.get("colors") or {}
+    for name, value in colors.items():
+        if not isinstance(value, str):
+            raise ValueError(
+                f"Color {name!r} must be a quoted hex string "
+                f'(e.g. "{name}": "#E69875"), got {value!r}'
+            )
+    return FrontMatter(
+        templates=data.get("templates") or [],
+        config=data.get("config") or {},
+        colors=colors,
+    )
 
 
 def _fold_block(node: SyntaxTreeNode) -> Block:

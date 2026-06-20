@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from . import Presentation
+from . import Presentation, config
 from .parser import parse_markdown
 
 
@@ -17,7 +17,14 @@ def main() -> None:
     source_path = Path(sys.argv[1])
     doc = parse_markdown(source_path.read_text(encoding="utf-8"))
 
-    pres = Presentation(str(source_path.with_suffix("")), total_slides=len(doc.slides))
+    # Templates drive Presentation.__new__, so they must reach config before
+    # construction; the rest of the front matter is applied inside __init__.
+    config.templates = doc.frontmatter.templates
+    pres = Presentation(
+        str(source_path.with_suffix("")),
+        total_slides=len(doc.slides),
+        frontmatter=doc.frontmatter,
+    )
     for parsed in doc.slides:
         pres.new_slide()
         pres.add_parsed_slide(parsed)
