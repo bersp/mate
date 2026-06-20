@@ -208,7 +208,7 @@ class Region:
 
     def grid(
         self,
-        template: list[list[str]] | np.ndarray,
+        template: list[list[str]],
         *,
         hgap: float = 0.0,
         vgap: float = 0.0,

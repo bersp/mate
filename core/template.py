@@ -269,6 +269,49 @@ class PresentationTemplate:
         target_region.add(el)
         return el
 
+    def add_vspace(self, height: float, region: str = "active") -> VSpace:
+        """Add a vertical spacer of ``height`` cm to a region's stack.
+
+        ``region`` is the target region name. The spacer carries its own
+        height into :meth:`Region.arrange`, opening that much vertical space
+        between the elements stacked around it.
+        """
+        target_region = self.layout.get(region)
+        spacer = VSpace(height)
+        target_region.add(spacer)
+        return spacer
+
+    def grid(
+        self,
+        template: list[list[str]],
+        region: str = "active",
+        *,
+        hgap: float = 0.0,
+        vgap: float = 0.0,
+        width_ratios: list[float] | None = None,
+        height_ratios: list[float] | None = None,
+    ) -> dict[str, Region]:
+        """Split a region into a grid and register each cell in the layout.
+
+        ``region`` is the region to split. The ``template`` array, gaps, and
+        ratios are forwarded to :meth:`Region.grid`: cells sharing a label
+        merge into one sub-region. Each sub-region is attached to the layout
+        under its label, so it can later be reached by name (including as the
+        ``"active"`` target via :meth:`Layout.set_active`). Returns the
+        ``label -> Region`` mapping.
+        """
+        target_region = self.layout.get(region)
+        subregions = target_region.grid(
+            template,
+            hgap=hgap,
+            vgap=vgap,
+            width_ratios=width_ratios,
+            height_ratios=height_ratios,
+        )
+        for label, sub in subregions.items():
+            self.layout.add(label, sub)
+        return subregions
+
     def add_image(
         self,
         path: str,
