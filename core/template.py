@@ -362,3 +362,6 @@ class PresentationTemplate:
         if isinstance(value, str):
             return float(value.rstrip("%")) / 100.0 * region_extent
         return value
+
+    # --- Aliases ------------------------------------------------------------
+    vspace = add_vspace
