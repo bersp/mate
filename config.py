@@ -22,6 +22,7 @@ _DEFAULTS: dict[str, object] = {
     "region.content.arrange_gap": 0.25,
     "arrange.gap": 0.2,
     "line.stroke_width": 0.03,
+    "image.align": "center",
     "text.font": "libertinus serif",
     "text.fontsize": 12.0,
     "text.color": "black",

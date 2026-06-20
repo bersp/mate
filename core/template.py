@@ -342,8 +342,9 @@ class PresentationTemplate:
         each either a length in cm or a ``"<n>%"`` string read as that
         percentage of the region's width/height. Setting one alone lets the
         other follow the file's aspect ratio; setting neither sizes the
-        image's longer side to the full matching region extent. The
-        remaining keyword arguments are forwarded to :class:`Image`.
+        image's longer side to the full matching region extent. ``align``
+        defaults to the ``image.align`` config value; the remaining keyword
+        arguments are forwarded to :class:`Image`.
         """
         target_region = self.layout.get(region)
         width_cm = self._resolve_image_extent(width, target_region.width)
@@ -354,6 +355,7 @@ class PresentationTemplate:
                 width_cm = target_region.width
             else:
                 height_cm = target_region.height
+        image_kwargs.setdefault("align", config.get("image.align"))
         el = Image(path, width=width_cm, height=height_cm, **image_kwargs)
         self.current_slide.add(el)
         target_region.add(el)
