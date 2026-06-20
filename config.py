@@ -12,7 +12,7 @@ _HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})")
 #
 # Typography keys follow ``<role>.<dimension>``: every typographic role
 # (``text``, ``title``, ``subtitle``, ``math``) carries the dimensions it needs
-# (``font``, ``fontsize``, ``color``). The font/size literals are kept in sync
+# (``font``, ``fontweight``, ``fontsize``, ``color``). The font/size literals are kept in sync
 # with ``typst query`` on a blank doc so the rendered output never relies on
 # Typst's implicit fallback; ``color`` is a palette name resolved via
 # ``config.colors``.
@@ -26,16 +26,20 @@ _DEFAULTS: dict[str, object] = {
     "line.stroke_width": 0.03,
     "image.align": "center",
     "text.font": "libertinus serif",
+    "text.fontweight": "regular",
     "text.fontsize": 12.0,
     "text.color": "black",
     "text.line_gap": 0.25,
     "title.font": "libertinus serif",
+    "title.fontweight": "bold",
     "title.fontsize": 14.0,
     "title.color": "black",
     "subtitle.font": "libertinus serif",
+    "subtitle.fontweight": "regular",
     "subtitle.fontsize": 12.0,
     "subtitle.color": "darker_gray",
     "math.font": "libertinus serif",
+    "math.fontweight": "regular",
     "math.fontsize": 12.0,
     "math.color": "black",
     "template.auto_footer": True,
