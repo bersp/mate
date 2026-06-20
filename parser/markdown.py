@@ -48,6 +48,7 @@ _FRONTMATTER_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n?", re.DOTALL)
 def parse_markdown(source: str) -> ParsedDocument:
     """Parse ``source`` into a :class:`ParsedDocument` of tokenized slides."""
     frontmatter, body = _split_frontmatter(source)
+    body = _separate_math_blocks(body)
     md = MarkdownIt("commonmark").use(dollarmath_plugin)
     tree = SyntaxTreeNode(md.parse(body))
 
@@ -94,6 +95,35 @@ def _split_frontmatter(source: str) -> tuple[FrontMatter, str]:
         return FrontMatter(), source
     data = yaml.safe_load(match.group(1)) or {}
     return _build_frontmatter(data), source[match.end() :]
+
+
+def _separate_math_blocks(source: str) -> str:
+    """Surround a lone ``$$`` delimiter line with blank lines so the display
+    equation parses as its own block. Lines inside fenced code blocks (```` ``` ````
+    or ``~~~``) are left untouched.
+    """
+    out: list[str] = []
+    in_code = False
+    in_math = False
+    for line in source.split("\n"):
+        stripped = line.strip()
+        if not in_math and (stripped.startswith("```") or stripped.startswith("~~~")):
+            in_code = not in_code
+            out.append(line)
+        elif in_code:
+            out.append(line)
+        elif stripped == "$$":
+            if not in_math:
+                if out and out[-1].strip() != "":
+                    out.append("")
+                out.append(line)
+            else:
+                out.append(line)
+                out.append("")
+            in_math = not in_math
+        else:
+            out.append(line)
+    return "\n".join(out)
 
 
 def _build_frontmatter(data: dict) -> FrontMatter:
