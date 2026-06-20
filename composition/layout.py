@@ -168,6 +168,10 @@ class Region:
         self._center = Vec(value)
         return self
 
+    def set_anchor(self, value: Anchor) -> Region:
+        self._anchor = value
+        return self
+
     def set_arrange_gap(self, value: float) -> Region:
         self._arrange_gap = float(value)
         return self
