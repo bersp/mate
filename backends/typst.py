@@ -245,7 +245,9 @@ def _typst_stroke(color: str | None, width: float | None) -> str:
 
 
 def _wrap_text_attrs(el: Text, inner: str, *, with_fill: bool = True) -> str:
-    """Wrap ``inner`` in ``#text(font: ..., size: ...pt, fill: ...)``.
+    """Wrap ``inner`` in a ``#text(...)`` call with the element's font and
+    size, plus ``weight``/``style``/``tracking`` when set and ``fill`` when
+    present.
 
     ``font`` and ``size`` are always emitted — every :class:`Text` carries
     them explicitly so the rendered output never relies on Typst's
@@ -257,6 +259,13 @@ def _wrap_text_attrs(el: Text, inner: str, *, with_fill: bool = True) -> str:
     aux document small.
     """
     attrs = [f'font: "{el.font}"', f"size: {el.fontsize}pt"]
+    if el.weight is not None:
+        weight = f'"{el.weight}"' if isinstance(el.weight, str) else el.weight
+        attrs.append(f"weight: {weight}")
+    if el.style is not None:
+        attrs.append(f'style: "{el.style}"')
+    if el.letter_spacing is not None:
+        attrs.append(f"tracking: {el.letter_spacing}em")
     if with_fill and not (el.fill_color is None and el.fill_opacity is None):
         attrs.append(f"fill: {_typst_fill(el.fill_color, el.fill_opacity)}")
     return f'#text({", ".join(attrs)})[{inner}]'

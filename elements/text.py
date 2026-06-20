@@ -37,6 +37,16 @@ class Text(Drawable):
     fontsize : float or None, optional
         Font size in points. ``None`` (default) reads ``text.fontsize``
         from the config.
+    weight : str or int or None, optional
+        Font weight: a Typst weight name (``"regular"``, ``"bold"``,
+        ``"light"``, ``"medium"``, ``"semibold"``, ``"black"``, ...) or an
+        integer 100-900. ``None`` (default) uses Typst's default weight.
+    style : str or None, optional
+        Font style: ``"normal"``, ``"italic"``, or ``"oblique"``. ``None``
+        (default) uses Typst's default (``"normal"``).
+    letter_spacing : float or None, optional
+        Extra spacing between letters, in em (relative to ``fontsize``).
+        ``None`` (default) adds none.
     max_width : float or None, optional
         Maximum line width in cm. When set, the text wraps to stay
         within it and the bbox width shrinks to fit the content
@@ -73,6 +83,12 @@ class Text(Drawable):
         Typst font family used to render and measure this node.
     fontsize : float
         Font size in points.
+    weight : str or int or None
+        See ``weight`` parameter.
+    style : str or None
+        See ``style`` parameter.
+    letter_spacing : float or None
+        See ``letter_spacing`` parameter.
     max_width : float or None
         Wrap width in cm, or ``None`` for no wrapping.
     text_align : HAlign or None
@@ -87,6 +103,9 @@ class Text(Drawable):
         *,
         font: str | None = None,
         fontsize: float | None = None,
+        weight: str | int | None = None,
+        style: str | None = None,
+        letter_spacing: float | None = None,
         max_width: float | None = None,
         text_align: HAlign | None = None,
         line_gap: float | None = None,
@@ -117,6 +136,9 @@ class Text(Drawable):
         fontsize = config.get("text.fontsize") if fontsize is None else fontsize
         self.font: str = font
         self.fontsize: float = fontsize
+        self.weight: str | int | None = weight
+        self.style: str | None = style
+        self.letter_spacing: float | None = letter_spacing
         self.max_width: float | None = max_width
         self.text_align: HAlign | None = text_align
         self.line_gap: float = (
@@ -131,9 +153,12 @@ class Text(Drawable):
             else:
                 self._take_children(children)
                 # Parser-built subs are constructed with the config defaults;
-                # propagate this node's font/size so they inherit explicitly.
+                # propagate this node's fields so they inherit explicitly.
                 self._set_field("font", font, propagate=True)
                 self._set_field("fontsize", fontsize, propagate=True)
+                self._set_field("weight", weight, propagate=True)
+                self._set_field("style", style, propagate=True)
+                self._set_field("letter_spacing", letter_spacing, propagate=True)
 
     def get_content(self) -> str:
         """Return this node's own raw text (empty when the node has children)."""
