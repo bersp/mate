@@ -32,18 +32,6 @@ class PresentationTemplate:
         if frontmatter is not None:
             config.apply_overrides(frontmatter.config)
             config.colors.set_multiple(frontmatter.colors)
-        self.text_font: str = config.get("text.font")
-        self.text_fontsize: float = config.get("text.fontsize")
-        self.text_color: str = config.get("text.color")
-        self.title_font: str = config.get("title.font")
-        self.title_fontsize: float = config.get("title.fontsize")
-        self.title_color: str = config.get("title.color")
-        self.subtitle_font: str = config.get("subtitle.font")
-        self.subtitle_fontsize: float = config.get("subtitle.fontsize")
-        self.subtitle_color: str = config.get("subtitle.color")
-        self.math_font: str = config.get("math.font")
-        self.math_fontsize: float = config.get("math.fontsize")
-        self.math_color: str = config.get("math.color")
         self.auto_add_footer: bool = config.get("template.auto_footer")
         self.footer_show_total: bool = config.get("footer.show_total")
         self.layout: Layout = self.build_layout()
@@ -173,9 +161,9 @@ class PresentationTemplate:
         return self.add_text(
             f"$$ {raw} $$",
             align="center",
-            font=self.math_font,
-            fontsize=self.math_fontsize,
-            fill_color=self.math_color,
+            font=config.get("math.font"),
+            fontsize=config.get("math.fontsize"),
+            fill_color=config.get("math.color"),
         )
 
     def add_heading(self, level: int, text: str) -> None:
@@ -201,10 +189,11 @@ class PresentationTemplate:
 
         if slide.title is not None:
             title = Text(
-                f"**{slide.title}**",
-                font=self.title_font,
-                fontsize=self.title_fontsize,
-                fill_color=self.title_color,
+                slide.title,
+                font=config.get("title.font"),
+                fontsize=config.get("title.fontsize"),
+                weight=config.get("title.fontweight"),
+                fill_color=config.get("title.color"),
             )
             title_region.add(title)
             members.add(title)
@@ -212,9 +201,10 @@ class PresentationTemplate:
         if slide.subtitle is not None:
             subtitle = Text(
                 slide.subtitle,
-                font=self.subtitle_font,
-                fontsize=self.subtitle_fontsize,
-                fill_color=self.subtitle_color,
+                font=config.get("subtitle.font"),
+                fontsize=config.get("subtitle.fontsize"),
+                weight=config.get("subtitle.fontweight"),
+                fill_color=config.get("subtitle.color"),
             )
             title_region.add(subtitle)
             members.add(subtitle)
@@ -241,9 +231,9 @@ class PresentationTemplate:
         members = Group()
         num_el = Text(
             label,
-            font=self.text_font,
-            fontsize=self.text_fontsize,
-            fill_color=self.text_color,
+            font=config.get("text.font"),
+            fontsize=config.get("text.fontsize"),
+            fill_color=config.get("text.color"),
             pos=footer_region.get_anchor_point("top-right"),
             anchor="top-right",
         )
