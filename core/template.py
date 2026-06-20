@@ -53,7 +53,7 @@ class PresentationTemplate:
 
         title = layout.add(
             "title",
-            Region.create_top(2, anchor="center-left", arrange_gap=0.2).adjust_borders(
+            Region.create_top(2, anchor="center-left").adjust_borders(
                 left=-left_margin, right=-right_margin
             ),
         )
@@ -183,16 +183,11 @@ class PresentationTemplate:
         raise NotImplementedError("add_ordered_list is not implemented")
 
     def add_title(self) -> Group:
-        """Build the current slide's title and subtitle into a ``Group``.
-
-        The group is added to the slide; its members are also added to the
-        title region so :meth:`Region.arrange` stacks them. Returns the
-        group, which is empty when both title and subtitle are unset.
-        """
+        """Build the current slide's title."""
         slide = self.current_slide
         title_region = self.layout.get("title")
 
-        members: Group[Text] = Group()
+        members = Group()
 
         if slide.title is not None:
             title = Text(
@@ -213,14 +208,6 @@ class PresentationTemplate:
             )
             title_region.add(subtitle)
             members.add(subtitle)
-
-        title_region.add(VSpace(0.3))
-
-        line = Line(
-            title_region.get_anchor_point("bottom-left"),
-            title_region.get_anchor_point("bottom-right"),
-        ).shift(Vec(0, 0.35))
-        members.add(line)
 
         slide.add(members)
         return members
