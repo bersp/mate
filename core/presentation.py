@@ -6,46 +6,8 @@ from ..backends.typst import TypstRenderer as _Renderer
 from ..config import config
 from ..log import logger
 from ..parser.ir import FrontMatter
-from .element import Element
+from .slide import Slide, Snapshot
 from .template import PresentationTemplate
-
-
-class Slide:
-    """A single page of a :class:`Presentation`.
-
-    Built mutable, then sealed with :meth:`Presentation.end_slide`, which
-    snapshots the slide's rendered Typst fragment. Mutations after closing
-    do not affect the snapshot.
-
-    Attributes
-    ----------
-    elements : list[Element]
-        Root-level elements; those with ``placement != "fixed"`` are
-        skipped at render time.
-    title, subtitle : str | None
-        The slide's title and subtitle text; :meth:`Presentation.add_title`
-        turns the title string into a rendered ``Text``.
-    """
-
-    def __init__(self, title: str | None = None, subtitle: str | None = None) -> None:
-        self.elements: list[Element] = []
-        self.title: str | None = title
-        self.subtitle: str | None = subtitle
-        # Opaque backend artifact captured at close; the core never inspects it.
-        self._fragment: str | None = None
-
-    @property
-    def is_closed(self) -> bool:
-        return self._fragment is not None
-
-    def add(self, element: Element) -> Element:
-        """Append ``element`` to the slide's roots and return it (for chaining)."""
-        self.elements.append(element)
-        logger.debug(
-            rf"[yellow]SLIDE ADD ::[/yellow] {element!r}",
-            extra={"markup": True, "highlighter": None},
-        )
-        return element
 
 
 class Presentation(PresentationTemplate):
@@ -99,26 +61,38 @@ class Presentation(PresentationTemplate):
             self.add_footer(show_total=self.footer_show_total)
         return slide
 
-    def end_slide(self) -> None:
-        """Arrange every region, snapshot the slide's fragment, then clear regions.
+    def pause(self) -> None:
+        """Split the current slide: open a new reveal step.
 
-        Snapshotting seals the current slide; the cleared regions are reused
-        by the next slide.
+        Content added after a ``pause`` lands on a later page; sealing the
+        slide produces one page per reveal step, each showing the cumulative
+        content up to that step.
+        """
+        self.current_slide.pause()
+
+    def end_slide(self) -> None:
+        """Arrange every region, seal the slide into snapshots, then clear regions.
+
+        The regions are arranged once over the slide's full content, so every
+        position is baked before any page is rendered; each reveal step is then
+        rendered as a :class:`Snapshot` of its cumulative root elements. The
+        cleared regions are reused by the next slide.
         """
         slide = self.current_slide
         number = self.slides.index(slide) + 1
         for region in self.layout.regions.values():
             region.arrange()
-        slide._fragment = self._render_slide(slide)
+        canvas = (self.width, self.height)
+        slide.snapshots = [
+            Snapshot(self._renderer.render_snapshot(roots, canvas))
+            for roots in slide.reveal_prefixes()
+        ]
         self.layout.remove_all_elements()
         suffix = f" ([u]{slide.title}[/u])" if slide.title else ""
         logger.info(
             rf"[yellow b]Generating[/yellow b] Slide {number}{suffix}",
             extra={"markup": True, "highlighter": None},
         )
-
-    def _render_slide(self, slide: Slide) -> str:
-        return self._renderer.render_slide(slide, (self.width, self.height))
 
     def write(self) -> None:
         """Compile the closed slides into ``<name>.pdf`` in the working directory.
@@ -127,7 +101,7 @@ class Presentation(PresentationTemplate):
         first — or, when ``total_slides`` was declared, if the built slide
         count differs from it.
         """
-        open_count = sum(not s.is_closed for s in self.slides)
+        open_count = sum(not s.is_sealed for s in self.slides)
         if open_count:
             raise RuntimeError(
                 f"{open_count} slide(s) still open; call .end_slide() before write()."
@@ -142,7 +116,7 @@ class Presentation(PresentationTemplate):
             extra={"markup": True, "highlighter": None},
         )
         self._renderer.compile_document(
-            [s._fragment for s in self.slides],
+            [snap.markup for s in self.slides for snap in s.snapshots],
             (self.width, self.height),
             path,
         )

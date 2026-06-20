@@ -16,7 +16,6 @@ from ..elements.text import Text
 
 if TYPE_CHECKING:
     from ..core.element import Element
-    from ..core.presentation import Slide
 
 # Font directory bundled with the package, always on the Typst font path.
 _FONTS_DIR = Path(__file__).resolve().parent.parent / "fonts"
@@ -532,15 +531,17 @@ class TypstRenderer:
     ``#place`` and styles them via ``#text(fill:)`` / ``#hide``.
     """
 
-    def render_slide(self, slide: Slide, canvas: tuple[float, float]) -> str:
-        """Render a slide's fixed root elements to a Typst fragment.
+    def render_snapshot(
+        self, elements: list[Element], canvas: tuple[float, float]
+    ) -> str:
+        """Render fixed root ``elements`` to a Typst fragment for one page.
 
         Top-level elements with ``placement != "fixed"`` are skipped (their
         semantics is "do not draw at the slide root"). The fragment carries
         no page preamble or pagebreak — those belong to the document.
         """
         lines: list[str] = []
-        for el in slide.elements:
+        for el in elements:
             if el.placement != "fixed":
                 continue
             lines.extend(_render_placed(el, self._render_node, canvas))
@@ -615,9 +616,8 @@ class TypstRenderer:
 class TypstMeasurer:
     """Backend measurer that fills ``_bbox`` over a list of root elements.
 
-    The measurer is independent of :class:`Slide` and
-    :class:`Presentation`: it is a pure function of the element tree
-    rooted at each entry of ``roots``. Generates an auxiliary ``.typ``
+    The measurer is independent of slides and presentations: it is a
+    pure function of the element tree rooted at each entry of ``roots``. Generates an auxiliary ``.typ``
     (at ``.mate_cache/measure.typ`` by default) and runs ``typst query`` on
     it. The auxiliary document contains up to two regions, both
     labeled ``<bbox>``:
