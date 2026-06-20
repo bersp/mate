@@ -1,4 +1,4 @@
-"""Process-global configuration singleton: slide size and the color palette."""
+"""Process-global configuration singleton: slide size, color palette, and template stack."""
 
 from __future__ import annotations
 
@@ -98,6 +98,7 @@ class Config:
         self.slide_width: float = 0.0
         self.slide_height: float = 0.0
         self.colors: Colors = Colors()
+        self.templates: list[str] = []
         self._defaults: dict[str, object] = dict(_DEFAULTS)
 
     def set_slide_size(self, width: float, height: float) -> None:

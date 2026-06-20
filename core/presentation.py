@@ -50,6 +50,14 @@ class Slide:
 class Presentation(PresentationTemplate):
     """Top-level presentation built on a template."""
 
+    def __new__(cls, *args, **kwargs):
+        if cls is Presentation and config.templates:
+            from ..templates import load_template
+
+            templates = [load_template(name) for name in config.templates]
+            cls = type("Presentation", (cls, *templates), {})
+        return super().__new__(cls)
+
     def __init__(
         self,
         name: str,

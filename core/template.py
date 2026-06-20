@@ -166,7 +166,12 @@ class PresentationTemplate:
 
     def add_math_block(self, raw: str) -> Text:
         """Render a display equation from its Markdown math body ``raw``."""
-        return self.add_text(f"$$ {raw} $$")
+        return self.add_text(
+            f"$$ {raw} $$",
+            font=self.math_font,
+            fontsize=self.math_fontsize,
+            fill_color=self.math_color,
+        )
 
     def add_heading(self, level: int, text: str) -> None:
         """Render an in-body heading of the given ``level``."""
