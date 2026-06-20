@@ -7,7 +7,7 @@ A Python-driven presentation tool.
 1. **All logic in Python.** The backend is dumb: it receives "draw this here" and "measure this" instructions.
 2. **Backend-agnostic.** To add another backend (LaTeX, SVG, canvas, etc.) only `backends/` is touched. The rest of the project knows nothing about Typst syntax.
 3. **Uniform bbox.** Every `Element` (text, shapes, lines, ...) exposes `(x, y, w, h)` in cm, where `(x, y)` is the geometric **centre** in slide coordinates. Without this there is no coherent layout.
-4. **Lazy, cached measurement.** Measuring runs an in-process Typst query (embedded fonts only, no system-font scan); results are cached until something changes.
+4. **Lazy, cached measurement.** Measuring runs an in-process Typst query (embedded fonts plus the project `fonts/` directory, no system-font scan); results are cached until something changes.
 
 ## Folder structure
 
@@ -185,13 +185,13 @@ Region owns its elements: `add(el)`, `remove(el)`, `replace(old, new)`, `remove_
 
 `layout_to_group(layout, **drawable_kw)` returns a `Group` of one sub-`Group` per region, each holding a `Rectangle` matching the region (with `drawable_kw` forwarded, so the caller picks outline vs. fill) and a `Text` of the region name centred on it.
 
-`config.py` holds the process-global `config` singleton. It owns a flat store of defaults keyed by dotted paths — `config.get("region.content.anchor")` / `config.set(key, value)` — which templates read as starting values and may override; `get` raises on an undefined key. The slide size lives in this store under `slide.width`/`slide.height`; `config.slide_width`/`slide_height` are read-only views of those keys (read by `Region.create_*`). The color palette is `config.colors`, a `Colors` registry: `config.colors.get(name)` returns the hex for a palette name, passes a literal hex string through unchanged, and raises on anything else; `config.colors.set(name, hex)` defines a name. `config.templates` is the ordered list of template file names a `Presentation` inherits from (see `templates/`). `config.apply_overrides(values)` is the user-input boundary: it validates every key against the defined keys before applying, so a typo in a deck's front matter raises rather than creating a dead key.
+`config.py` holds the process-global `config` singleton. It owns a flat store of defaults keyed by dotted paths — `config.get("region.content.anchor")` / `config.set(key, value)` — which templates read as starting values and may override; `get` raises on an undefined key. The slide size lives in this store under `slide.width`/`slide.height`; `config.slide_width`/`slide_height` are read-only views of those keys (read by `Region.create_*`). The color palette is `config.colors`, a `Colors` registry: `config.colors.get(name)` returns the hex for a palette name, passes a literal hex string through unchanged, and raises on anything else; `config.colors.set(name, hex)` defines a name. `config.templates` is the ordered list of template file names a `Presentation` inherits from (see `templates/`). `config.font_paths` is a list of extra font directories the backend hands to Typst (on top of the project `fonts/` dir). `config.apply_overrides(values)` sets each key after checking it against the defined keys, raising on an undefined one.
 
 ### `templates/` — the template stack
 
 `config.templates` lists template file names (e.g. `["nice"]`); each name maps via `load_template` to a `<Name>Template` class in `templates/<name>.py` (CamelCase of the file name plus `Template`), subclassing `PresentationTemplate`. `Presentation.__new__` reads `config.templates` and builds a dynamic subclass whose bases are `(Presentation, *template_classes)`, so the MRO is `Presentation → templates… → PresentationTemplate`. A template sets config in its `__init__` (before `super().__init__()`) and overrides methods like `add_footer`. Earlier-listed templates take precedence for overridden methods.
 
-A `Presentation` is built from Markdown with an optional leading `---` YAML front matter (`mate.parser.ir.FrontMatter`: `templates`, `config`, `colors`). The driver assigns `config.templates` before construction (it drives `__new__`) and passes the `FrontMatter` to `Presentation`; `PresentationTemplate.__init__` applies the front matter's `config`/`colors` as its first step — after the templates have set their config but before the base reads it — so a deck's explicit config wins over its templates.
+A `Presentation` is built from Markdown with an optional leading `---` YAML front matter (`mate.parser.ir.FrontMatter`: `templates`, `config`, `colors`, `font_paths`). The driver assigns `config.templates` and `config.font_paths` (resolved relative to the Markdown file) before construction and passes the `FrontMatter` to `Presentation`. `PresentationTemplate.__init__` applies the front matter's `config`/`colors` after the templates' `__init__` and before reading any value into its attributes, so front-matter values take precedence over template values.
 
 ### Why a uniform tree
 
@@ -220,11 +220,13 @@ For each `Element` (other than `"omitted"`, which is pruned everywhere) we need:
 - **x**: the *actual* horizontal position after parent flow, only for inline elements. Obtained by injecting `#context { let p = here().position(); [#metadata((id, x: p.x/1cm))<bbox>] }` right before the inline child, inside the page-rendered tree.
 - **y**: by convention, `bbox.y` of an inline element equals `ancestor_top_y - h/2` — the centre under the rule that the inline body's top sits at the line top of the nearest fixed ancestor. Equivalently, for a fixed ancestor with `_pos.y`, anchor multiplier `v_mul`, and measured height `h`, its top edge in y-up slide coords is `_pos.y + (1 - v_mul) * h`; this value is threaded down through `_assign` as `ancestor_top_y`. This is what makes `shift((0, 0))` on an inline element a true visual no-op: freezing `_pos` to the measured anchor point and re-emitting overlaps the inline rendering. Typst's `here().position().y` returns the cursor baseline, not the line top, so it cannot be used directly.
 
-Everything is emitted under the same `<bbox>` label and recovered in a single `typst.query(..., field="value", ignore_system_fonts=True)` call. Telling apart size and x is done by checking which key is present in the JSON entry.
+Everything is emitted under the same `<bbox>` label and recovered in a single `typst.query(..., field="value", ignore_system_fonts=True, font_paths=_font_paths())` call. Telling apart size and x is done by checking which key is present in the JSON entry.
 
-#### Why `ignore_system_fonts`
+#### Fonts
 
-Without it, Typst scans system fonts on every query (~400 ms). With it the query stays fast, restricted to Typst's embedded faces. The cost is no longer being able to refer to local fonts by name, which we do not use today.
+`query` (measure) and `compile` (render) both run with `ignore_system_fonts=True` and the same `_font_paths()`: Typst's embedded faces, the project `fonts/` directory, and the `config.font_paths` directories.
+
+Each family used by a `Text` is checked against `typst.Fonts(...).families()` for the current `_font_paths()` before measuring, case-insensitively; an unresolved family raises. The family set is enumerated once per `font_paths` set and cached.
 
 ## Logging
 

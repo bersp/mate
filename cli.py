@@ -17,9 +17,13 @@ def main() -> None:
     source_path = Path(sys.argv[1])
     doc = parse_markdown(source_path.read_text(encoding="utf-8"))
 
-    # Templates drive Presentation.__new__, so they must reach config before
-    # construction; the rest of the front matter is applied inside __init__.
     config.templates = doc.frontmatter.templates
+    # Front-matter font directories expand a leading ~ and are otherwise
+    # relative to the Markdown file.
+    config.font_paths = [
+        str((source_path.parent / Path(p).expanduser()).resolve())
+        for p in doc.frontmatter.font_paths
+    ]
     pres = Presentation(
         str(source_path.with_suffix("")),
         total_slides=len(doc.slides),

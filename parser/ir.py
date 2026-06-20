@@ -126,12 +126,14 @@ class FrontMatter:
 
     ``templates`` names the template files to inherit (see
     ``config.templates``); ``config`` maps dotted config keys to override
-    values; ``colors`` maps palette names to hex strings.
+    values; ``colors`` maps palette names to hex strings; ``font_paths``
+    lists extra font directories (see ``config.font_paths``).
     """
 
     templates: list[str] = field(default_factory=list)
     config: dict[str, object] = field(default_factory=dict)
     colors: dict[str, str] = field(default_factory=dict)
+    font_paths: list[str] = field(default_factory=list)
 
 
 @dataclass

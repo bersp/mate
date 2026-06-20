@@ -69,9 +69,6 @@ class Presentation(PresentationTemplate):
     ) -> None:
         self.name: str = name
         self.total_slides: int | None = total_slides
-        # Read by PresentationTemplate.__init__ during super(): the front
-        # matter is applied after the templates set their config but before
-        # the base reads it, so a deck's explicit config wins over a template.
         self._frontmatter: FrontMatter = frontmatter or FrontMatter()
         if width is not None:
             config.set("slide.width", float(width))

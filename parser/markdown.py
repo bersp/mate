@@ -100,11 +100,11 @@ def _build_frontmatter(data: dict) -> FrontMatter:
     """Validate the raw YAML mapping and fold it into a :class:`FrontMatter`."""
     if not isinstance(data, dict):
         raise ValueError("Front matter must be a YAML mapping")
-    unknown = set(data) - {"templates", "config", "colors"}
+    unknown = set(data) - {"templates", "config", "colors", "font_paths"}
     if unknown:
         raise ValueError(
             f"Unknown front matter section(s): {sorted(unknown)}. "
-            "Allowed: templates, config, colors."
+            "Allowed: templates, config, colors, font_paths."
         )
     colors = data.get("colors") or {}
     for name, value in colors.items():
@@ -117,6 +117,7 @@ def _build_frontmatter(data: dict) -> FrontMatter:
         templates=data.get("templates") or [],
         config=data.get("config") or {},
         colors=colors,
+        font_paths=data.get("font_paths") or [],
     )
 
 

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 import typst
 
+from ..config import config
 from ..core.element import anchor_offsets
 from ..elements.group import Group
 from ..elements.image import Image
@@ -16,6 +17,51 @@ from ..elements.text import Text
 if TYPE_CHECKING:
     from ..core.element import Element
     from ..core.presentation import Slide
+
+# Font directory bundled with the package, always on the Typst font path.
+_FONTS_DIR = Path(__file__).resolve().parent.parent / "fonts"
+
+
+def _font_paths() -> list[str]:
+    """Font directories handed to Typst: the project ``fonts/`` dir then
+    every extra directory in ``config.font_paths``."""
+    return [str(_FONTS_DIR), *config.font_paths]
+
+
+# Resolvable family names per ``font_paths`` set, cached.
+_FONT_FAMILIES: dict[tuple[str, ...], frozenset[str]] = {}
+
+
+def _available_font_families() -> frozenset[str]:
+    """Family names Typst resolves from embedded faces and ``_font_paths()``."""
+    key = tuple(_font_paths())
+    families = _FONT_FAMILIES.get(key)
+    if families is None:
+        enumerated = typst.Fonts(
+            include_system_fonts=False,
+            include_embedded_fonts=True,
+            font_paths=list(key),
+        )
+        families = frozenset(enumerated.families())
+        _FONT_FAMILIES[key] = families
+    return families
+
+
+def _assert_fonts_available(fonts: set[str]) -> None:
+    """Raise if any of ``fonts`` is not a resolvable family.
+
+    Matching is case-insensitive, like Typst's font lookup.
+    """
+    families = _available_font_families()
+    available_lower = {f.lower() for f in families}
+    missing = sorted(f for f in fonts if f.lower() not in available_lower)
+    if missing:
+        available = ", ".join(sorted(families))
+        raise ValueError(
+            f"Font(s) not found: {missing}. Add the directory holding the font "
+            f"file(s) to config.font_paths (or the front-matter 'font_paths:' "
+            f"list). Available families: {available}."
+        )
 
 
 _CACHE_MEASURE = Path(".mate_cache/measure.typ")
@@ -504,7 +550,13 @@ class TypstRenderer:
         preamble = f"#set page(width: {width}cm, height: {height}cm, margin: 0cm)\n"
         body = "\n#pagebreak()\n".join(fragments)
         source = preamble + "\n" + body + "\n"
-        typst.compile(source.encode("utf-8"), output=str(path), root="/")
+        typst.compile(
+            source.encode("utf-8"),
+            output=str(path),
+            root="/",
+            font_paths=_font_paths(),
+            ignore_system_fonts=True,
+        )
 
     def _render_node(self, el: Element, placeholder: bool) -> str:
         """Render an element body (no ``#place`` wrapper).
@@ -648,6 +700,10 @@ class TypstMeasurer:
         for el in self.roots:
             self._collect(el)
 
+        _assert_fonts_available(
+            {el.font for el in self.elements.values() if isinstance(el, Text)}
+        )
+
         lines = [
             "#set page(margin: 0cm)",
             "",
@@ -694,9 +750,8 @@ class TypstMeasurer:
     def _query(self) -> list[dict[str, Any]]:
         """Query the auxiliary document for ``<bbox>`` records via typst-py.
 
-        Runs in-process against the bundled Typst compiler;
-        ``ignore_system_fonts`` keeps the font set to Typst's embedded
-        faces so no system-font scan happens. ``root="/"`` lets the
+        Runs in-process against the bundled Typst compiler with system fonts
+        ignored and ``_font_paths()`` on the font path. ``root="/"`` lets the
         absolute image paths emitted by ``_image_markup`` resolve to the
         filesystem.
         """
@@ -705,6 +760,7 @@ class TypstMeasurer:
             "<bbox>",
             field="value",
             ignore_system_fonts=True,
+            font_paths=_font_paths(),
             root="/",
         )
         return json.loads(out)

@@ -99,6 +99,7 @@ class Config:
     def __init__(self) -> None:
         self.colors: Colors = Colors()
         self.templates: list[str] = []
+        self.font_paths: list[str] = []
         self._defaults: dict[str, object] = dict(_DEFAULTS)
 
     @property
@@ -128,11 +129,9 @@ class Config:
         self._defaults[key] = value
 
     def apply_overrides(self, values: dict[str, object]) -> None:
-        """Apply user-supplied config overrides, validating each key first.
+        """Set each key in ``values`` after checking it is a defined key.
 
-        Every key must already be a defined config key; an unknown key (a typo
-        in a presentation's front matter) raises :class:`ValueError` before any
-        value is applied.
+        An undefined key raises :class:`ValueError` before any value is set.
         """
         for key in values:
             if key not in self._defaults:
