@@ -90,7 +90,23 @@ class MathBlock:
     raw: str
 
 
-Block = Paragraph | Heading | BulletList | OrderedList | MathBlock
+@dataclass
+class MethodCall:
+    """A blockquote call to a presentation method.
+
+    Written as one blockquote line, ``> method name : args`` (or just
+    ``> method name`` with no arguments). ``name`` is the text before ``:``
+    stripped and with its inner spaces turned into underscores; ``args`` is
+    the verbatim text after ``:``, stripped, and empty for a no-argument call.
+    ``args`` is spliced into a ``name(args)`` expression and evaluated when the
+    slide is rendered.
+    """
+
+    name: str
+    args: str
+
+
+Block = Paragraph | Heading | BulletList | OrderedList | MathBlock | MethodCall
 
 
 # --- Document ---------------------------------------------------------------

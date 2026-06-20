@@ -4,9 +4,11 @@ Slide syntax: a ``#`` (h1) heading opens a new slide and is its title; a ``##``
 (h2) heading that is the slide's first block is its subtitle. Every other
 construct becomes a body block. Supported v1 content: paragraphs with inline
 bold/italic/code, Typst-style ``$...$`` and ``$$...$$`` math, bullet and ordered
-lists (nested), and in-body headings. Math spans are carved out before emphasis
-parsing so their ``*``/``_`` are not consumed as markup. Unsupported constructs
-raise at parse time.
+lists (nested), in-body headings, and blockquotes that call a presentation
+method, one ``> method name : args`` (or no-arg ``> method name``) call per
+line. Math spans are carved out before emphasis parsing so
+their ``*``/``_`` are not consumed as markup. Unsupported constructs raise at
+parse time.
 """
 
 from __future__ import annotations
@@ -26,6 +28,7 @@ from .ir import (
     ListItem,
     Math,
     MathBlock,
+    MethodCall,
     OrderedList,
     Paragraph,
     ParsedDocument,
@@ -63,7 +66,10 @@ def parse_markdown(source: str) -> ParsedDocument:
             current.subtitle = _inlines_of(node)
             continue
 
-        current.blocks.append(_fold_block(node))
+        if node.type == "blockquote":
+            current.blocks.extend(_fold_blockquote(node))
+        else:
+            current.blocks.append(_fold_block(node))
 
     return doc
 
@@ -82,6 +88,25 @@ def _fold_block(node: SyntaxTreeNode) -> Block:
         case "math_block":
             return MathBlock(node.content.strip())
     raise _unsupported(node.type)
+
+
+def _fold_blockquote(node: SyntaxTreeNode) -> list[MethodCall]:
+    """Fold a blockquote into one :class:`MethodCall` per line.
+
+    Each line is ``method name : args``, or just ``method name`` for a call
+    with no arguments. The name (before ``:``, or the whole line) is stripped
+    and its inner spaces become underscores; the argument text (after ``:``)
+    is kept verbatim apart from stripping, and is empty when the line has no
+    ``:``.
+    """
+    content = node.children[0].children[0].content
+    calls: list[MethodCall] = []
+    for line in content.split("\n"):
+        if not line.strip():
+            continue
+        name_part, _, args_part = line.partition(":")
+        calls.append(MethodCall(name_part.strip().replace(" ", "_"), args_part.strip()))
+    return calls
 
 
 def _fold_list_item(node: SyntaxTreeNode) -> ListItem:

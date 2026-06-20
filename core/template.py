@@ -14,6 +14,7 @@ from ..parser.ir import (
     BulletList,
     Heading,
     MathBlock,
+    MethodCall,
     OrderedList,
     Paragraph,
     ParsedSlide,
@@ -144,6 +145,20 @@ class PresentationTemplate:
                     self.add_bullet_list(block)
                 case OrderedList():
                     self.add_ordered_list(block)
+                case MethodCall(name, args):
+                    self.run_method_call(name, args)
+
+    def run_method_call(self, name: str, args: str) -> None:
+        """Invoke the method ``name`` with ``args`` evaluated as Python.
+
+        ``args`` is the verbatim argument text of a ``> name : args``
+        blockquote, spliced into a ``name(args)`` call and evaluated with the
+        bound method in scope, so it may carry positional and keyword
+        arguments (``grid``, ``add_vspace``, ...). An unknown ``name`` raises
+        :class:`AttributeError`.
+        """
+        method = getattr(self, name)
+        eval(f"_method({args})", {"_method": method})
 
     def add_paragraph(self, text: str) -> Text:
         """Render a paragraph of Markdown ``text`` into the active region."""
