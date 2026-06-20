@@ -27,6 +27,7 @@ from .element import Element, HAlign
 class PresentationTemplate:
     """Base template for a presentation."""
 
+    # --- Internals ----------------------------------------------------------
     def __init__(self) -> None:
         frontmatter = getattr(self, "_frontmatter", None)
         if frontmatter is not None:
@@ -152,6 +153,7 @@ class PresentationTemplate:
         method = getattr(self, name)
         eval(f"_method({args})", {"_method": method})
 
+    # --- Content ------------------------------------------------------------
     def add_paragraph(self, text: str) -> Text:
         """Render a paragraph of Markdown ``text`` into the active region."""
         return self.add_text(text)
