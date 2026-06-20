@@ -9,6 +9,16 @@ from . import Presentation, config
 from .parser import parse_markdown
 
 
+def _resolve_template(name: str, base_dir: Path) -> str:
+    """Resolve a front-matter template entry against the Markdown file.
+
+    A sibling ``<name>.py`` (``~`` expanded, relative to ``base_dir``) wins and
+    yields its absolute path; otherwise ``name`` is kept as a built-in name.
+    """
+    candidate = (base_dir / Path(name).expanduser()).with_suffix(".py")
+    return str(candidate.resolve()) if candidate.is_file() else name
+
+
 def main() -> None:
     """Parse the Markdown file in ``sys.argv`` and write the slides to a PDF."""
     if len(sys.argv) != 2:
@@ -17,7 +27,9 @@ def main() -> None:
     source_path = Path(sys.argv[1])
     doc = parse_markdown(source_path.read_text(encoding="utf-8"))
 
-    config.templates = doc.frontmatter.templates
+    config.templates = [
+        _resolve_template(t, source_path.parent) for t in doc.frontmatter.templates
+    ]
     # Front-matter font directories expand a leading ~ and are otherwise
     # relative to the Markdown file.
     config.font_paths = [

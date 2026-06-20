@@ -1,21 +1,28 @@
-"""Template stack: theme classes a presentation inherits from, addressed by file name.
+"""Template stack: theme classes a presentation inherits from.
 
-``config.templates`` lists file names (without extension); each name maps to a module
-``mate.templates.<name>`` holding a ``<Name>Template`` class (CamelCase of the file name
-plus ``Template``).
+Each entry in ``config.templates`` resolves to a module holding a
+``PresentationTemplate`` class: a path to a ``.py`` file is loaded directly,
+and any other name maps to the built-in ``mate.templates.<name>``.
 """
 
 from __future__ import annotations
 
 import importlib
+import importlib.util
+from pathlib import Path
 
 
 def load_template(name: str) -> type:
-    """Return the template class defined in ``mate.templates.<name>``.
+    """Return the ``PresentationTemplate`` class of the template ``name``.
 
-    The class is named by CamelCasing ``name`` and appending ``Template``:
-    ``"nice"`` -> ``NiceTemplate``, ``"my_theme"`` -> ``MyThemeTemplate``.
+    ``name`` is either a path to a ``.py`` file or a built-in template name
+    (a module under ``mate.templates``).
     """
-    module = importlib.import_module(f"mate.templates.{name}")
-    class_name = "".join(part.capitalize() for part in name.split("_")) + "Template"
-    return getattr(module, class_name)
+    path = Path(name)
+    if path.suffix == ".py" and path.is_file():
+        spec = importlib.util.spec_from_file_location(path.stem, path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    else:
+        module = importlib.import_module(f"mate.templates.{name}")
+    return module.PresentationTemplate
