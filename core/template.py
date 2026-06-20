@@ -124,7 +124,12 @@ class PresentationTemplate:
         return self.layout.set_active(name)
 
     def background(self) -> Element | None:
-        """Return the slide background element, or ``None`` for no background."""
+        """Return the slide background element, or ``None`` for no background.
+
+        A subclass overrides this to return a positioned ``Element`` (e.g. a
+        full-slide ``Rectangle``). It is added first on every slide, so it
+        renders behind all other content and appears on every page.
+        """
         return None
 
     def draw_layout(

@@ -46,9 +46,10 @@ class Presentation(PresentationTemplate):
     def new_slide(self, title: str | None = None, subtitle: str | None = None) -> Slide:
         """Create, attach, and return a fresh open slide.
 
-        When ``template.auto_footer`` is enabled, the slide's footer is added
-        on creation; the footer shows ``/<total>`` when ``footer.show_total``
-        is set.
+        The template's :meth:`background` element, when any, is added first so
+        it renders behind everything. When ``template.auto_footer`` is enabled,
+        the slide's footer is added on creation; the footer shows ``/<total>``
+        when ``footer.show_total`` is set.
         """
         slide = Slide(title, subtitle)
         self.slides.append(slide)
@@ -57,6 +58,9 @@ class Presentation(PresentationTemplate):
             rf"[yellow]NEW SLIDE[/yellow] ({len(self.slides)}) {title!r}",
             extra={"markup": True, "highlighter": None},
         )
+        background = self.background()
+        if background is not None:
+            slide.add(background)
         if self.auto_add_footer:
             self.add_footer(show_total=self.footer_show_total)
         return slide

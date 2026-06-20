@@ -106,7 +106,7 @@ All `Element` constructor parameters (`pos`, `anchor`, `placement`, `id`) are **
 
 ### `core/template.py` — `PresentationTemplate`
 
-Base class of `Presentation`: the theme a presentation overrides. Holds the presentation-wide `font`, builds the region `Layout` (`build_layout`), and the optional slide `background` (returns an `Element` or `None`). A concrete theme subclasses `Presentation` and overrides these hooks; the geometry and `config` wiring live in `Presentation`, so the template assumes the slide size is already published when `build_layout` runs.
+Base class of `Presentation`: the theme a presentation overrides. Holds the presentation-wide `font`, builds the region `Layout` (`build_layout`), and the optional slide `background` (returns an `Element` or `None`). `new_slide` adds the `background` element first, so it renders behind all other content and appears on every page of the slide. A concrete theme subclasses `Presentation` and overrides these hooks; the geometry and `config` wiring live in `Presentation`, so the template assumes the slide size is already published when `build_layout` runs.
 
 `build_layout` reads slide-relative geometry from `config` and per-theme knobs from the `config` defaults store (`box.full_with_margins.margins`, `box.content.anchor`), producing named regions: `title`, `footer`, `left_margin`, `right_margin`, `content` (the inner region left after subtracting the four sides), `full`, and `full_with_margins`; `active` starts on `content`.
 
