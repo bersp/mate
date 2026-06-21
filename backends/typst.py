@@ -371,6 +371,12 @@ def _image_markup(el: Image) -> str:
     in-memory source — both compile with the Typst root at ``/``. Only
     the dimensions that are set are emitted, so Typst keeps the file's
     aspect ratio for any left free.
+
+    A ``clip`` crops the image inside a ``#box(clip: true)``. A
+    centimetre crop uses a negative inset; a percentage crop measures
+    the image's rendered width and removes that fraction of it from all
+    four edges, so it tracks the aspect-derived size when a dimension is
+    left free.
     """
     path = _escape_typst_string(str(Path(el.path).resolve()))
     attrs = [f'"{path}"']
@@ -378,7 +384,18 @@ def _image_markup(el: Image) -> str:
         attrs.append(f"width: {el.width}cm")
     if el.height is not None:
         attrs.append(f"height: {el.height}cm")
-    return f"#image({', '.join(attrs)})"
+    image = f"image({', '.join(attrs)})"
+    if el.clip is None:
+        return f"#{image}"
+    if isinstance(el.clip, str):
+        frac = float(el.clip.rstrip("%")) / 100.0
+        return (
+            f"#context {{ let im = {image}; let m = measure(im); "
+            f"let c = m.width * {frac}; "
+            f"box(clip: true, width: m.width - 2 * c, height: m.height - 2 * c, "
+            f"place(dx: -c, dy: -c, im)) }}"
+        )
+    return f"#box(clip: true, inset: -{el.clip}cm)[#{image}]"
 
 
 def _collect_fixed(el: Element) -> list[Element]:
