@@ -6,6 +6,7 @@ from ..backends.typst import TypstRenderer as _Renderer
 from ..config import config
 from ..log import logger
 from ..parser.ir import FrontMatter
+from .registry import id_registry
 from .slide import Slide, Snapshot
 from .template import PresentationTemplate
 
@@ -51,6 +52,7 @@ class Presentation(PresentationTemplate):
         the slide's footer is added on creation; the footer shows ``/<total>``
         when ``footer.show_total`` is set.
         """
+        id_registry.clear()
         slide = Slide(title, subtitle)
         self.slides.append(slide)
         self.current_slide = slide
@@ -87,6 +89,7 @@ class Presentation(PresentationTemplate):
         number = self.slides.index(slide) + 1
         for region in self.layout.regions.values():
             region.arrange()
+        self._resolve_overwrites()
         canvas = (self.width, self.height)
         slide.snapshots = [
             Snapshot(self._renderer.render_snapshot(roots, canvas))

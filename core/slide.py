@@ -39,6 +39,7 @@ class Slide:
         self.title: str | None = title
         self.subtitle: str | None = subtitle
         self.steps: list[list[Element]] = [[]]
+        self.replaced: list[tuple[int, Element]] = []
         self.snapshots: list[Snapshot] = []
 
     @property
@@ -59,8 +60,13 @@ class Slide:
         self.steps.append([])
 
     def reveal_prefixes(self) -> Iterator[list[Element]]:
-        """Yield the cumulative root elements visible at each reveal step."""
+        """Yield the cumulative root elements visible at each reveal step.
+
+        An element marked in :attr:`replaced` at step ``j`` is dropped from every
+        step ``k >= j``, so an ``overwrite`` can hide content it supersedes.
+        """
         revealed: list[Element] = []
-        for step in self.steps:
+        for k, step in enumerate(self.steps):
             revealed = revealed + step
-            yield revealed
+            hidden = {id(el) for j, el in self.replaced if j <= k}
+            yield [e for e in revealed if id(e) not in hidden]

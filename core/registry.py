@@ -29,6 +29,10 @@ class IDRegistry:
         """Append ``element`` to the bucket for ``key``."""
         self._by_id.setdefault(key, []).append(element)
 
+    def clear(self) -> None:
+        """Drop every registered id. Called at the start of each slide."""
+        self._by_id.clear()
+
     def get(self, key: IDKey) -> list[Element]:
         """Return the elements registered under ``key`` in insertion order.
 

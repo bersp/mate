@@ -108,22 +108,27 @@ class MethodCall:
 
 
 @dataclass
-class Fragment:
-    """A ``markdown fragment`` fenced block.
+class FencedBlock:
+    """A ``markdown <name> : args`` fenced block with a parsed body.
 
-    ``args`` is the verbatim property text from the fence info string (e.g.
-    ``color="red", region="full"``); ``blocks`` is the parsed body. When
-    rendered, ``region`` places the body's elements and every other property is
-    applied to each produced element via its ``set_<prop>`` method when one
-    exists.
+    ``name`` selects the directive (e.g. ``fragment``, ``overwrite``), dispatched
+    to the matching ``add_<name>`` method with ``blocks`` and the verbatim
+    ``args`` from the fence info string.
     """
 
+    name: str
     args: str
     blocks: list[Block]
 
 
 Block = (
-    Paragraph | Heading | BulletList | OrderedList | MathBlock | MethodCall | Fragment
+    Paragraph
+    | Heading
+    | BulletList
+    | OrderedList
+    | MathBlock
+    | MethodCall
+    | FencedBlock
 )
 
 

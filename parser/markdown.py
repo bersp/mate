@@ -27,7 +27,7 @@ from .ir import (
     Bold,
     BulletList,
     Code,
-    Fragment,
+    FencedBlock,
     FrontMatter,
     Heading,
     Inline,
@@ -173,9 +173,9 @@ def _fold_block(node: SyntaxTreeNode) -> Block:
         case "fence":
             lang, _, rest = node.info.partition(" ")
             name, _, args = rest.partition(":")
-            if lang.strip() != "markdown" or name.strip() != "fragment":
+            if lang.strip() != "markdown":
                 raise _unsupported("fence")
-            return Fragment(args.strip(), _fold_body(node.content))
+            return FencedBlock(name.strip(), args.strip(), _fold_body(node.content))
     raise _unsupported(node.type)
 
 

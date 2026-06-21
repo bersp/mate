@@ -14,7 +14,7 @@ from ..elements.text import Text
 from ..parser.ir import (
     Block,
     BulletList,
-    Fragment,
+    FencedBlock,
     Heading,
     ListItem,
     MathBlock,
@@ -24,8 +24,21 @@ from ..parser.ir import (
     ParsedSlide,
 )
 from ..parser.serialize import inlines_to_markdown
+from .registry import id_registry
 from .vec import Vec
-from .element import Element, HAlign, measure_all
+from .element import Element, HAlign, anchor_offsets, measure_all
+
+
+def _union_bbox(
+    elements: list[Element],
+) -> tuple[float, float, float, float]:
+    """Return the centre-based ``(x, y, w, h)`` union bbox of ``elements``."""
+    boxes = [el.get_bbox() for el in elements]
+    left = min(cx - w / 2 for cx, _, w, _ in boxes)
+    right = max(cx + w / 2 for cx, _, w, _ in boxes)
+    bottom = min(cy - h / 2 for _, cy, _, h in boxes)
+    top = max(cy + h / 2 for _, cy, _, h in boxes)
+    return ((left + right) / 2, (bottom + top) / 2, right - left, top - bottom)
 
 
 class PresentationTemplate:
@@ -43,6 +56,8 @@ class PresentationTemplate:
         self._cap_height_cache: dict[tuple, float] = {}
         self._content_indent: float = 0.0
         self._fragment_region: str | None = None
+        self._region_override: Region | None = None
+        self._overwrites: list[tuple[Group, list[Element], str, int]] = []
 
     def build_layout(self) -> Layout:
         """Return the presentation's region layout."""
@@ -196,8 +211,8 @@ class PresentationTemplate:
                 self.add_ordered_list(block)
             case MethodCall(name, args):
                 self.run_method_call(name, args)
-            case Fragment(args, blocks):
-                self.add_fragment(blocks, args)
+            case FencedBlock(name, args, blocks):
+                getattr(self, f"add_{name}")(blocks, args)
 
     def add_fragment(self, blocks: list[Block], args: str) -> None:
         """Render a ``markdown fragment`` body, pushing its properties onto it.
@@ -230,13 +245,80 @@ class PresentationTemplate:
         """Return every root element added to the current slide so far."""
         return [el for step in self.current_slide.steps for el in step]
 
-    def _resolve_region(self, region: str) -> Region:
-        """Resolve a region name, honoring the ambient fragment region.
+    def add_overwrite(self, blocks: list[Block], args: str) -> None:
+        """Render a body inside the bbox of every element carrying an id.
 
-        A call leaving ``region`` at its ``"active"`` default lands in the
-        fragment region while a ``markdown fragment`` body renders; an explicit
-        region name always wins.
+        ``args`` is ``<id>[, anchor=...]``. The body is laid out at the original
+        region's width and anchored within the union bbox of the id's elements
+        (computed after arrange), which it visually replaces from its reveal step
+        onward without moving the surrounding content. ``anchor`` defaults to the
+        original region's anchor and sets both the body's stacking and placement.
         """
+        target_id, anchor = eval(
+            f"_f({args})", {"_f": lambda id, anchor=None: (id, anchor)}
+        )
+        try:
+            targets = id_registry.get(target_id)
+        except KeyError:
+            raise ValueError(f"overwrite: no element with id {target_id!r}") from None
+        region = self._region_of(targets[0])
+        anchor = anchor or region.anchor
+
+        temp = Region(region.center, region.width, region.height, anchor=anchor)
+        before = {id(el) for el in self._root_elements()}
+        self._region_override = temp
+        for block in blocks:
+            self._dispatch_block(block)
+        self._region_override = None
+
+        body = [el for el in self._root_elements() if id(el) not in before]
+        for el in body:
+            self._remove_root(el)
+        temp.arrange()
+        group = Group(children=body)
+        self.current_slide.add(group)
+        step = len(self.current_slide.steps) - 1
+        self._overwrites.append((group, targets, anchor, step))
+
+    def _region_of(self, el: Element) -> Region:
+        """Return the layout region whose stack contains ``el``."""
+        for region in self.layout.regions.values():
+            if el in region.elements:
+                return region
+        raise ValueError(f"{el!r} is not a top-level element of any region")
+
+    def _remove_root(self, el: Element) -> None:
+        """Remove ``el`` from whichever reveal step of the current slide holds it."""
+        for step in self.current_slide.steps:
+            if el in step:
+                step.remove(el)
+                return
+
+    def _resolve_overwrites(self) -> None:
+        """Place each overwrite body in its target bbox and hide what it replaces.
+
+        Runs after regions are arranged, so the targets' positions are baked.
+        """
+        for group, targets, anchor, step in self._overwrites:
+            cx, cy, w, h = _union_bbox(targets)
+            h_mul, v_mul = anchor_offsets(anchor)
+            point = Vec(cx + (h_mul - 0.5) * w, cy + (v_mul - 0.5) * h)
+            group.set_anchor(anchor)
+            group.move_to(point)
+            for target in targets:
+                self.current_slide.replaced.append((step, target))
+        self._overwrites = []
+
+    def _resolve_region(self, region: str) -> Region:
+        """Resolve a region name, honoring an active region override.
+
+        An ``overwrite`` body renders into a temporary region override; otherwise
+        a call leaving ``region`` at its ``"active"`` default lands in the
+        fragment region while a ``markdown fragment`` body renders. An explicit
+        region name wins over the fragment region.
+        """
+        if self._region_override is not None:
+            return self._region_override
         if region == "active" and self._fragment_region is not None:
             region = self._fragment_region
         return self.layout.get(region)
