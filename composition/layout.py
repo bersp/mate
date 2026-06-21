@@ -37,6 +37,7 @@ class Region:
         self._width: float = float(width)
         self._height: float = float(height)
         self._anchor: Anchor = anchor
+        self._default_anchor: Anchor = anchor
         self._arrange_gap: float = (
             config.get("arrange.gap") if arrange_gap is None else float(arrange_gap)
         )
@@ -170,6 +171,17 @@ class Region:
 
     def set_anchor(self, value: Anchor) -> Region:
         self._anchor = value
+        return self
+
+    def set_anchor_default(self, value: Anchor) -> Region:
+        """Set the anchor and the default it resets to when a slide opens."""
+        self._anchor = value
+        self._default_anchor = value
+        return self
+
+    def reset_anchor(self) -> Region:
+        """Restore the anchor to its default."""
+        self._anchor = self._default_anchor
         return self
 
     def set_arrange_gap(self, value: float) -> Region:
@@ -384,8 +396,10 @@ class Layout:
         return self._default_active
 
     def reset_active(self) -> None:
-        """Restore the active region to the default."""
+        """Restore the active region and every region's anchor to the defaults."""
         self._active = self._default_active
+        for region in self.regions.values():
+            region.reset_anchor()
 
     def remove_all_elements(self) -> None:
         """Clear :attr:`Region.elements` on every region in this layout."""

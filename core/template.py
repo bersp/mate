@@ -26,7 +26,7 @@ from ..parser.ir import (
 from ..parser.serialize import inlines_to_markdown
 from .registry import id_registry
 from .vec import Vec
-from .element import Element, HAlign, anchor_offsets, measure_all
+from .element import Anchor, Element, HAlign, anchor_offsets, measure_all
 
 
 def _union_bbox(
@@ -119,6 +119,7 @@ class PresentationTemplate:
         vgap: float = 0.0,
         width_ratios: list[float] | None = None,
         height_ratios: list[float] | None = None,
+        anchors: dict[str, Anchor] | None = None,
     ) -> dict[str, Region]:
         """Split a region into a grid and register each cell in the layout.
 
@@ -126,8 +127,9 @@ class PresentationTemplate:
         ratios are forwarded to :meth:`Region.grid`: cells sharing a label
         merge into one sub-region. Each sub-region is attached to the layout
         under its label, so it can later be reached by name (including as the
-        ``"active"`` target via :meth:`Layout.set_active`). Returns the
-        ``label -> Region`` mapping.
+        ``"active"`` target via :meth:`Layout.set_active`). ``anchors`` maps a
+        cell label to the anchor its content sits at, so e.g. a cell holding a
+        lone image can be centered. Returns the ``label -> Region`` mapping.
         """
         target_region = self.layout.get(region)
         subregions = target_region.grid(
@@ -138,12 +140,21 @@ class PresentationTemplate:
             height_ratios=height_ratios,
         )
         for label, sub in subregions.items():
+            if anchors is not None and label in anchors:
+                sub.set_anchor(anchors[label])
             self.layout.add(label, sub)
         return subregions
 
-    def set_active_region(self, name: str) -> Region:
-        """Make ``name`` the layout's active region and return it."""
-        return self.layout.set_active(name)
+    def set_active_region(self, name: str, anchor: Anchor | None = None) -> Region:
+        """Make ``name`` the layout's active region and return it.
+
+        ``anchor``, when given, overrides the region's anchor; the override is
+        undone when the next slide opens.
+        """
+        region = self.layout.set_active(name)
+        if anchor is not None:
+            region.set_anchor(anchor)
+        return region
 
     def background(self) -> Element | None:
         """Return the slide background element, or ``None`` for no background.
