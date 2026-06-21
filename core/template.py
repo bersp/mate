@@ -5,9 +5,10 @@ from itertools import cycle
 from ..composition.layout import Layout, Region
 from ..composition.utils import layout_to_group
 from ..config import config
+from ..core.drawable import Drawable
 from ..elements.group import Group
 from ..elements.image import Image
-from ..elements.shapes import Line
+from ..elements.shapes import Circle, Ellipse, Line, Rectangle
 from ..elements.spacing import VSpace
 from ..elements.text import Text
 from ..parser.ir import (
@@ -21,7 +22,7 @@ from ..parser.ir import (
 )
 from ..parser.serialize import inlines_to_markdown
 from .vec import Vec
-from .element import Element, HAlign
+from .element import Element, HAlign, measure_all
 
 
 class PresentationTemplate:
@@ -36,6 +37,7 @@ class PresentationTemplate:
         self.auto_add_footer: bool = config.get("template.auto_footer")
         self.footer_show_total: bool = config.get("footer.show_total")
         self.layout: Layout = self.build_layout()
+        self._cap_height_cache: dict[tuple, float] = {}
 
     def build_layout(self) -> Layout:
         """Return the presentation's region layout."""
@@ -215,8 +217,112 @@ class PresentationTemplate:
         )
 
     def add_bullet_list(self, block: BulletList) -> None:
-        """Render a bullet list."""
-        raise NotImplementedError("add_bullet_list is not implemented")
+        """Render a bullet list, one item per :meth:`add_bullet_item` call."""
+        for item in block.items:
+            paragraph = item.blocks[0]
+            self.add_bullet_item(inlines_to_markdown(paragraph.inlines))
+
+    def add_bullet_item(
+        self,
+        text: str,
+        *,
+        symbol: str | Drawable | None = None,
+        spacing: float | None = None,
+        region: str = "active",
+        color: str | None = None,
+        **text_kwargs,
+    ) -> Group:
+        """Add one bullet item (symbol plus ``text``) to a region and the slide.
+
+        ``symbol`` is a built-in name (``"square"``, ``"circle"``, ``"dash"``) or
+        a :class:`~mate.core.drawable.Drawable`; its longest dimension is scaled
+        to the cap height of ``"A"`` in the body font. ``spacing`` is the gap
+        between symbol and text. The text wraps within the region's remaining
+        width and hangs-indents under itself; the symbol is centered on the
+        first text line. Remaining keyword arguments are forwarded to
+        :class:`Text`. The item is a single :class:`Group`, so the region's
+        :meth:`~mate.composition.layout.Region.arrange` stacks whole items with
+        its own gap, independent of blank lines in the source.
+        """
+        target_region = self.layout.get(region)
+        symbol = config.get("list.bullet") if symbol is None else symbol
+        spacing = config.get("list.bullet_gap") if spacing is None else spacing
+        color = config.get("text.color") if color is None else color
+
+        cap_height = self._cap_height()
+        bullet_size = cap_height * config.get("list.bullet_scale")
+        bullet = self._make_bullet_symbol(symbol, bullet_size, color)
+        bullet_width = bullet.get_width()
+
+        text_x = bullet_width + spacing
+        text_kwargs.setdefault("max_width", target_region.width - text_x)
+        text_kwargs.setdefault("line_gap", target_region.arrange_gap)
+        body = Text(text, pos=(text_x, 0), anchor="top-left", **text_kwargs)
+
+        bullet.set_anchor("center")
+        bullet.move_to((bullet_width / 2, -cap_height / 2))
+
+        item = Group()
+        item.add(bullet)
+        item.add(body)
+        self.current_slide.add(item)
+        target_region.add(item)
+        return item
+
+    def _cap_height(self) -> float:
+        """Return the height of ``"A"`` measured in the current body font."""
+        key = (
+            config.get("text.font"),
+            config.get("text.fontsize"),
+            config.get("text.fontweight"),
+        )
+        height = self._cap_height_cache.get(key)
+        if height is None:
+            probe = Text("A", font=key[0], fontsize=key[1], weight=key[2])
+            measure_all([probe])
+            height = probe.get_height()
+            self._cap_height_cache[key] = height
+        return height
+
+    def _make_bullet_symbol(
+        self, symbol: str | Drawable, size: float, color: str
+    ) -> Drawable:
+        """Build a filled bullet whose longest dimension equals ``size``.
+
+        ``symbol`` is a built-in name or a :class:`Drawable` (scaled in place on
+        a copy so the caller's instance is untouched).
+        """
+        match symbol:
+            case "square":
+                shape = Rectangle(size, size)
+            case "circle":
+                shape = Circle(size / 2)
+            case "dash":
+                shape = Rectangle(size, config.get("list.dash_thickness"))
+            case Drawable():
+                shape = self._scale_to_longest(symbol.copy(), size)
+            case _:
+                raise ValueError(
+                    f"{symbol!r} is not a bullet symbol. "
+                    'Use "square", "circle", "dash", or a Drawable.'
+                )
+        shape.set_fill_color(color)
+        return shape
+
+    @staticmethod
+    def _scale_to_longest(shape: Drawable, size: float) -> Drawable:
+        """Scale ``shape`` in place so its longest bbox dimension equals ``size``."""
+        factor = size / max(shape.get_width(), shape.get_height())
+        match shape:
+            case Circle():
+                shape.set_radius(shape.get_radius() * factor)
+            case Rectangle() | Ellipse():
+                shape.set_width(shape.get_width() * factor)
+                shape.set_height(shape.get_height() * factor)
+            case Line():
+                shape.set_start(shape.get_start() * factor)
+                shape.set_end(shape.get_end() * factor)
+        return shape
 
     def add_ordered_list(self, block: OrderedList) -> None:
         """Render an ordered list."""

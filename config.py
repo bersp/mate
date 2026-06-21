@@ -42,6 +42,10 @@ _DEFAULTS: dict[str, object] = {
     "math.fontweight": "regular",
     "math.fontsize": 12.0,
     "math.color": "black",
+    "list.bullet": "square",
+    "list.bullet_scale": 0.8,
+    "list.bullet_gap": 0.2,
+    "list.dash_thickness": 0.06,
     "template.auto_footer": True,
     "footer.show_total": False,
 }
