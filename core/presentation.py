@@ -54,6 +54,7 @@ class Presentation(PresentationTemplate):
         slide = Slide(title, subtitle)
         self.slides.append(slide)
         self.current_slide = slide
+        self.layout.reset_active()
         logger.debug(
             rf"[yellow]NEW SLIDE[/yellow] ({len(self.slides)}) {title!r}",
             extra={"markup": True, "highlighter": None},

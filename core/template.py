@@ -85,7 +85,7 @@ class PresentationTemplate:
             ),
         )
 
-        layout.set_active("content")
+        layout.set_default_active("content")
         return layout
 
     def create_grid(

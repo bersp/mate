@@ -343,6 +343,7 @@ class Layout:
     def __init__(self) -> None:
         self.regions: dict[str, Region] = {}
         self._active: Region | None = None
+        self._default_active: Region | None = None
 
     @property
     def active(self) -> Region | None:
@@ -372,6 +373,19 @@ class Layout:
         """Set the active region to the one under ``name`` and return it."""
         self._active = self.get(name)
         return self._active
+
+    def set_default_active(self, name: str) -> Region:
+        """Mark ``name`` as the default active region, make it active, return it.
+
+        The default is restored by :meth:`reset_active` whenever a slide opens.
+        """
+        self._default_active = self.get(name)
+        self._active = self._default_active
+        return self._default_active
+
+    def reset_active(self) -> None:
+        """Restore the active region to the default."""
+        self._active = self._default_active
 
     def remove_all_elements(self) -> None:
         """Clear :attr:`Region.elements` on every region in this layout."""
