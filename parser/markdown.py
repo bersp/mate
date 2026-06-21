@@ -187,7 +187,13 @@ def _fold_blockquote(node: SyntaxTreeNode) -> list[MethodCall]:
 
 
 def _fold_list_item(node: SyntaxTreeNode) -> ListItem:
-    return ListItem([_fold_block(c) for c in node.children])
+    blocks: list[Block] = []
+    for child in node.children:
+        if child.type == "blockquote":
+            blocks.extend(_fold_blockquote(child))
+        else:
+            blocks.append(_fold_block(child))
+    return ListItem(blocks)
 
 
 def _inlines_of(node: SyntaxTreeNode) -> list[Inline]:

@@ -222,6 +222,7 @@ class Element:
         self._pos: Vec = Vec(pos) if pos is not None else Vec(0, 0)
         self._anchor: Anchor = anchor
         self.align: HAlign | None = align
+        self.indent: float = 0.0
         self.placement: Placement = placement
         self.parent: Element | None = None
         self.hidden: bool = False

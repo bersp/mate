@@ -12,8 +12,10 @@ from ..elements.shapes import Circle, Ellipse, Line, Rectangle
 from ..elements.spacing import VSpace
 from ..elements.text import Text
 from ..parser.ir import (
+    Block,
     BulletList,
     Heading,
+    ListItem,
     MathBlock,
     MethodCall,
     OrderedList,
@@ -38,6 +40,7 @@ class PresentationTemplate:
         self.footer_show_total: bool = config.get("footer.show_total")
         self.layout: Layout = self.build_layout()
         self._cap_height_cache: dict[tuple, float] = {}
+        self._content_indent: float = 0.0
 
     def build_layout(self) -> Layout:
         """Return the presentation's region layout."""
@@ -169,19 +172,28 @@ class PresentationTemplate:
             self.add_title()
 
         for block in parsed.blocks:
-            match block:
-                case Paragraph(inlines):
-                    self.add_paragraph(inlines_to_markdown(inlines))
-                case Heading(level, inlines):
-                    self.add_heading(level, inlines_to_markdown(inlines))
-                case MathBlock(raw):
-                    self.add_math_block(raw)
-                case BulletList():
-                    self.add_bullet_list(block)
-                case OrderedList():
-                    self.add_ordered_list(block)
-                case MethodCall(name, args):
-                    self.run_method_call(name, args)
+            self._dispatch_block(block)
+
+    def _dispatch_block(self, block: Block) -> None:
+        """Render one parsed block via its matching ``add_*`` handler.
+
+        Drives both top-level slide content and the blocks of a list item, so
+        a list item carries the full block vocabulary (paragraphs, math, method
+        calls, nested lists).
+        """
+        match block:
+            case Paragraph(inlines):
+                self.add_paragraph(inlines_to_markdown(inlines))
+            case Heading(level, inlines):
+                self.add_heading(level, inlines_to_markdown(inlines))
+            case MathBlock(raw):
+                self.add_math_block(raw)
+            case BulletList():
+                self.add_bullet_list(block)
+            case OrderedList():
+                self.add_ordered_list(block)
+            case MethodCall(name, args):
+                self.run_method_call(name, args)
 
     def run_method_call(self, name: str, args: str) -> None:
         """Invoke the method ``name`` with ``args`` evaluated as Python.
@@ -217,10 +229,39 @@ class PresentationTemplate:
         )
 
     def add_bullet_list(self, block: BulletList) -> None:
-        """Render a bullet list, one item per :meth:`add_bullet_item` call."""
+        """Render a bullet list, one item per :meth:`_add_list_item` call."""
         for item in block.items:
-            paragraph = item.blocks[0]
-            self.add_bullet_item(inlines_to_markdown(paragraph.inlines))
+            self._add_list_item(item)
+
+    def _add_list_item(
+        self,
+        item: ListItem,
+        *,
+        symbol: str | Drawable | None = None,
+        spacing: float | None = None,
+    ) -> None:
+        """Render every block of one list item.
+
+        The first block carries the bullet (:meth:`add_bullet_item`); the rest
+        are dispatched as ordinary content while the ambient content indent is
+        raised to the item's text column, so continuation paragraphs, images,
+        method calls (``> pause``, ``> add image``) and nested sub-lists all land
+        under the item text and reveal in document order.
+        """
+        symbol = config.get("list.bullet") if symbol is None else symbol
+        spacing = config.get("list.bullet_gap") if spacing is None else spacing
+
+        first, *rest = item.blocks
+        self.add_bullet_item(
+            inlines_to_markdown(first.inlines), symbol=symbol, spacing=spacing
+        )
+
+        _, bullet_width = self._make_bullet(symbol, config.get("text.color"))
+        outer_indent = self._content_indent
+        self._content_indent = outer_indent + bullet_width + spacing
+        for block in rest:
+            self._dispatch_block(block)
+        self._content_indent = outer_indent
 
     def add_bullet_item(
         self,
@@ -249,13 +290,12 @@ class PresentationTemplate:
         spacing = config.get("list.bullet_gap") if spacing is None else spacing
         color = config.get("text.color") if color is None else color
 
+        indent = self._content_indent
         cap_height = self._cap_height()
-        bullet_size = cap_height * config.get("list.bullet_scale")
-        bullet = self._make_bullet_symbol(symbol, bullet_size, color)
-        bullet_width = bullet.get_width()
+        bullet, bullet_width = self._make_bullet(symbol, color)
 
         text_x = bullet_width + spacing
-        text_kwargs.setdefault("max_width", target_region.width - text_x)
+        text_kwargs.setdefault("max_width", target_region.width - indent - text_x)
         text_kwargs.setdefault("line_gap", target_region.arrange_gap)
         body = Text(text, pos=(text_x, 0), anchor="top-left", **text_kwargs)
 
@@ -265,9 +305,16 @@ class PresentationTemplate:
         item = Group()
         item.add(bullet)
         item.add(body)
+        item.indent = indent
         self.current_slide.add(item)
         target_region.add(item)
         return item
+
+    def _make_bullet(self, symbol: str | Drawable, color: str) -> tuple[Drawable, float]:
+        """Return a filled bullet sized to the body cap height and its width."""
+        size = self._cap_height() * config.get("list.bullet_scale")
+        bullet = self._make_bullet_symbol(symbol, size, color)
+        return bullet, bullet.get_width()
 
     def _cap_height(self) -> float:
         """Return the height of ``"A"`` measured in the current body font."""
@@ -411,10 +458,12 @@ class PresentationTemplate:
         matches the gap between elements stacked in the region.
         """
         target_region = self.layout.get(region)
-        text_kwargs.setdefault("max_width", target_region.width)
+        indent = self._content_indent
+        text_kwargs.setdefault("max_width", target_region.width - indent)
         text_kwargs.setdefault("text_align", align)
         text_kwargs.setdefault("line_gap", target_region.arrange_gap)
         el = Text(text, align=align, **text_kwargs)
+        el.indent = indent
         self.current_slide.add(el)
         target_region.add(el)
         return el
@@ -451,16 +500,19 @@ class PresentationTemplate:
         arguments are forwarded to :class:`Image`.
         """
         target_region = self.layout.get(region)
-        width_cm = self._resolve_image_extent(width, target_region.width)
+        indent = self._content_indent
+        available_width = target_region.width - indent
+        width_cm = self._resolve_image_extent(width, available_width)
         height_cm = self._resolve_image_extent(height, target_region.height)
         if width_cm is None and height_cm is None:
             natural = Image(path)
             if natural.get_width() >= natural.get_height():
-                width_cm = target_region.width
+                width_cm = available_width
             else:
                 height_cm = target_region.height
         image_kwargs.setdefault("align", config.get("image.align"))
         el = Image(path, width=width_cm, height=height_cm, **image_kwargs)
+        el.indent = indent
         self.current_slide.add(el)
         target_region.add(el)
         return el

@@ -116,7 +116,7 @@ def arrange(
         # Place the element so its left edge sits at `a` of the way
         # through the free space `extent - w`; `move_to` then honors the
         # element's own anchor to land that left edge.
-        left_edge = left_x + a * (extent - w)
+        left_edge = left_x + a * (extent - w) + el.indent
         pos_x = left_edge + h_mul * w
         # bbox.bottom = y_cursor - h; pos_y = bbox.bottom + v_mul * h.
         pos_y = y_cursor - (1.0 - v_mul) * h
