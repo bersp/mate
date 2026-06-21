@@ -230,6 +230,10 @@ class Text(Drawable):
         self.text_align = text_align
         return self
 
+    def get_effective_align(self) -> HAlign | None:
+        """Return :attr:`~mate.core.element.Element.align`, falling back to ``text_align``."""
+        return self.align if self.align is not None else self.text_align
+
     def _copy(self, mapping: dict[int, Element]) -> Text:
         # Only the `subs` cross-references need fixing up: ``content`` and
         # every other intrinsic field are already copied by the
