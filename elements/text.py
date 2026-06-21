@@ -254,9 +254,11 @@ def _apply_markup_props(element: Element, props: str) -> None:
     """Apply each ``name=value`` of ``props`` to ``element`` as ``set_<name>``.
 
     ``props`` is the keyword text of a ``[...][<props>]`` or ``[[<props>]]``
-    markup, evaluated as ``dict(<props>)``. A property whose ``set_<name>``
-    method does not exist raises :class:`AttributeError`.
+    markup, evaluated as ``dict(<props>)`` after stripping backslash escapes.
+    A property whose ``set_<name>`` method does not exist raises
+    :class:`AttributeError`.
     """
+    props = re.sub(r"\\([\\*_`$])", r"\1", props)
     for name, value in eval(f"dict({props})", {"dict": dict}).items():
         setter = getattr(element, f"set_{name}", None)
         if setter is None:
