@@ -107,7 +107,24 @@ class MethodCall:
     args: str
 
 
-Block = Paragraph | Heading | BulletList | OrderedList | MathBlock | MethodCall
+@dataclass
+class Fragment:
+    """A ``markdown fragment`` fenced block.
+
+    ``args`` is the verbatim property text from the fence info string (e.g.
+    ``color="red", region="full"``); ``blocks`` is the parsed body. When
+    rendered, ``region`` places the body's elements and every other property is
+    applied to each produced element via its ``set_<prop>`` method when one
+    exists.
+    """
+
+    args: str
+    blocks: list[Block]
+
+
+Block = (
+    Paragraph | Heading | BulletList | OrderedList | MathBlock | MethodCall | Fragment
+)
 
 
 # --- Document ---------------------------------------------------------------

@@ -421,6 +421,13 @@ class Element:
         """Return the user-facing ids assigned at construction (empty when none)."""
         return self.id
 
+    def set_id(self, id: IDKey | list[IDKey]) -> Element:
+        """Register one or more ids for this element in the id registry."""
+        for key in id if isinstance(id, list) else [id]:
+            self.id.append(key)
+            id_registry.register(self, key)
+        return self
+
     def get_effective_hidden(self) -> bool:
         """Return ``True`` if this element or any ancestor has ``hidden=True``."""
         el: Element | None = self

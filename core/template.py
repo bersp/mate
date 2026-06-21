@@ -14,6 +14,7 @@ from ..elements.text import Text
 from ..parser.ir import (
     Block,
     BulletList,
+    Fragment,
     Heading,
     ListItem,
     MathBlock,
@@ -41,6 +42,7 @@ class PresentationTemplate:
         self.layout: Layout = self.build_layout()
         self._cap_height_cache: dict[tuple, float] = {}
         self._content_indent: float = 0.0
+        self._fragment_region: str | None = None
 
     def build_layout(self) -> Layout:
         """Return the presentation's region layout."""
@@ -194,6 +196,50 @@ class PresentationTemplate:
                 self.add_ordered_list(block)
             case MethodCall(name, args):
                 self.run_method_call(name, args)
+            case Fragment(args, blocks):
+                self.add_fragment(blocks, args)
+
+    def add_fragment(self, blocks: list[Block], args: str) -> None:
+        """Render a ``markdown fragment`` body, pushing its properties onto it.
+
+        ``args`` is the fence's verbatim property text. ``region`` is applied as
+        an ambient region honored by every content method while the body renders;
+        every other property is applied to each element the body produced by
+        calling its ``set_<prop>`` method when one exists, and ignored otherwise.
+        """
+        props = eval(f"dict({args})", {"dict": dict})
+        region = props.pop("region", None)
+
+        before = {id(el) for el in self._root_elements()}
+        previous_region = self._fragment_region
+        if region is not None:
+            self._fragment_region = region
+        for block in blocks:
+            self._dispatch_block(block)
+        self._fragment_region = previous_region
+
+        for el in self._root_elements():
+            if id(el) in before:
+                continue
+            for prop, value in props.items():
+                setter = getattr(el, f"set_{prop}", None)
+                if callable(setter):
+                    setter(value)
+
+    def _root_elements(self) -> list[Element]:
+        """Return every root element added to the current slide so far."""
+        return [el for step in self.current_slide.steps for el in step]
+
+    def _resolve_region(self, region: str) -> Region:
+        """Resolve a region name, honoring the ambient fragment region.
+
+        A call leaving ``region`` at its ``"active"`` default lands in the
+        fragment region while a ``markdown fragment`` body renders; an explicit
+        region name always wins.
+        """
+        if region == "active" and self._fragment_region is not None:
+            region = self._fragment_region
+        return self.layout.get(region)
 
     def run_method_call(self, name: str, args: str) -> None:
         """Invoke the method ``name`` with ``args`` evaluated as Python.
@@ -285,7 +331,7 @@ class PresentationTemplate:
         :meth:`~mate.composition.layout.Region.arrange` stacks whole items with
         its own gap, independent of blank lines in the source.
         """
-        target_region = self.layout.get(region)
+        target_region = self._resolve_region(region)
         symbol = config.get("list.bullet") if symbol is None else symbol
         spacing = config.get("list.bullet_gap") if spacing is None else spacing
         color = config.get("text.color") if color is None else color
@@ -457,7 +503,7 @@ class PresentationTemplate:
         the region's ``arrange_gap``, so a wrapped paragraph's inter-line gap
         matches the gap between elements stacked in the region.
         """
-        target_region = self.layout.get(region)
+        target_region = self._resolve_region(region)
         indent = self._content_indent
         text_kwargs.setdefault("max_width", target_region.width - indent)
         text_kwargs.setdefault("text_align", align)
@@ -499,7 +545,7 @@ class PresentationTemplate:
         defaults to the ``image.align`` config value; the remaining keyword
         arguments are forwarded to :class:`Image`.
         """
-        target_region = self.layout.get(region)
+        target_region = self._resolve_region(region)
         indent = self._content_indent
         available_width = target_region.width - indent
         width_cm = self._resolve_image_extent(width, available_width)

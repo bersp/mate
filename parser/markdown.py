@@ -27,6 +27,7 @@ from .ir import (
     Bold,
     BulletList,
     Code,
+    Fragment,
     FrontMatter,
     Heading,
     Inline,
@@ -45,12 +46,17 @@ from .ir import (
 _FRONTMATTER_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n?", re.DOTALL)
 
 
+def _tokenize(text: str) -> SyntaxTreeNode:
+    """Tokenize Markdown ``text`` into a :class:`SyntaxTreeNode` tree."""
+    md = MarkdownIt("commonmark").use(dollarmath_plugin)
+    return SyntaxTreeNode(md.parse(text))
+
+
 def parse_markdown(source: str) -> ParsedDocument:
     """Parse ``source`` into a :class:`ParsedDocument` of tokenized slides."""
     frontmatter, body = _split_frontmatter(source)
     body = _separate_math_blocks(body)
-    md = MarkdownIt("commonmark").use(dollarmath_plugin)
-    tree = SyntaxTreeNode(md.parse(body))
+    tree = _tokenize(body)
 
     doc = ParsedDocument(frontmatter=frontmatter)
     current: ParsedSlide | None = None
@@ -164,7 +170,29 @@ def _fold_block(node: SyntaxTreeNode) -> Block:
             return OrderedList(start, [_fold_list_item(c) for c in node.children])
         case "math_block":
             return MathBlock(node.content.strip())
+        case "fence":
+            lang, _, rest = node.info.partition(" ")
+            name, _, args = rest.partition(":")
+            if lang.strip() != "markdown" or name.strip() != "fragment":
+                raise _unsupported("fence")
+            return Fragment(args.strip(), _fold_body(node.content))
     raise _unsupported(node.type)
+
+
+def _fold_blocks(nodes: list[SyntaxTreeNode]) -> list[Block]:
+    """Fold a sequence of block nodes, expanding blockquotes to method calls."""
+    blocks: list[Block] = []
+    for node in nodes:
+        if node.type == "blockquote":
+            blocks.extend(_fold_blockquote(node))
+        else:
+            blocks.append(_fold_block(node))
+    return blocks
+
+
+def _fold_body(text: str) -> list[Block]:
+    """Parse a Markdown ``text`` body (no slide title) into a list of blocks."""
+    return _fold_blocks(_tokenize(_separate_math_blocks(text)).children)
 
 
 def _fold_blockquote(node: SyntaxTreeNode) -> list[MethodCall]:
