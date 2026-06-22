@@ -93,6 +93,25 @@ class Group(Drawable):
         element.parent = None
         return element
 
+    def set_align(self, align: HAlign | None) -> Group:
+        """Set this group's alignment and propagate it to every child.
+
+        Aligning the group places the whole unit; propagating reaches text
+        children so their wrapped lines follow the same alignment.
+        """
+        super().set_align(align)
+        for child in self.children:
+            child.set_align(align)
+        return self
+
+    def set_text_align(self, text_align: HAlign | None) -> Group:
+        """Propagate a line alignment to every child that accepts one."""
+        for child in self.children:
+            setter = getattr(child, "set_text_align", None)
+            if setter is not None:
+                setter(text_align)
+        return self
+
     @property
     def center(self) -> Vec:
         """Return the union bbox center.

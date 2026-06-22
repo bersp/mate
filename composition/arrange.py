@@ -112,8 +112,7 @@ def arrange(
 
     for i, (el, h, w) in enumerate(zip(elements, heights, widths)):
         h_mul, v_mul = anchor_offsets(el.anchor)
-        align = el.get_effective_align()
-        a = stack_h_mul if align is None else _ALIGN_FRACTION[align]
+        a = stack_h_mul if el.align is None else _ALIGN_FRACTION[el.align]
         # Place the element so its left edge sits at `a` of the way
         # through the free space `extent - w`; `move_to` then honors the
         # element's own anchor to land that left edge.

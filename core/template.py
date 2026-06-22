@@ -589,17 +589,16 @@ class PresentationTemplate:
 
         ``region`` is the target region name. The text wraps at the region's
         width unless ``max_width`` is passed in ``text_kwargs``; the remaining
-        keyword arguments are forwarded to :class:`Text`. ``text_align`` (line
-        alignment within the box) defaults to ``align``, so a single ``align``
-        both places the box in the region and aligns its lines; pass
-        ``text_align`` explicitly to decouple the two. ``line_gap`` defaults to
-        the region's ``arrange_gap``, so a wrapped paragraph's inter-line gap
-        matches the gap between elements stacked in the region.
+        keyword arguments are forwarded to :class:`Text`. With no ``text_align``,
+        the wrapped lines follow ``align`` (see :meth:`Text.get_text_align`), so a
+        single ``align`` both places the box and aligns its lines; pass
+        ``text_align`` to override only the lines. ``line_gap`` defaults to the
+        region's ``arrange_gap``, so a wrapped paragraph's inter-line gap matches
+        the gap between elements stacked in the region.
         """
         target_region = self._resolve_region(region)
         indent = self._content_indent
         text_kwargs.setdefault("max_width", target_region.width - indent)
-        text_kwargs.setdefault("text_align", align)
         text_kwargs.setdefault("line_gap", target_region.arrange_gap)
         el = Text(text, align=align, **text_kwargs)
         el.indent = indent

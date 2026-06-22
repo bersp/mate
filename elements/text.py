@@ -230,9 +230,13 @@ class Text(Drawable):
         self.text_align = text_align
         return self
 
-    def get_effective_align(self) -> HAlign | None:
-        """Return :attr:`~mate.core.element.Element.align`, falling back to ``text_align``."""
-        return self.align if self.align is not None else self.text_align
+    def get_text_align(self) -> HAlign | None:
+        """Return the line alignment, falling back to ``align`` when unset.
+
+        So ``align`` drives both the box placement and the wrapped lines, while
+        an explicit ``text_align`` overrides only the lines.
+        """
+        return self.text_align if self.text_align is not None else self.align
 
     def _copy(self, mapping: dict[int, Element]) -> Text:
         # Only the `subs` cross-references need fixing up: ``content`` and

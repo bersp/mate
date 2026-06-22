@@ -606,7 +606,7 @@ class TypstRenderer:
             if el.max_width is not None:
                 inner = _wrap_max_width(
                     inner,
-                    _wrap_line_gap(_wrap_align(inner, el.text_align), el.line_gap),
+                    _wrap_line_gap(_wrap_align(inner, el.get_text_align()), el.line_gap),
                     el.max_width,
                 )
         elif isinstance(el, (Rectangle, Circle, Ellipse)):
@@ -824,7 +824,7 @@ class TypstMeasurer:
                 # the probe-carrying render body to match the renderer.
                 inner = _wrap_max_width(
                     _bare(el),
-                    _wrap_line_gap(_wrap_align(inner, el.text_align), el.line_gap),
+                    _wrap_line_gap(_wrap_align(inner, el.get_text_align()), el.line_gap),
                     el.max_width,
                 )
         elif isinstance(el, (Rectangle, Circle, Ellipse)):

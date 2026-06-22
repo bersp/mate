@@ -374,10 +374,6 @@ class Element:
         self.align = align
         return self
 
-    def get_effective_align(self) -> HAlign | None:
-        """Return the alignment :meth:`Region.arrange` uses to place this box."""
-        return self.align
-
     def _translate_children(self, delta: Vec) -> None:
         """Apply ``delta`` to every fixed descendant in this subtree.
 
