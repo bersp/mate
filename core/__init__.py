@@ -1,7 +1,7 @@
 from .vec import Vec
 from .element import Anchor, Element, measure_all
 from .drawable import Drawable
-from .template import PresentationTemplate
+from .template import PresentationTemplateBase
 from .slide import Slide, Snapshot
 from .presentation import Presentation
 from .registry import IDRegistry, id_registry
@@ -11,7 +11,7 @@ __all__ = [
     "Anchor",
     "Element",
     "Drawable",
-    "PresentationTemplate",
+    "PresentationTemplateBase",
     "Presentation",
     "Slide",
     "Snapshot",

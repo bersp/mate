@@ -41,8 +41,9 @@ def _union_bbox(
     return ((left + right) / 2, (bottom + top) / 2, right - left, top - bottom)
 
 
-class PresentationTemplate:
-    """Base template for a presentation."""
+class PresentationTemplateBase:
+    """Base for presentation templates: the layout, content methods, and reveal
+    machinery a concrete ``PresentationTemplate`` subclass builds on."""
 
     # --- Internals ----------------------------------------------------------
     def __init__(self) -> None:

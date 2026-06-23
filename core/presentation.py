@@ -8,10 +8,10 @@ from ..log import logger
 from ..parser.ir import FrontMatter
 from .registry import id_registry
 from .slide import Slide, Snapshot
-from .template import PresentationTemplate
+from .template import PresentationTemplateBase
 
 
-class Presentation(PresentationTemplate):
+class Presentation(PresentationTemplateBase):
     """Top-level presentation built on a template."""
 
     def __new__(cls, *args, **kwargs):
