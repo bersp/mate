@@ -58,6 +58,7 @@ class PresentationTemplate:
         self._fragment_region: str | None = None
         self._region_override: Region | None = None
         self._overwrites: list[tuple[Group, list[Element], str, int]] = []
+        self._alternates: list[tuple[VSpace, list[list[Element]], float]] = []
 
     def build_layout(self) -> Layout:
         """Return the presentation's region layout."""
@@ -291,6 +292,59 @@ class PresentationTemplate:
         step = len(self.current_slide.steps) - 1
         self._overwrites.append((group, targets, anchor, step))
 
+    def add_alternate(self, blocks: list[Block], args: str) -> None:
+        """Render a ``markdown alternate`` body as a sequence of variants in one slot.
+
+        ``> alt`` lines split the body into variants; each variant replaces the
+        previous in place when it appears, so only one is visible per reveal
+        step. A ``> pause`` inside a variant reveals its content cumulatively
+        before the next variant takes over. The slot reserves the height of the
+        tallest variant, so content below the block never moves between pages.
+        ``args`` may carry ``region=<name>`` to target a region other than the
+        active one.
+        """
+        props = eval(f"dict({args})", {"dict": dict})
+        target = self._resolve_region(props.pop("region", "active"))
+
+        variants: list[list[Block]] = [[]]
+        for block in blocks:
+            if isinstance(block, MethodCall) and block.name == "alt":
+                variants.append([])
+            else:
+                variants[-1].append(block)
+
+        variant_elements: list[list[Element]] = []
+        heights: list[float] = []
+        for i, variant in enumerate(variants):
+            before = {id(el) for el in self._root_elements()}
+            temp = Region(
+                target.center, target.width, target.height, anchor=target.anchor
+            )
+            self._region_override = temp
+            for block in variant:
+                self._dispatch_block(block)
+            self._region_override = None
+            temp.arrange()
+
+            els = [el for el in self._root_elements() if id(el) not in before]
+            variant_elements.append(els)
+            heights.append(_union_bbox(els)[3])
+            if i < len(variants) - 1:
+                self.pause()
+                step = len(self.current_slide.steps) - 1
+                for el in els:
+                    self.current_slide.replaced.append((step, el))
+
+        # A VSpace is a spacer, so arrange drops the gap on both sides of it.
+        # Pad the reserved height with the region gap (above only when content
+        # precedes the block) and offset the variants down by it, so the slot
+        # flows like a normal block between its neighbours.
+        gap = target.arrange_gap
+        gap_above = gap if target.elements else 0.0
+        vspace = VSpace(max(heights) + gap_above + gap)
+        target.add(vspace)
+        self._alternates.append((vspace, variant_elements, gap_above))
+
     def _region_of(self, el: Element) -> Region:
         """Return the layout region whose stack contains ``el``."""
         for region in self.layout.regions.values():
@@ -320,6 +374,23 @@ class PresentationTemplate:
                 self.current_slide.replaced.append((step, target))
         self._overwrites = []
 
+    def _resolve_alternates(self) -> None:
+        """Stack each alternate's variants onto its reserved slot.
+
+        Runs after regions are arranged, so the slot spacer's position is baked.
+        Every variant is top-aligned to the slot, overlaying the others so they
+        share one spot across reveal steps.
+        """
+        for vspace, variants, gap_above in self._alternates:
+            _, scy, _, sh = vspace.get_bbox()
+            slot_top = scy + sh / 2 - gap_above
+            for els in variants:
+                _, cy, _, h = _union_bbox(els)
+                delta_y = slot_top - (cy + h / 2)
+                for el in els:
+                    el.shift((0, delta_y))
+        self._alternates = []
+
     def _resolve_region(self, region: str) -> Region:
         """Resolve a region name, honoring an active region override.
 
@@ -340,10 +411,19 @@ class PresentationTemplate:
         ``args`` is the verbatim argument text of a ``> name : args``
         blockquote, spliced into a ``name(args)`` call and evaluated with the
         bound method in scope, so it may carry positional and keyword
-        arguments (``grid``, ``add_vspace``, ...). An unknown ``name`` raises
-        :class:`AttributeError`.
+        arguments (``grid``, ``add_vspace``, ...). ``> alt`` is a variant
+        separator reserved for ``markdown alternate`` bodies; reaching it here
+        means it was used outside one. An unknown ``name`` raises
+        :class:`ValueError` naming the offending blockquote method.
         """
-        method = getattr(self, name)
+        if name == "alt":
+            raise ValueError(
+                "'> alt' is only valid as a variant separator inside a "
+                "'markdown alternate' block"
+            )
+        method = getattr(self, name, None)
+        if method is None:
+            raise ValueError(f"unknown blockquote method '> {name.replace('_', ' ')}'")
         eval(f"_method({args})", {"_method": method})
 
     # --- Content ------------------------------------------------------------
