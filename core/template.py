@@ -107,7 +107,7 @@ class PresentationTemplate:
             ),
         )
 
-        layout.set_default_active("content")
+        layout.set_default_active(config.get("region.default"))
         return layout
 
     def create_grid(

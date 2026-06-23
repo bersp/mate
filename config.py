@@ -20,6 +20,7 @@ _DEFAULTS: dict[str, object] = {
     "slide.width": 16.0,
     "slide.height": 9.0,
     "region.full_with_margins.margins": 0.7,
+    "region.default": "content",
     "region.content.anchor": "top-left",
     "region.content.arrange_gap": 0.25,
     "arrange.gap": 0.2,
