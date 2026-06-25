@@ -104,7 +104,7 @@ class PresentationTemplateBase:
         m = config.get("region.full_with_margins.margins")
         layout.add(
             "full_with_margins",
-            Region.create_full(anchor="top-center").adjust_borders(
+            Region.create_full(anchor="center").adjust_borders(
                 left=-m, right=-m, top=-m, bottom=-m
             ),
         )
