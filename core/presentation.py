@@ -91,6 +91,7 @@ class Presentation(PresentationTemplateBase):
             region.arrange()
         self._resolve_overwrites()
         self._resolve_alternates()
+        self._resolve_modifies()
         canvas = (self.width, self.height)
         slide.snapshots = [
             Snapshot(self._renderer.render_snapshot(roots, canvas))

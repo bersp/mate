@@ -24,7 +24,7 @@ from ..parser.ir import (
     ParsedSlide,
 )
 from ..parser.serialize import inlines_to_markdown
-from .registry import id_registry
+from .registry import IDKey, id_registry
 from .vec import Vec
 from .element import Anchor, Element, HAlign, anchor_offsets, measure_all
 
@@ -60,6 +60,7 @@ class PresentationTemplateBase:
         self._region_override: Region | None = None
         self._overwrites: list[tuple[Group, list[Element], str, int]] = []
         self._alternates: list[tuple[VSpace, list[list[Element]], float]] = []
+        self._modifies: list[tuple[list[Element], dict, int]] = []
 
     def build_layout(self) -> Layout:
         """Return the presentation's region layout."""
@@ -735,6 +736,76 @@ class PresentationTemplateBase:
         self.current_slide.add(el)
         target_region.add(el)
         return el
+
+    def modify(self, id: IDKey, **props) -> None:
+        """Apply ``props`` to every element registered under ``id``.
+
+        For each ``name=value`` pair, ``set_<name>(value)`` is called when the
+        element defines it, otherwise ``<name>(value)``: ``color="red"`` calls
+        ``set_color("red")`` and ``shift=(1, 0)`` calls ``shift((1, 0))``. A
+        ``name`` matching neither raises :class:`ValueError`. The change applies
+        from the reveal step of this call onward.
+        """
+        try:
+            targets = id_registry.get(id)
+        except KeyError:
+            raise ValueError(f"modify: no element with id {id!r}") from None
+        for el in targets:
+            for name in props:
+                if not callable(self._resolve_modifier(el, name)):
+                    raise ValueError(
+                        f"modify: element with id {id!r} has no "
+                        f"'set_{name}' or '{name}' method"
+                    )
+        step = len(self.current_slide.steps) - 1
+        self._modifies.append((targets, props, step))
+
+    @staticmethod
+    def _resolve_modifier(el: Element, name: str):
+        """Return ``el``'s ``set_<name>`` method, falling back to ``<name>``."""
+        return getattr(el, f"set_{name}", None) or getattr(el, name, None)
+
+    def _resolve_modifies(self) -> None:
+        """Apply the deferred ``modify`` calls.
+
+        Runs after regions are arranged. Edits are grouped by the root element
+        containing each target. For each reveal step that carries an edit, the
+        root is cloned with every edit up to and including that step applied, the
+        previous version is hidden from that step onward, and the clone is shown
+        from it.
+        """
+        slide = self.current_slide
+
+        # root id -> (root, [(step, members, props), ...]); ``members`` are the
+        # tagged elements of one ``modify`` that descend from this root.
+        buckets: dict[int, tuple[Element, list[tuple[int, list[Element], dict]]]] = {}
+        for targets, props, step in self._modifies:
+            members_by_root: dict[int, list[Element]] = {}
+            for el in targets:
+                root = el
+                while root.parent is not None:
+                    root = root.parent
+                members_by_root.setdefault(id(root), []).append(el)
+                buckets.setdefault(id(root), (root, []))
+            for root_id, members in members_by_root.items():
+                buckets[root_id][1].append((step, members, props))
+
+        for root, edits in buckets.values():
+            previous = root
+            for step in sorted({edit[0] for edit in edits}):
+                mapping: dict[int, Element] = {}
+                clone = root._copy(mapping)
+                for edit_step, members, props in edits:
+                    if edit_step > step:
+                        continue
+                    for el in members:
+                        node = mapping[id(el)]
+                        for name, value in props.items():
+                            self._resolve_modifier(node, name)(value)
+                slide.replaced.append((step, previous))
+                slide.steps[step].append(clone)
+                previous = clone
+        self._modifies = []
 
     @staticmethod
     def _resolve_image_extent(
