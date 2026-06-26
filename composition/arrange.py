@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ..core.element import Anchor, Element, anchor_offsets, measure_all
 from ..core.vec import Vec, VecLike
-from ..elements.shapes import Circle, Ellipse, Line, Rectangle
+from ..elements.shapes import Circle, Curve, Ellipse, Line, Polygon, Rectangle
 from ..elements.spacing import HSpace, VSpace
 
 # Fraction of the region's horizontal extent at which an element's
@@ -124,5 +124,5 @@ def arrange(
         y_cursor -= h + (gaps[i] if i < len(gaps) else 0.0)
 
 
-_INTRINSIC_SIZE = (Rectangle, Circle, Ellipse, Line, VSpace, HSpace)
+_INTRINSIC_SIZE = (Rectangle, Circle, Ellipse, Line, Polygon, Curve, VSpace, HSpace)
 _SPACER = (VSpace, HSpace)

@@ -331,3 +331,281 @@ class Line(Drawable):
         self.start = Vec(start - center)
         self.end = Vec(end - center)
         self._invalidate_tree()
+
+
+def _points_bounding_center(points: list[Vec]) -> Vec:
+    """Return the centre of the axis-aligned box bounding ``points``."""
+    xs = [p.x for p in points]
+    ys = [p.y for p in points]
+    return Vec(((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2))
+
+
+class Polygon(Drawable):
+    """Filled polygon through a list of vertices.
+
+    ``points`` are the vertices (cm) in the element's local frame; the
+    polygon is closed automatically, so the edge from the last vertex
+    back to the first is drawn. ``_pos`` is the centre of the box
+    bounding the vertices, so the polygon moves rigidly under
+    :meth:`~mate.core.element.Element.move_to`,
+    :meth:`~mate.core.element.Element.shift`, and region arrangement.
+    The bbox is the axis-aligned box bounding the vertices. Fill/stroke
+    follow the :class:`~mate.core.drawable.Drawable` defaults: solid
+    black fill, no stroke.
+
+    Parameters
+    ----------
+    points : list of VecLike
+        Vertices in cm. Positional. At least three are required.
+    placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+        Keyword-only. See :class:`~mate.core.drawable.Drawable`.
+
+    Attributes
+    ----------
+    points : list of Vec
+        The vertices relative to the polygon's centre (``_pos``);
+        :meth:`get_points` returns them in slide coordinates.
+    """
+
+    def __init__(
+        self,
+        points: list[VecLike],
+        *,
+        placement: Placement = "fixed",
+        id: IDKey | list[IDKey] | None = None,
+        fill_color: str | None = None,
+        stroke_color: str | None = None,
+        fill_opacity: float | None = None,
+        stroke_width: float | None = None,
+    ) -> None:
+        verts = [Vec(p) for p in points]
+        if len(verts) < 3:
+            raise ValueError(
+                f"Polygon needs at least 3 vertices, got {len(verts)}."
+            )
+        center = _points_bounding_center(verts)
+        super().__init__(
+            pos=center,
+            anchor="center",
+            placement=placement,
+            id=id,
+            fill_color=fill_color,
+            stroke_color=stroke_color,
+            fill_opacity=fill_opacity,
+            stroke_width=stroke_width,
+        )
+        self.points: list[Vec] = [Vec(p - center) for p in verts]
+
+    def get_points(self) -> list[Vec]:
+        """Return the vertices in slide coordinates."""
+        return [Vec(self._pos + p) for p in self.points]
+
+    def get_width(self) -> float:
+        xs = [p.x for p in self.points]
+        return max(xs) - min(xs)
+
+    def get_height(self) -> float:
+        ys = [p.y for p in self.points]
+        return max(ys) - min(ys)
+
+    def _repr_fields(self) -> str:
+        return f"points={len(self.points)}"
+
+
+class CurveSegment:
+    """Base class for the path segments of a :class:`Curve`.
+
+    A segment is pure geometry: it carries points in the curve's local
+    frame and knows how to enumerate and translate them. Translating a
+    Typst form is the backend's job — a segment never references Typst
+    syntax.
+    """
+
+    def _points(self) -> tuple[Vec, ...]:
+        """Return every point this segment defines (for bbox and recentre)."""
+        raise NotImplementedError
+
+    def _translated(self, delta: Vec) -> CurveSegment:
+        """Return a copy with every point shifted by ``delta``."""
+        raise NotImplementedError
+
+
+class MoveTo(CurveSegment):
+    """Start a new subpath at ``point`` without drawing."""
+
+    def __init__(self, point: VecLike) -> None:
+        self.point: Vec = Vec(point)
+
+    def _points(self) -> tuple[Vec, ...]:
+        return (self.point,)
+
+    def _translated(self, delta: Vec) -> MoveTo:
+        return MoveTo(self.point + delta)
+
+    def __repr__(self) -> str:
+        return f"MoveTo(({self.point.x:.4g}, {self.point.y:.4g}))"
+
+
+class LineTo(CurveSegment):
+    """Draw a straight segment to ``point``."""
+
+    def __init__(self, point: VecLike) -> None:
+        self.point: Vec = Vec(point)
+
+    def _points(self) -> tuple[Vec, ...]:
+        return (self.point,)
+
+    def _translated(self, delta: Vec) -> LineTo:
+        return LineTo(self.point + delta)
+
+    def __repr__(self) -> str:
+        return f"LineTo(({self.point.x:.4g}, {self.point.y:.4g}))"
+
+
+class CubicTo(CurveSegment):
+    """Draw a cubic Bézier to ``point`` via two control points.
+
+    ``control_start`` governs the tangent leaving the previous point,
+    ``control_end`` the tangent arriving at ``point``.
+    """
+
+    def __init__(
+        self, control_start: VecLike, control_end: VecLike, point: VecLike
+    ) -> None:
+        self.control_start: Vec = Vec(control_start)
+        self.control_end: Vec = Vec(control_end)
+        self.point: Vec = Vec(point)
+
+    def _points(self) -> tuple[Vec, ...]:
+        return (self.control_start, self.control_end, self.point)
+
+    def _translated(self, delta: Vec) -> CubicTo:
+        return CubicTo(
+            self.control_start + delta,
+            self.control_end + delta,
+            self.point + delta,
+        )
+
+    def __repr__(self) -> str:
+        return (
+            f"CubicTo(({self.control_start.x:.4g}, {self.control_start.y:.4g}), "
+            f"({self.control_end.x:.4g}, {self.control_end.y:.4g}), "
+            f"({self.point.x:.4g}, {self.point.y:.4g}))"
+        )
+
+
+class QuadTo(CurveSegment):
+    """Draw a quadratic Bézier to ``point`` via a single ``control`` point."""
+
+    def __init__(self, control: VecLike, point: VecLike) -> None:
+        self.control: Vec = Vec(control)
+        self.point: Vec = Vec(point)
+
+    def _points(self) -> tuple[Vec, ...]:
+        return (self.control, self.point)
+
+    def _translated(self, delta: Vec) -> QuadTo:
+        return QuadTo(self.control + delta, self.point + delta)
+
+    def __repr__(self) -> str:
+        return (
+            f"QuadTo(({self.control.x:.4g}, {self.control.y:.4g}), "
+            f"({self.point.x:.4g}, {self.point.y:.4g}))"
+        )
+
+
+class Close(CurveSegment):
+    """Close the current subpath with a straight segment to its start."""
+
+    def _points(self) -> tuple[Vec, ...]:
+        return ()
+
+    def _translated(self, delta: Vec) -> Close:
+        return Close()
+
+    def __repr__(self) -> str:
+        return "Close()"
+
+
+class Curve(Drawable):
+    """Path of Bézier and line segments.
+
+    ``segments`` is a sequence of :class:`CurveSegment` (``MoveTo``,
+    ``LineTo``, ``CubicTo``, ``QuadTo``, ``Close``) whose points are in
+    the curve's local frame (cm). The first segment must be a
+    :class:`MoveTo`. ``_pos`` is the centre of the box bounding every
+    point referenced by the segments — endpoints and control points
+    alike — so the curve moves rigidly under
+    :meth:`~mate.core.element.Element.move_to`,
+    :meth:`~mate.core.element.Element.shift`, and region arrangement.
+    The bbox is that same control-point box, a conservative bound that
+    always contains the drawn curve. Fill/stroke follow the
+    :class:`~mate.core.drawable.Drawable` defaults: solid black fill, no
+    stroke. ``fill_opacity=0`` makes a stroke-only path.
+
+    Parameters
+    ----------
+    segments : list of CurveSegment
+        Path segments in draw order. Positional. The first must be a
+        :class:`MoveTo`.
+    placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+        Keyword-only. See :class:`~mate.core.drawable.Drawable`.
+
+    Attributes
+    ----------
+    segments : list of CurveSegment
+        The segments with points relative to the curve's centre (``_pos``).
+    """
+
+    def __init__(
+        self,
+        segments: list[CurveSegment],
+        *,
+        placement: Placement = "fixed",
+        id: IDKey | list[IDKey] | None = None,
+        fill_color: str | None = None,
+        stroke_color: str | None = None,
+        fill_opacity: float | None = None,
+        stroke_width: float | None = None,
+    ) -> None:
+        segments = list(segments)
+        if not segments:
+            raise ValueError("Curve needs at least one segment.")
+        bad = next((s for s in segments if not isinstance(s, CurveSegment)), None)
+        if bad is not None:
+            raise TypeError(
+                f"Curve segments must be MoveTo/LineTo/CubicTo/QuadTo/Close, "
+                f"got {bad!r}."
+            )
+        if not isinstance(segments[0], MoveTo):
+            raise ValueError(
+                f"Curve must start with a MoveTo segment, got {segments[0]!r}."
+            )
+        points = [p for s in segments for p in s._points()]
+        center = _points_bounding_center(points)
+        super().__init__(
+            pos=center,
+            anchor="center",
+            placement=placement,
+            id=id,
+            fill_color=fill_color,
+            stroke_color=stroke_color,
+            fill_opacity=fill_opacity,
+            stroke_width=stroke_width,
+        )
+        self.segments: list[CurveSegment] = [s._translated(Vec(-center)) for s in segments]
+
+    def _all_points(self) -> list[Vec]:
+        """Return every point referenced by the segments, in local coordinates."""
+        return [p for s in self.segments for p in s._points()]
+
+    def get_width(self) -> float:
+        xs = [p.x for p in self._all_points()]
+        return max(xs) - min(xs)
+
+    def get_height(self) -> float:
+        ys = [p.y for p in self._all_points()]
+        return max(ys) - min(ys)
+
+    def _repr_fields(self) -> str:
+        return f"segments={len(self.segments)}"

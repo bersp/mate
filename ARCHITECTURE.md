@@ -141,7 +141,7 @@ Only `fill_color` / `fill_opacity` reach Typst (folded into the same `#text(...)
 
 **`_copy()`** override re-maps the `subs` list using the shared `mapping` from `Element._copy`, so the cloned subs point at the cloned descendants. Clones inherit structure but are not registered in `id_registry`: the registry indexes user-tagged originals.
 
-### `elements/shapes.py` — `Rectangle`, `Circle`, `Ellipse`, `Line`
+### `elements/shapes.py` — `Rectangle`, `Circle`, `Ellipse`, `Line`, `Polygon`, `Curve`
 
 Geometric primitives extending `Drawable` with intrinsic dimensions and no children. The three filled shapes render as solid black with no stroke under the `Drawable` defaults; pass `fill_opacity=0` to make a layout placeholder, and `stroke_width > 0` to draw an outline.
 
@@ -152,6 +152,10 @@ Geometric primitives extending `Drawable` with intrinsic dimensions and no child
 The three filled shapes dispatch through a single `_shape_markup(el)` helper that branches on the concrete type and resolves the four `Drawable` fields via `_typst_fill` / `_typst_stroke`. Measurement returns Typst's `measure()` of the emitted body, which matches the intrinsic dimensions.
 
 - `Line(start, end, ...)` is stroke-only: `start` and `end` are points (cm) in the element's local frame, and the bbox is the axis-aligned box bounding them, so a horizontal line has zero height and a vertical line zero width. Bbox is `(|end.x - start.x|, |end.y - start.y|)`. `stroke_width` defaults to the `line.stroke_width` config value; `fill_*` is inert. The backend's `_line_markup(el)` normalizes the endpoints to the bbox's top-left in Typst's y-down frame and emits `#line(start: ..., end: ..., stroke: ...)`, so the segment draws inside its own bounding box and `measure()` returns `(|dx|, |dy|)`.
+
+- `Polygon(points, ...)` is a filled, auto-closed polygon through a list of vertices (cm) in the element's local frame (at least three). Like `Line`, `_pos` is the centre of the box bounding the vertices and the stored `points` are relative to it (`get_points()` returns them in slide coords); the bbox is that vertex box. Fill/stroke follow the `Drawable` defaults. The backend's `_polygon_markup(el)` normalizes vertices to the bbox's top-left in Typst's y-down frame and emits `#polygon(fill:, stroke:, ...)`; Typst's `measure()` of a polygon is exactly the vertex box.
+
+- `Curve(segments, ...)` is a filled/stroked Bézier path. `segments` is a list of `CurveSegment` instances drawn in order; the first must be a `MoveTo`. The segment types — `MoveTo(point)`, `LineTo(point)`, `CubicTo(control_start, control_end, point)`, `QuadTo(control, point)`, `Close()` — carry points (cm) in the curve's local frame and are pure geometry (a segment never references Typst; the backend dispatches on its type). `_pos` is the centre of the box bounding **every** referenced point (endpoints and control points), and the bbox is that control-point box — a conservative bound that always contains the drawn path (a Bézier lies within the convex hull of its control points). The backend's `_curve_markup(el)` normalizes all points to the bbox's top-left in Typst's y-down frame, emits the matching `curve.move`/`curve.line`/`curve.cubic`/`curve.quad`/`curve.close` calls, and wraps the `#curve` in a `#box` sized to the bbox, which fixes `measure()` to that size for placement and anchoring. (Typst's native `measure()` of a curve pins the box to the curve's origin and drops extents on the negative side.)
 
 ### `elements/spacing.py` — `VSpace`, `HSpace`
 
@@ -179,7 +183,7 @@ The `gap` is per-pair: it is inserted between two consecutive elements only when
 
 Math note: writing out the per-element `pos.x` in terms of the stack's `pos.x`, the stack's `h_mul`, the element's own `h_mul`, and its width, the stack's `total_width` cancels — only the element's own width is needed. So `arrange` never computes `max(widths)` and only reads `get_width()` for elements whose horizontal anchor half differs from the stack's.
 
-Performance is the reason this helper exists as a single function rather than a couple of inlined lines. Before the positioning loop it collects the elements that need a measured bbox — everything except the intrinsic-size types (`Rectangle`, `Circle`, `Ellipse`, `Line`, `VSpace`, `HSpace`), which report their own dimensions — and runs `measure_all` over that subset, so the worst case is one Typst query for the whole call. A stack of intrinsic-size elements pays zero queries.
+Performance is the reason this helper exists as a single function rather than a couple of inlined lines. Before the positioning loop it collects the elements that need a measured bbox — everything except the intrinsic-size types (`Rectangle`, `Circle`, `Ellipse`, `Line`, `Polygon`, `Curve`, `VSpace`, `HSpace`), which report their own dimensions — and runs `measure_all` over that subset, so the worst case is one Typst query for the whole call. A stack of intrinsic-size elements pays zero queries.
 
 ### `composition/layout.py` — `Region`, `Layout`
 

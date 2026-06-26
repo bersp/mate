@@ -10,7 +10,19 @@ from ..config import config
 from ..core.element import anchor_offsets
 from ..elements.group import Group
 from ..elements.image import Image
-from ..elements.shapes import Circle, Ellipse, Line, Rectangle
+from ..elements.shapes import (
+    Circle,
+    Close,
+    CubicTo,
+    Curve,
+    Ellipse,
+    Line,
+    LineTo,
+    MoveTo,
+    Polygon,
+    QuadTo,
+    Rectangle,
+)
 from ..elements.spacing import HSpace, VSpace
 from ..elements.text import Text
 from ..parser.ir import Bold, Code, Italic, Math, TextRun
@@ -304,6 +316,73 @@ def _line_markup(el: Line) -> str:
     )
 
 
+def _local_point(p, left: float, top: float) -> str:
+    """Map a local-frame point to Typst's y-down box frame as ``(x cm, y cm)``.
+
+    ``left`` is the minimum x and ``top`` the maximum y over the shape's
+    points, so the emitted coordinate is offset to the bbox's top-left
+    corner and the y axis is flipped to Typst's downward convention. The
+    shape then draws inside its own bounding box and ``measure(...)``
+    returns the intrinsic extents.
+    """
+    return f"({p.x - left}cm, {top - p.y}cm)"
+
+
+def _polygon_markup(el: Polygon) -> str:
+    """Emit the Typst body for a :class:`Polygon`.
+
+    Vertices are normalized to the bbox's top-left in Typst's y-down
+    frame; ``#polygon`` closes the path automatically.
+    """
+    fill = _typst_fill(el.fill_color, el.fill_opacity)
+    stroke = _typst_stroke(el.stroke_color, el.stroke_width)
+    left = min(p.x for p in el.points)
+    top = max(p.y for p in el.points)
+    verts = ", ".join(_local_point(p, left, top) for p in el.points)
+    return f"#polygon(fill: {fill}, stroke: {stroke}, {verts})"
+
+
+def _curve_markup(el: Curve) -> str:
+    """Emit the Typst body for a :class:`Curve`.
+
+    Each segment maps to its ``curve.*`` form; all points are normalized
+    to the bbox's top-left in Typst's y-down frame. The ``#curve`` sits
+    inside a ``#box`` sized to the control-point bbox, which fixes
+    ``measure(...)`` to that size for placement and anchoring. (Typst's
+    native ``measure`` of a curve pins the box to the curve's origin and
+    drops extents on the negative side.) The path lies within the convex
+    hull of its control points, the box that bounds it.
+    """
+    fill = _typst_fill(el.fill_color, el.fill_opacity)
+    stroke = _typst_stroke(el.stroke_color, el.stroke_width)
+    points = el._all_points()
+    left = min(p.x for p in points)
+    top = max(p.y for p in points)
+
+    def loc(p) -> str:
+        return _local_point(p, left, top)
+
+    parts: list[str] = [f"fill: {fill}", f"stroke: {stroke}"]
+    for seg in el.segments:
+        if isinstance(seg, MoveTo):
+            parts.append(f"curve.move({loc(seg.point)})")
+        elif isinstance(seg, LineTo):
+            parts.append(f"curve.line({loc(seg.point)})")
+        elif isinstance(seg, CubicTo):
+            parts.append(
+                f"curve.cubic({loc(seg.control_start)}, "
+                f"{loc(seg.control_end)}, {loc(seg.point)})"
+            )
+        elif isinstance(seg, QuadTo):
+            parts.append(f"curve.quad({loc(seg.control)}, {loc(seg.point)})")
+        elif isinstance(seg, Close):
+            parts.append("curve.close()")
+    return (
+        f"#box(width: {el.get_width()}cm, height: {el.get_height()}cm)"
+        f"[#curve({', '.join(parts)})]"
+    )
+
+
 def _spacer_markup(el: VSpace | HSpace) -> str:
     """Emit an invisible box matching a spacer's intrinsic size."""
     return f"#box(width: {el.get_width()}cm, height: {el.get_height()}cm)"
@@ -361,6 +440,10 @@ def _leaf_markup(el: Element) -> str | None:
         return _shape_markup(el)
     if isinstance(el, Line):
         return _line_markup(el)
+    if isinstance(el, Polygon):
+        return _polygon_markup(el)
+    if isinstance(el, Curve):
+        return _curve_markup(el)
     if isinstance(el, Image):
         return _image_markup(el)
     if isinstance(el, (VSpace, HSpace)):
