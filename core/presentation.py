@@ -94,8 +94,8 @@ class Presentation(PresentationTemplateBase):
         self._resolve_modifies()
         canvas = (self.width, self.height)
         slide.snapshots = [
-            Snapshot(self._renderer.render_snapshot(roots, canvas))
-            for roots in slide.reveal_prefixes()
+            Snapshot(self._renderer.render_snapshot(roots, canvas, hidden))
+            for roots, hidden in slide.reveal_states()
         ]
         self.layout.remove_all_elements()
         suffix = f" ([u]{slide.title}[/u])" if slide.title else ""

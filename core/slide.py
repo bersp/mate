@@ -40,6 +40,7 @@ class Slide:
         self.subtitle: str | None = subtitle
         self.steps: list[list[Element]] = [[]]
         self.replaced: list[tuple[int, Element]] = []
+        self.reveals: list[tuple[int, Element]] = []
         self.snapshots: list[Snapshot] = []
 
     @property
@@ -47,26 +48,62 @@ class Slide:
         return bool(self.snapshots)
 
     def add(self, element: Element) -> Element:
-        """Append ``element`` to the current reveal step and return it (for chaining)."""
+        """Append ``element`` to the current reveal step and return it (for chaining).
+
+        Any ``Text`` carrying ``||`` reveal segments anywhere in ``element``'s
+        subtree (the text may be wrapped in a ``Group``, as a bullet item is)
+        opens one reveal step per segment after the first and registers each
+        later segment's nodes in :attr:`reveals`. The tail reveals across steps
+        while holding its layout space from the start.
+        """
         self.steps[-1].append(element)
+        self._register_reveals(element)
         logger.debug(
             rf"[yellow]SLIDE ADD ::[/yellow] {element!r}",
             extra={"markup": True, "highlighter": None},
         )
         return element
 
+    def _register_reveals(self, element: Element) -> None:
+        """Open reveal steps for every ``||`` segment in ``element``'s subtree."""
+        by_offset: dict[int, list[Element]] = {}
+        stack = [element]
+        while stack:
+            node = stack.pop()
+            segments = getattr(node, "reveal_segments", None)
+            if segments:
+                for offset, nodes in enumerate(segments):
+                    if offset:
+                        by_offset.setdefault(offset, []).extend(nodes)
+            stack.extend(node.children)
+        if not by_offset:
+            return
+        base = len(self.steps) - 1
+        for offset in sorted(by_offset):
+            self.pause()
+            for node in by_offset[offset]:
+                self.reveals.append((base + offset, node))
+
     def pause(self) -> None:
         """Open a new reveal step; subsequent content lands on a later page."""
         self.steps.append([])
 
-    def reveal_prefixes(self) -> Iterator[list[Element]]:
-        """Yield the cumulative root elements visible at each reveal step.
+    def reveal_states(self) -> Iterator[tuple[list[Element], set[int]]]:
+        """Yield ``(roots, hidden_ids)`` for each reveal step.
 
-        An element marked in :attr:`replaced` at step ``j`` is dropped from every
-        step ``k >= j``, so an ``overwrite`` can hide content it supersedes.
+        ``roots`` is the cumulative root elements visible at step ``k``: an
+        element marked in :attr:`replaced` at step ``j`` is dropped from every
+        step ``k >= j``.
+
+        ``hidden_ids`` are the ``id()`` of nodes registered in :attr:`reveals`
+        whose reveal step has not yet arrived (``r > k``); the renderer keeps
+        them in the layout and draws them hidden, holding a ``||`` tail's space
+        before it appears.
         """
         revealed: list[Element] = []
         for k, step in enumerate(self.steps):
             revealed = revealed + step
-            hidden = {id(el) for j, el in self.replaced if j <= k}
-            yield [e for e in revealed if id(e) not in hidden]
+            dropped = {id(el) for j, el in self.replaced if j <= k}
+            roots = [e for e in revealed if id(e) not in dropped]
+            hidden = {id(el) for r, el in self.reveals if r > k}
+            yield roots, hidden

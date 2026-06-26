@@ -25,6 +25,20 @@ class Text(Drawable):
     Markup ``[[<props>]]`` anywhere in the source applies its properties to
     the whole text block (this node), with the same ``set_<name>`` rule.
 
+    A ``||`` marker splits the text into reveal segments: the part before the
+    first ``||`` shows immediately, and each following segment appears on a
+    later reveal step while reserving its space from the start. In running text
+    the split acts only at bracket depth 0, outside ``code`` and ``$math$``
+    spans, and sits between complete inline spans — a ``||`` inside a
+    ``**bold**`` or ``*italic*`` pair leaves an unbalanced marker in each
+    segment.
+
+    When the whole source is a single math span (``$...$`` or ``$$...$$``), a
+    ``||`` inside it splits the one equation into reveal segments instead: the
+    equation renders as a single math run with each later segment wrapped in
+    Typst's ``hide`` until its step, keeping the visible part's math spacing
+    while the tail holds its place.
+
     ``subs`` only holds the spans that appear at this node's immediate
     bracket level — nesting is preserved:
     ``Text("foo [bar [baz][id=1]][id=2]")`` exposes ``text.subs[0]`` as
@@ -138,6 +152,9 @@ class Text(Drawable):
         )
         self.content: str = ""
         self.subs: list[Text] = []
+        self.reveal_segments: list[list[Text]] = []
+        self.is_math_run: bool = False
+        self.math_display: bool = False
         font = config.get("text.font") if font is None else font
         fontsize = config.get("text.fontsize") if fontsize is None else fontsize
         self.font: str = font
@@ -159,20 +176,44 @@ class Text(Drawable):
 
             source = _BLOCK_RE.sub(_strip, source)
             pending: list[tuple[Text, str]] = []
-            children = _parse_segment(source, self.subs, pending)
-            # Collapse to a leaf when parsing yields a single childless node
-            # with no sub spans; otherwise keep the tree in self.children.
-            if len(children) == 1 and not children[0].children and not self.subs:
-                self.content = children[0].content
+            math = _whole_math_span(source)
+            if math is not None and "||" in math[1]:
+                # A single equation with ``||`` reveals piece by piece: keep one
+                # math run whose fragments the backend hides until their step.
+                self.is_math_run = True
+                self.math_display = math[0]
+                fragments = [_leaf(frag) for frag in math[1].split("||")]
+                for frag in fragments:
+                    self.reveal_segments.append([frag])
+                self._take_children(fragments)
             else:
-                self._take_children(children)
-                # Parser-built subs are constructed with the config defaults;
-                # propagate this node's fields so they inherit explicitly.
-                self._set_field("font", font, propagate=True)
-                self._set_field("fontsize", fontsize, propagate=True)
-                self._set_field("weight", weight, propagate=True)
-                self._set_field("style", style, propagate=True)
-                self._set_field("letter_spacing", letter_spacing, propagate=True)
+                segments = _split_pauses(source)
+                paused = len(segments) > 1
+                children: list[Text] = []
+                for piece in segments:
+                    seg_children = _parse_segment(piece, self.subs, pending)
+                    if paused:
+                        self.reveal_segments.append(seg_children)
+                    children.extend(seg_children)
+                # Collapse to a leaf when parsing yields a single childless node
+                # with no sub spans; a paused text always keeps its segment tree.
+                if (
+                    not paused
+                    and len(children) == 1
+                    and not children[0].children
+                    and not self.subs
+                ):
+                    self.content = children[0].content
+                else:
+                    self._take_children(children)
+                    # Parser-built subs are constructed with the config
+                    # defaults; propagate this node's fields so they inherit
+                    # explicitly.
+                    self._set_field("font", font, propagate=True)
+                    self._set_field("fontsize", fontsize, propagate=True)
+                    self._set_field("weight", weight, propagate=True)
+                    self._set_field("style", style, propagate=True)
+                    self._set_field("letter_spacing", letter_spacing, propagate=True)
             # Block props affect the whole node first; sub props apply parent
             # before child (reversed source order) so a child override wins.
             for props in block_props:
@@ -248,6 +289,9 @@ class Text(Drawable):
         # their own.
         new = super()._copy(mapping)
         new.subs = [mapping[id(s)] for s in self.subs]
+        new.reveal_segments = [
+            [mapping[id(n)] for n in seg] for seg in self.reveal_segments
+        ]
         return new
 
 
@@ -274,6 +318,75 @@ def _apply_markup_props(element: Element, props: str) -> None:
                 f"text markup property {name!r} has no set_{name} method"
             )
         setter(value)
+
+
+def _split_pauses(raw: str) -> list[str]:
+    """Split ``raw`` on top-level ``||`` reveal markers.
+
+    A ``||`` splits only at bracket depth 0 and outside ``code`` and math
+    spans, so markup like ``[a||b][id=1]``, inline ``$||x||$`` and display
+    ``$$ ... || ... $$`` stays intact. A run of ``$`` or backticks toggles its
+    span as one delimiter: the double markers of display math and fenced code
+    count as one toggle. Returns the segment strings in source order (one entry
+    when no marker is present).
+    """
+    pieces: list[str] = []
+    buf: list[str] = []
+    depth = 0
+    in_code = False
+    in_math = False
+    i, n = 0, len(raw)
+    while i < n:
+        c = raw[i]
+        if c == "`" and not in_math:
+            j = i
+            while j < n and raw[j] == "`":
+                j += 1
+            in_code = not in_code
+            buf.append(raw[i:j])
+            i = j
+            continue
+        if c == "$" and not in_code:
+            j = i
+            while j < n and raw[j] == "$":
+                j += 1
+            in_math = not in_math
+            buf.append(raw[i:j])
+            i = j
+            continue
+        if not in_code and not in_math:
+            if c == "[":
+                depth += 1
+            elif c == "]":
+                depth = max(0, depth - 1)
+            elif depth == 0 and c == "|" and i + 1 < n and raw[i + 1] == "|":
+                pieces.append("".join(buf))
+                buf = []
+                i += 2
+                continue
+        buf.append(c)
+        i += 1
+    pieces.append("".join(buf))
+    return pieces
+
+
+def _whole_math_span(raw: str) -> tuple[bool, str] | None:
+    """Return ``(display, body)`` when ``raw`` is a single math span, else ``None``.
+
+    ``raw`` qualifies when, ignoring surrounding whitespace, it is wrapped in a
+    single pair of ``$$`` (display) or ``$`` (inline) delimiters with no further
+    delimiter of that kind inside. ``body`` is the text between the delimiters.
+    """
+    s = raw.strip()
+    if s.startswith("$$") and s.endswith("$$") and len(s) >= 4:
+        inner = s[2:-2]
+        if "$$" not in inner:
+            return True, inner
+    if s.startswith("$") and s.endswith("$") and len(s) >= 2:
+        inner = s[1:-1]
+        if "$" not in inner:
+            return False, inner
+    return None
 
 
 def _match_bracket(raw: str, start: int) -> int | None:

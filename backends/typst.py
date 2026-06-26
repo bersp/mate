@@ -174,6 +174,23 @@ def _find_delim(s: str, i: int, end: int, delim: str) -> int:
     return -1
 
 
+def _math_run_markup(el: Text, hidden_ids: set[int] = frozenset()) -> str:
+    """Render a math-run ``Text`` as one ``$...$`` equation.
+
+    Each fragment child contributes its raw math source. A fragment that is
+    ``hidden`` or whose ``id()`` is in ``hidden_ids`` is wrapped in Typst's
+    ``hide(...)``, which keeps its place in the equation without drawing it.
+    """
+    parts: list[str] = []
+    for c in el.children:
+        if c.hidden or id(c) in hidden_ids:
+            parts.append(f"#hide(${c.content}$)")
+        else:
+            parts.append(c.content)
+    body = "".join(parts)
+    return f"$ {body} $" if el.math_display else f"${body}$"
+
+
 _DEFAULT_FILL_COLOR = "black"
 _DEFAULT_STROKE_COLOR = "black"
 
@@ -187,7 +204,9 @@ def _bare(el: Element) -> str:
     ``"omitted"`` children contribute nothing to the parent's size.
     """
     if isinstance(el, Text):
-        if el.children:
+        if el.is_math_run:
+            inner = _math_run_markup(el)
+        elif el.children:
             inner = "".join(_bare(c) for c in el.children if c.placement != "omitted")
         else:
             inner = _markdown_to_typst(el.content)
@@ -548,15 +567,23 @@ class TypstRenderer:
     ``#place`` and styles them via ``#text(fill:)`` / ``#hide``.
     """
 
+    _hidden_now: set[int] = frozenset()
+
     def render_snapshot(
-        self, elements: list[Element], canvas: tuple[float, float]
+        self,
+        elements: list[Element],
+        canvas: tuple[float, float],
+        hidden_ids: set[int] = frozenset(),
     ) -> str:
         """Render fixed root ``elements`` to a Typst fragment for one page.
 
         Top-level elements with ``placement != "fixed"`` are skipped (their
-        semantics is "do not draw at the slide root"). The fragment carries
-        no page preamble or pagebreak — those belong to the document.
+        semantics is "do not draw at the slide root"). Nodes whose ``id()`` is
+        in ``hidden_ids`` are drawn with ``#hide``, which keeps their layout
+        space without drawing them. The fragment carries no page preamble or
+        pagebreak — those belong to the document.
         """
+        self._hidden_now = hidden_ids
         lines: list[str] = []
         for el in elements:
             if el.placement != "fixed":
@@ -594,7 +621,9 @@ class TypstRenderer:
         their own top-level ``#place`` block.
         """
         if isinstance(el, Text):
-            if el.children:
+            if el.is_math_run:
+                inner = _math_run_markup(el, self._hidden_now)
+            elif el.children:
                 inner = "".join(
                     self._render_node(c, placeholder=c.placement == "fixed")
                     for c in el.children
@@ -625,7 +654,7 @@ class TypstRenderer:
             )
         else:
             inner = ""
-        if el.hidden or placeholder:
+        if el.hidden or placeholder or id(el) in self._hidden_now:
             inner = f"#hide[{inner}]"
         return inner
 
@@ -812,7 +841,9 @@ class TypstMeasurer:
         ``_render_placed``).
         """
         if isinstance(el, Text):
-            if el.children:
+            if el.is_math_run:
+                inner = _math_run_markup(el)
+            elif el.children:
                 inner = self._render_children_with_probes(el)
             else:
                 inner = _markdown_to_typst(el.content)
