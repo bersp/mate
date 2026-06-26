@@ -217,14 +217,9 @@ def _bare(el: Element) -> str:
             # the recorded bbox reflects the wrapped line spacing.
             body = _wrap_max_width(body, _wrap_line_gap(body, el.line_gap), el.max_width)
         return body
-    if isinstance(el, (Rectangle, Circle, Ellipse)):
-        return _shape_markup(el)
-    if isinstance(el, Line):
-        return _line_markup(el)
-    if isinstance(el, Image):
-        return _image_markup(el)
-    if isinstance(el, (VSpace, HSpace)):
-        return _spacer_markup(el)
+    leaf = _leaf_markup(el)
+    if leaf is not None:
+        return leaf
     # Groups (and any unknown leaf) contribute nothing to size: the
     # group's bbox is computed as the union of children in `_assign`,
     # so the per-element measurement record is intentionally empty.
@@ -415,6 +410,25 @@ def _image_markup(el: Image) -> str:
             f"place(dx: -c, dy: -c, im)) }}"
         )
     return f"#box(clip: true, inset: -{el.clip}cm)[#{image}]"
+
+
+def _leaf_markup(el: Element) -> str | None:
+    """Return the Typst body for a type-uniform leaf, or ``None``.
+
+    Covers the elements whose body is the same in every pass — shapes, lines,
+    images, spacers. Returns ``None`` for :class:`Text` and :class:`Group`,
+    whose body depends on the pass (fill, hide, inline probes) and is built by
+    each caller.
+    """
+    if isinstance(el, (Rectangle, Circle, Ellipse)):
+        return _shape_markup(el)
+    if isinstance(el, Line):
+        return _line_markup(el)
+    if isinstance(el, Image):
+        return _image_markup(el)
+    if isinstance(el, (VSpace, HSpace)):
+        return _spacer_markup(el)
+    return None
 
 
 def _collect_fixed(el: Element) -> list[Element]:
@@ -638,14 +652,6 @@ class TypstRenderer:
                     _wrap_line_gap(_wrap_align(inner, el.get_text_align()), el.line_gap),
                     el.max_width,
                 )
-        elif isinstance(el, (Rectangle, Circle, Ellipse)):
-            inner = _shape_markup(el)
-        elif isinstance(el, Line):
-            inner = _line_markup(el)
-        elif isinstance(el, Image):
-            inner = _image_markup(el)
-        elif isinstance(el, (VSpace, HSpace)):
-            inner = _spacer_markup(el)
         elif isinstance(el, Group):
             inner = "".join(
                 self._render_node(c, placeholder=c.placement == "fixed")
@@ -653,7 +659,7 @@ class TypstRenderer:
                 if c.placement != "omitted"
             )
         else:
-            inner = ""
+            inner = _leaf_markup(el) or ""
         if el.hidden or placeholder or id(el) in self._hidden_now:
             inner = f"#hide[{inner}]"
         return inner
@@ -858,18 +864,10 @@ class TypstMeasurer:
                     _wrap_line_gap(_wrap_align(inner, el.get_text_align()), el.line_gap),
                     el.max_width,
                 )
-        elif isinstance(el, (Rectangle, Circle, Ellipse)):
-            inner = _shape_markup(el)
-        elif isinstance(el, Line):
-            inner = _line_markup(el)
-        elif isinstance(el, Image):
-            inner = _image_markup(el)
-        elif isinstance(el, (VSpace, HSpace)):
-            inner = _spacer_markup(el)
         elif isinstance(el, Group):
             inner = self._render_children_with_probes(el)
         else:
-            inner = ""
+            inner = _leaf_markup(el) or ""
         if el.hidden or placeholder:
             inner = f"#hide[{inner}]"
         return inner
