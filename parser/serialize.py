@@ -31,6 +31,6 @@ def inlines_to_markdown(inlines: list[Inline]) -> str:
                 out.append(f"*{inlines_to_markdown(children)}*")
             case Code(text):
                 out.append(f"`{text}`")
-            case Math(raw):
-                out.append(f"${raw}$")
+            case Math(raw, display):
+                out.append(f"$$ {raw} $$" if display else f"${raw}$")
     return "".join(out)

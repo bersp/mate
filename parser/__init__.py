@@ -18,10 +18,12 @@ from .ir import (
     TextRun,
 )
 from .markdown import parse_markdown
+from .markup import parse_markup
 from .serialize import inlines_to_markdown
 
 __all__ = [
     "parse_markdown",
+    "parse_markup",
     "inlines_to_markdown",
     "ParsedDocument",
     "ParsedSlide",

@@ -38,13 +38,15 @@ class Code:
 
 @dataclass
 class Math:
-    """Inline ``$...$`` math. ``raw`` is the Typst-syntax body, kept verbatim.
+    """``$...$`` (inline) or ``$$...$$`` (display) math.
 
-    Inline vs. display is carried by the token type, not by border whitespace:
-    surrounding whitespace is trimmed so the markdown delimiter alone decides.
+    ``raw`` is the Typst-syntax body, kept verbatim; ``display`` selects block
+    vs inline rendering. Surrounding whitespace is trimmed; the markdown
+    delimiter alone decides inline vs display.
     """
 
     raw: str
+    display: bool = False
 
 
 Inline = TextRun | Bold | Italic | Code | Math

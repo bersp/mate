@@ -13,9 +13,12 @@ from ..elements.image import Image
 from ..elements.shapes import Circle, Ellipse, Line, Rectangle
 from ..elements.spacing import HSpace, VSpace
 from ..elements.text import Text
+from ..parser.ir import Bold, Code, Italic, Math, TextRun
+from ..parser.markup import parse_markup
 
 if TYPE_CHECKING:
     from ..core.element import Element
+    from ..parser.ir import Inline
 
 # Font directory bundled with the package, always on the Typst font path.
 _FONTS_DIR = Path(__file__).resolve().parent.parent / "fonts"
@@ -83,95 +86,29 @@ def _escape_char(c: str) -> str:
 def _markdown_to_typst(s: str) -> str:
     """Translate the Markdown markup of ``s`` into Typst markup.
 
-    Handles the constructs the parser emits — ``**bold**``, ``*italic*`` /
-    ``_italic_``, ``` `code` ```, inline ``$math$`` and display ``$$math$$`` —
-    plus backslash escapes; every other character is emitted as a Typst
-    literal. Code and math span bodies are passed through verbatim. A
-    deliberately simple scanner, not a full CommonMark engine.
+    Parses ``s`` into inline tokens and emits the Typst form of each:
+    ``**bold**`` / ``*italic*`` / ``_italic_`` become ``*...*`` / ``_..._``,
+    ``` `code` ``` and ``$math$`` keep their verbatim bodies, and every literal
+    character is Typst-escaped when special.
     """
-    return _scan_markdown(s, 0, len(s))
+    return _inline_to_typst(parse_markup(s))
 
 
-def _scan_markdown(s: str, i: int, end: int) -> str:
+def _inline_to_typst(nodes: list[Inline]) -> str:
+    """Emit the Typst markup for a list of inline tokens."""
     out: list[str] = []
-    while i < end:
-        c = s[i]
-        if c == "\\" and i + 1 < end:
-            out.append(_escape_char(s[i + 1]))
-            i += 2
-        elif c == "`":
-            j = s.find("`", i + 1, end)
-            if j == -1:
-                out.append(_escape_char(c))
-                i += 1
-            else:
-                out.append(f"`{s[i + 1 : j]}`")
-                i = j + 1
-        elif c == "$":
-            if s.startswith("$$", i):
-                j = s.find("$$", i + 2, end)
-                if j == -1:
-                    out.append(_escape_char(c))
-                    i += 1
-                else:
-                    out.append(f"$ {s[i + 2 : j].strip()} $")
-                    i = j + 2
-            else:
-                j = s.find("$", i + 1, end)
-                if j == -1:
-                    out.append(_escape_char(c))
-                    i += 1
-                else:
-                    out.append(f"${s[i + 1 : j]}$")
-                    i = j + 1
-        elif s.startswith("**", i):
-            j = _find_delim(s, i + 2, end, "**")
-            if j == -1:
-                out.append(_escape_char(c))
-                i += 1
-            else:
-                out.append(f"*{_scan_markdown(s, i + 2, j)}*")
-                i = j + 2
-        elif c in "*_":
-            j = _find_delim(s, i + 1, end, c)
-            if j == -1:
-                out.append(_escape_char(c))
-                i += 1
-            else:
-                out.append(f"_{_scan_markdown(s, i + 1, j)}_")
-                i = j + 1
-        else:
-            out.append(_escape_char(c))
-            i += 1
+    for node in nodes:
+        if isinstance(node, TextRun):
+            out.append("".join(_escape_char(c) for c in node.text))
+        elif isinstance(node, Bold):
+            out.append(f"*{_inline_to_typst(node.children)}*")
+        elif isinstance(node, Italic):
+            out.append(f"_{_inline_to_typst(node.children)}_")
+        elif isinstance(node, Code):
+            out.append(f"`{node.text}`")
+        elif isinstance(node, Math):
+            out.append(f"$ {node.raw} $" if node.display else f"${node.raw}$")
     return "".join(out)
-
-
-def _find_delim(s: str, i: int, end: int, delim: str) -> int:
-    """Index of the closing ``delim`` run, or ``-1``.
-
-    Skips backslash escapes and steps over code and math spans so a
-    delimiter character inside them does not close the emphasis. When
-    looking for a single ``*``/``_``, a doubled run is stepped over rather
-    than matched, so it stays available to close an enclosing bold span.
-    """
-    while i < end:
-        c = s[i]
-        if c == "\\":
-            i += 2
-        elif c == "`":
-            j = s.find("`", i + 1, end)
-            i = end if j == -1 else j + 1
-        elif c == "$":
-            close = "$$" if s.startswith("$$", i) else "$"
-            j = s.find(close, i + len(close), end)
-            i = end if j == -1 else j + len(close)
-        elif len(delim) == 1 and s.startswith(delim * 2, i):
-            i += 2
-        elif s.startswith(delim, i):
-            return i
-        else:
-            i += 1
-    return -1
 
 
 def _math_run_markup(el: Text, hidden_ids: set[int] = frozenset()) -> str:
