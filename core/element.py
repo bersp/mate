@@ -447,6 +447,29 @@ class Element:
         self._set_field("hidden", hidden, propagate)
         return self
 
+    def resolve_prop(self, name: str):
+        """Return ``set_<name>`` if defined, else ``<name>``, else ``None``.
+
+        Resolves a property name to the method that applies it: ``color``
+        resolves to ``set_color``, ``shift`` to ``shift`` (which has no
+        ``set_shift``).
+        """
+        return getattr(self, f"set_{name}", None) or getattr(self, name, None)
+
+    def apply_prop(self, name: str, value: object) -> None:
+        """Resolve ``name`` via :meth:`resolve_prop` and call it with ``value``.
+
+        Raises :class:`ValueError` naming ``name`` when the element has neither
+        a ``set_<name>`` nor a ``<name>`` method.
+        """
+        method = self.resolve_prop(name)
+        if not callable(method):
+            raise ValueError(
+                f"{type(self).__name__} has no 'set_{name}' or '{name}' method "
+                f"to apply property {name!r}"
+            )
+        method(value)
+
     def _set_field(self, field: str, value: object, propagate: bool) -> None:
         """Write ``field`` on ``self`` and optionally on every descendant that owns it.
 

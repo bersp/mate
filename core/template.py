@@ -234,7 +234,8 @@ class PresentationTemplateBase:
         ``args`` is the fence's verbatim property text. ``region`` is applied as
         an ambient region honored by every content method while the body renders;
         every other property is applied to each element the body produced by
-        calling its ``set_<prop>`` method when one exists, and ignored otherwise.
+        calling its ``set_<prop>`` method (or bare ``<prop>``) when one exists,
+        and ignored otherwise.
         """
         props = eval(f"dict({args})", {"dict": dict})
         region = props.pop("region", None)
@@ -251,9 +252,9 @@ class PresentationTemplateBase:
             if id(el) in before:
                 continue
             for prop, value in props.items():
-                setter = getattr(el, f"set_{prop}", None)
-                if callable(setter):
-                    setter(value)
+                method = el.resolve_prop(prop)
+                if callable(method):
+                    method(value)
 
     def _root_elements(self) -> list[Element]:
         """Return every root element added to the current slide so far."""
@@ -752,18 +753,13 @@ class PresentationTemplateBase:
             raise ValueError(f"modify: no element with id {id!r}") from None
         for el in targets:
             for name in props:
-                if not callable(self._resolve_modifier(el, name)):
+                if not callable(el.resolve_prop(name)):
                     raise ValueError(
                         f"modify: element with id {id!r} has no "
                         f"'set_{name}' or '{name}' method"
                     )
         step = len(self.current_slide.steps) - 1
         self._modifies.append((targets, props, step))
-
-    @staticmethod
-    def _resolve_modifier(el: Element, name: str):
-        """Return ``el``'s ``set_<name>`` method, falling back to ``<name>``."""
-        return getattr(el, f"set_{name}", None) or getattr(el, name, None)
 
     def _resolve_modifies(self) -> None:
         """Apply the deferred ``modify`` calls.
@@ -801,7 +797,7 @@ class PresentationTemplateBase:
                     for el in members:
                         node = mapping[id(el)]
                         for name, value in props.items():
-                            self._resolve_modifier(node, name)(value)
+                            node.apply_prop(name, value)
                 slide.replaced.append((step, previous))
                 slide.steps[step].append(clone)
                 previous = clone

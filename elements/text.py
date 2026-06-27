@@ -303,21 +303,17 @@ def _leaf(content: str) -> Text:
 
 
 def _apply_markup_props(element: Element, props: str) -> None:
-    """Apply each ``name=value`` of ``props`` to ``element`` as ``set_<name>``.
+    """Apply each ``name=value`` of ``props`` to ``element``.
 
     ``props`` is the keyword text of a ``[...][<props>]`` or ``[[<props>]]``
     markup, evaluated as ``dict(<props>)`` after stripping backslash escapes.
-    A property whose ``set_<name>`` method does not exist raises
-    :class:`AttributeError`.
+    Each pair goes through :meth:`~mate.core.element.Element.apply_prop`, so
+    ``color="red"`` calls ``set_color`` and ``shift=(1, 0)`` calls ``shift``; a
+    name matching neither raises.
     """
     props = re.sub(r"\\([\\*_`$])", r"\1", props)
     for name, value in eval(f"dict({props})", {"dict": dict}).items():
-        setter = getattr(element, f"set_{name}", None)
-        if setter is None:
-            raise AttributeError(
-                f"text markup property {name!r} has no set_{name} method"
-            )
-        setter(value)
+        element.apply_prop(name, value)
 
 
 def _split_pauses(raw: str) -> list[str]:
