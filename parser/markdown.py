@@ -41,6 +41,7 @@ from .ir import (
     Paragraph,
     ParsedDocument,
     ParsedSlide,
+    PythonBlock,
     TextRun,
 )
 from ..core.topic import Topic
@@ -237,6 +238,8 @@ def _fold_block(node: SyntaxTreeNode) -> Block:
         case "fence":
             lang, _, rest = node.info.partition(" ")
             name, _, args = rest.partition(":")
+            if lang.strip() == "python" and name.strip() == "mate":
+                return PythonBlock(node.content)
             if lang.strip() != "markdown":
                 raise _unsupported("fence")
             return FencedBlock(name.strip(), args.strip(), _fold_body(node.content))

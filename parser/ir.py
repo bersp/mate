@@ -127,6 +127,14 @@ class FencedBlock:
     blocks: list[Block]
 
 
+@dataclass
+class PythonBlock:
+    """A ``python mate`` fenced block: its ``source`` is run as Python in the
+    deck's shared namespace when the slide is built."""
+
+    source: str
+
+
 Block = (
     Paragraph
     | Heading
@@ -135,6 +143,7 @@ Block = (
     | MathBlock
     | MethodCall
     | FencedBlock
+    | PythonBlock
 )
 
 

@@ -22,6 +22,7 @@ from ..parser.ir import (
     OrderedList,
     Paragraph,
     ParsedSlide,
+    PythonBlock,
 )
 from ..parser.serialize import inlines_to_markdown
 from .registry import IDKey, id_registry
@@ -62,6 +63,7 @@ class PresentationTemplateBase:
         self._overwrites: list[tuple[Group, list[Element], str, int]] = []
         self._alternates: list[tuple[VSpace, list[list[Element]], float]] = []
         self._modifies: list[tuple[list[Element], dict, int]] = []
+        self._python_namespace: dict | None = None
 
     def build_layout(self) -> Layout:
         """Return the presentation's region layout."""
@@ -229,6 +231,8 @@ class PresentationTemplateBase:
                 self.run_method_call(name, args)
             case FencedBlock(name, args, blocks):
                 getattr(self, f"add_{name}")(blocks, args)
+            case PythonBlock(source):
+                self._run_python(source)
 
     def add_fragment(self, blocks: list[Block], args: str) -> None:
         """Render a ``markdown fragment`` body, pushing its properties onto it.
@@ -409,6 +413,29 @@ class PresentationTemplateBase:
         if region == "active" and self._fragment_region is not None:
             region = self._fragment_region
         return self.layout.get(region)
+
+    def _run_python(self, source: str) -> None:
+        """Run a ``python mate`` block's ``source`` in the deck's namespace.
+
+        The namespace exposes the public ``mate`` API plus ``self`` (this
+        presentation) and persists across blocks; definitions and imports from
+        one block are visible to later ones. A syntax error or a runtime
+        exception raises naming the block.
+        """
+        try:
+            code = compile(source, "<python mate block>", "exec")
+        except SyntaxError as exc:
+            raise ValueError(f"syntax error in a 'python mate' block: {exc}") from None
+        exec(code, self._python_ns())
+
+    def _python_ns(self) -> dict:
+        """Return the shared ``python mate`` namespace, built once."""
+        if self._python_namespace is None:
+            import mate
+
+            self._python_namespace = {name: getattr(mate, name) for name in mate.__all__}
+            self._python_namespace["self"] = self
+        return self._python_namespace
 
     def run_method_call(self, name: str, args: str) -> None:
         """Invoke the method ``name`` with ``args`` evaluated as Python.
