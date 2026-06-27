@@ -855,6 +855,10 @@ class TypstMeasurer:
         if el.placement == "omitted":
             return
         self.elements[el._mid] = el
+        # A math run is measured as one equation; its fragment children are
+        # reveal markers carried inside that equation, not standalone nodes.
+        if isinstance(el, Text) and el.is_math_run:
+            return
         for c in el.children:
             self._collect(c)
 
@@ -964,7 +968,8 @@ class TypstMeasurer:
             cx = self.xs.get(el._mid, 0.0) + w / 2
             cy = ancestor_top_y - h / 2
             child_top_y = ancestor_top_y
-        for c in el.children:
+        children = [] if isinstance(el, Text) and el.is_math_run else el.children
+        for c in children:
             if c.placement == "omitted":
                 continue
             self._assign(c, child_top_y)
