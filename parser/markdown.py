@@ -41,6 +41,7 @@ from .ir import (
     ParsedDocument,
     ParsedSlide,
     TextRun,
+    Topic,
 )
 
 _FRONTMATTER_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n?", re.DOTALL)
@@ -60,13 +61,21 @@ def parse_markdown(source: str) -> ParsedDocument:
 
     doc = ParsedDocument(frontmatter=frontmatter)
     current: ParsedSlide | None = None
-    current_topic: str | None = None
+    current_topic: Topic | None = None
+    pending_topic: Topic | None = None
 
     for node in tree.children:
-        topic = _topic_marker(node)
-        if topic is not None:
-            current_topic = topic
+        name = _topic_marker(node)
+        if name is not None:
+            current_topic = Topic(name)
+            pending_topic = current_topic
             continue
+        # A blockquote right after a marker carries the topic's cover properties.
+        if pending_topic is not None and node.type == "blockquote":
+            _apply_topic_props(pending_topic, node)
+            pending_topic = None
+            continue
+        pending_topic = None
 
         if node.type == "heading" and node.tag == "h1":
             current = ParsedSlide(title=_inlines_of(node), topic=current_topic)
@@ -115,6 +124,48 @@ def _topic_marker(node: SyntaxTreeNode) -> str | None:
             "topic marker '#>' must be followed by a name, e.g. '#> Introduction'"
         )
     return name
+
+
+_TOPIC_PROPS = ("heading", "title", "subtitle", "author", "date", "cover")
+
+
+def _apply_topic_props(topic: Topic, node: SyntaxTreeNode) -> None:
+    """Apply the ``key: value`` lines of a marker's blockquote to ``topic``.
+
+    Each non-blank line is ``key: value``; ``key`` is one of
+    :data:`_TOPIC_PROPS`. ``cover`` takes a boolean (``on``/``off``); the rest
+    take the verbatim value. An unknown key, a malformed line, or an empty
+    value raises :class:`ValueError`.
+    """
+    content = node.children[0].children[0].content
+    for line in content.split("\n"):
+        if not line.strip():
+            continue
+        key, sep, value = line.partition(":")
+        key = key.strip()
+        value = value.strip()
+        if not sep or not key:
+            raise ValueError(f"topic property must be 'key: value', got {line!r}")
+        if key not in _TOPIC_PROPS:
+            raise ValueError(
+                f"unknown topic property {key!r}; allowed: {list(_TOPIC_PROPS)}"
+            )
+        if not value:
+            raise ValueError(f"topic property {key!r} has an empty value")
+        if key == "cover":
+            topic.cover = _parse_topic_bool(value)
+        else:
+            setattr(topic, key, value)
+
+
+def _parse_topic_bool(value: str) -> bool:
+    """Parse a topic boolean: ``on``/``true``/``yes`` or ``off``/``false``/``no``."""
+    low = value.lower()
+    if low in {"on", "true", "yes"}:
+        return True
+    if low in {"off", "false", "no"}:
+        return False
+    raise ValueError(f"topic 'cover' must be on/off, got {value!r}")
 
 
 def _split_frontmatter(source: str) -> tuple[FrontMatter, str]:

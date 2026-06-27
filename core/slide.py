@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterator
+from typing import TYPE_CHECKING, Iterator
 
 from ..log import logger
 from .element import Element
+
+if TYPE_CHECKING:
+    from ..parser.ir import Topic
 
 
 @dataclass
@@ -27,9 +30,12 @@ class Slide:
     title, subtitle : str | None
         The slide's title and subtitle text; :meth:`Presentation.add_title`
         turns the title string into a rendered ``Text``.
-    topic : str | None
+    topic : Topic | None
         The topic this slide belongs to, set by a ``#> Name`` marker, or
         ``None``.
+    is_cover : bool
+        ``True`` for a topic's generated cover page. A cover carries no footer
+        and is excluded from the slide numbering.
     steps : list[list[Element]]
         Root elements grouped by reveal step; elements with
         ``placement != "fixed"`` are skipped at render time.
@@ -42,11 +48,13 @@ class Slide:
         self,
         title: str | None = None,
         subtitle: str | None = None,
-        topic: str | None = None,
+        topic: Topic | None = None,
+        is_cover: bool = False,
     ) -> None:
         self.title: str | None = title
         self.subtitle: str | None = subtitle
-        self.topic: str | None = topic
+        self.topic: Topic | None = topic
+        self.is_cover: bool = is_cover
         self.steps: list[list[Element]] = [[]]
         self.replaced: list[tuple[int, Element]] = []
         self.reveals: list[tuple[int, Element]] = []

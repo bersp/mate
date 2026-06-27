@@ -138,10 +138,35 @@ Block = (
 
 
 @dataclass
+class Topic:
+    """A presentation topic declared by a ``#> Name`` marker.
+
+    ``name`` is the marker text. ``heading`` is the per-slide label shown on
+    the topic's slides; ``title``, ``subtitle``, ``author`` and ``date``
+    populate the topic's cover page. ``cover`` toggles whether a cover slide is
+    generated. ``heading`` and ``title`` default to ``name``.
+    """
+
+    name: str
+    heading: str | None = None
+    title: str | None = None
+    subtitle: str | None = None
+    author: str | None = None
+    date: str | None = None
+    cover: bool = True
+
+    def __post_init__(self) -> None:
+        if self.heading is None:
+            self.heading = self.name
+        if self.title is None:
+            self.title = self.name
+
+
+@dataclass
 class ParsedSlide:
     title: list[Inline] | None = None
     subtitle: list[Inline] | None = None
-    topic: str | None = None
+    topic: Topic | None = None
     blocks: list[Block] = field(default_factory=list)
 
 

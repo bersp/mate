@@ -22,6 +22,7 @@ from ..parser.ir import (
     OrderedList,
     Paragraph,
     ParsedSlide,
+    Topic,
 )
 from ..parser.serialize import inlines_to_markdown
 from .registry import IDKey, id_registry
@@ -630,6 +631,47 @@ class PresentationTemplateBase:
         slide.add(members)
         return members
 
+    def add_cover(self, topic: Topic) -> Group:
+        """Render a topic's cover page onto the current slide.
+
+        Stacks the topic's ``title`` and any of ``subtitle``, ``author`` and
+        ``date`` as centred text in the ``full_with_margins`` region. A template
+        overrides this to change the cover layout.
+        """
+        region = self.layout.get("full_with_margins")
+        members = Group()
+
+        title = Text(
+            topic.title,
+            font=config.get("title.font"),
+            fontsize=config.get("title.fontsize"),
+            weight=config.get("title.fontweight"),
+            fill_color=config.get("title.color"),
+            align="center",
+        )
+        region.add(title)
+        members.add(title)
+
+        for value, style in (
+            (topic.subtitle, "subtitle"),
+            (topic.author, "text"),
+            (topic.date, "text"),
+        ):
+            if value is None:
+                continue
+            line = Text(
+                value,
+                font=config.get(f"{style}.font"),
+                fontsize=config.get(f"{style}.fontsize"),
+                fill_color=config.get(f"{style}.color"),
+                align="center",
+            )
+            region.add(line)
+            members.add(line)
+
+        self.current_slide.add(members)
+        return members
+
     def add_footer(self, show_total: bool = False) -> Group:
         """Build the current slide's footer: a separator line and a page number.
 
@@ -638,7 +680,8 @@ class PresentationTemplateBase:
         asking for it without a declared total raises :class:`ValueError`.
         """
         footer_region = self.layout.get("footer")
-        number = self.slides.index(self.current_slide) + 1
+        idx = self.slides.index(self.current_slide)
+        number = sum(1 for s in self.slides[: idx + 1] if not s.is_cover)
 
         if show_total and self.total_slides is None:
             raise ValueError(

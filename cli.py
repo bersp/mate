@@ -41,7 +41,14 @@ def main() -> None:
         total_slides=len(doc.slides),
         frontmatter=doc.frontmatter,
     )
+    prev_topic = None
     for parsed in doc.slides:
+        topic = parsed.topic
+        if topic is not None and topic is not prev_topic and topic.cover:
+            pres.new_slide(is_cover=True)
+            pres.add_cover(topic)
+            pres.end_slide()
+        prev_topic = topic
         pres.new_slide()
         pres.add_parsed_slide(parsed)
         pres.end_slide()

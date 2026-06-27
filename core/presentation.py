@@ -5,7 +5,7 @@ from pathlib import Path
 from ..backends.typst import TypstRenderer as _Renderer
 from ..config import config
 from ..log import logger
-from ..parser.ir import FrontMatter
+from ..parser.ir import FrontMatter, Topic
 from .registry import id_registry
 from .slide import Slide, Snapshot
 from .template import PresentationTemplateBase
@@ -48,17 +48,19 @@ class Presentation(PresentationTemplateBase):
         self,
         title: str | None = None,
         subtitle: str | None = None,
-        topic: str | None = None,
+        topic: Topic | None = None,
+        is_cover: bool = False,
     ) -> Slide:
         """Create, attach, and return a fresh open slide.
 
         The template's :meth:`background` element, when any, is added first so
         it renders behind everything. When ``template.auto_footer`` is enabled,
-        the slide's footer is added on creation; the footer shows ``/<total>``
-        when ``footer.show_total`` is set.
+        a content slide's footer is added on creation; the footer shows
+        ``/<total>`` when ``footer.show_total`` is set. A cover slide
+        (``is_cover``) carries no footer.
         """
         id_registry.clear()
-        slide = Slide(title, subtitle, topic)
+        slide = Slide(title, subtitle, topic, is_cover)
         self.slides.append(slide)
         self.current_slide = slide
         self.layout.reset_active()
@@ -69,7 +71,7 @@ class Presentation(PresentationTemplateBase):
         background = self.background()
         if background is not None:
             slide.add(background)
-        if self.auto_add_footer:
+        if self.auto_add_footer and not is_cover:
             self.add_footer(show_total=self.footer_show_total)
         return slide
 
@@ -113,17 +115,18 @@ class Presentation(PresentationTemplateBase):
         """Compile the closed slides into ``<name>.pdf`` in the working directory.
 
         Raises if any slide is still open — call :meth:`Presentation.end_slide`
-        first — or, when ``total_slides`` was declared, if the built slide
-        count differs from it.
+        first — or, when ``total_slides`` was declared, if the number of content
+        slides built (covers excluded) differs from it.
         """
         open_count = sum(not s.is_sealed for s in self.slides)
         if open_count:
             raise RuntimeError(
                 f"{open_count} slide(s) still open; call .end_slide() before write()."
             )
-        if self.total_slides is not None and len(self.slides) != self.total_slides:
+        content_count = sum(1 for s in self.slides if not s.is_cover)
+        if self.total_slides is not None and content_count != self.total_slides:
             raise RuntimeError(
-                f"declared {self.total_slides} slide(s) but built {len(self.slides)}."
+                f"declared {self.total_slides} slide(s) but built {content_count}."
             )
         path = Path(f"{self.name}.pdf")
         logger.info(
