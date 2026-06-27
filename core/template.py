@@ -195,6 +195,7 @@ class PresentationTemplateBase:
         :class:`NotImplementedError`, so a subclass can supply its own.
         """
         slide = self.current_slide
+        slide.topic = parsed.topic
         if parsed.title is not None:
             slide.title = inlines_to_markdown(parsed.title)
         if parsed.subtitle is not None:

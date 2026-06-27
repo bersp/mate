@@ -27,6 +27,9 @@ class Slide:
     title, subtitle : str | None
         The slide's title and subtitle text; :meth:`Presentation.add_title`
         turns the title string into a rendered ``Text``.
+    topic : str | None
+        The topic this slide belongs to, set by a ``#> Name`` marker, or
+        ``None``.
     steps : list[list[Element]]
         Root elements grouped by reveal step; elements with
         ``placement != "fixed"`` are skipped at render time.
@@ -35,9 +38,15 @@ class Slide:
         the slide is sealed.
     """
 
-    def __init__(self, title: str | None = None, subtitle: str | None = None) -> None:
+    def __init__(
+        self,
+        title: str | None = None,
+        subtitle: str | None = None,
+        topic: str | None = None,
+    ) -> None:
         self.title: str | None = title
         self.subtitle: str | None = subtitle
+        self.topic: str | None = topic
         self.steps: list[list[Element]] = [[]]
         self.replaced: list[tuple[int, Element]] = []
         self.reveals: list[tuple[int, Element]] = []

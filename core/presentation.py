@@ -44,7 +44,12 @@ class Presentation(PresentationTemplateBase):
         self.current_slide: Slide | None = None
         self._renderer = _Renderer()
 
-    def new_slide(self, title: str | None = None, subtitle: str | None = None) -> Slide:
+    def new_slide(
+        self,
+        title: str | None = None,
+        subtitle: str | None = None,
+        topic: str | None = None,
+    ) -> Slide:
         """Create, attach, and return a fresh open slide.
 
         The template's :meth:`background` element, when any, is added first so
@@ -53,7 +58,7 @@ class Presentation(PresentationTemplateBase):
         when ``footer.show_total`` is set.
         """
         id_registry.clear()
-        slide = Slide(title, subtitle)
+        slide = Slide(title, subtitle, topic)
         self.slides.append(slide)
         self.current_slide = slide
         self.layout.reset_active()

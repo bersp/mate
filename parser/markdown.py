@@ -60,10 +60,16 @@ def parse_markdown(source: str) -> ParsedDocument:
 
     doc = ParsedDocument(frontmatter=frontmatter)
     current: ParsedSlide | None = None
+    current_topic: str | None = None
 
     for node in tree.children:
+        topic = _topic_marker(node)
+        if topic is not None:
+            current_topic = topic
+            continue
+
         if node.type == "heading" and node.tag == "h1":
-            current = ParsedSlide(title=_inlines_of(node))
+            current = ParsedSlide(title=_inlines_of(node), topic=current_topic)
             doc.slides.append(current)
             continue
 
@@ -88,6 +94,27 @@ def parse_markdown(source: str) -> ParsedDocument:
             current.blocks.append(_fold_block(node))
 
     return doc
+
+
+def _topic_marker(node: SyntaxTreeNode) -> str | None:
+    """Return the name of a ``#> Name`` topic marker, or ``None``.
+
+    A topic marker is a single-line paragraph whose text starts with ``#>``,
+    opening a topic carried by every following slide until the next marker.
+    Such a line is not a valid ATX heading; the tokenizer yields it as a
+    paragraph. A marker with no name raises :class:`ValueError`.
+    """
+    if node.type != "paragraph" or not node.children:
+        return None
+    text = node.children[0].content
+    if "\n" in text or not text.lstrip().startswith("#>"):
+        return None
+    name = text.strip()[2:].strip()
+    if not name:
+        raise ValueError(
+            "topic marker '#>' must be followed by a name, e.g. '#> Introduction'"
+        )
+    return name
 
 
 def _split_frontmatter(source: str) -> tuple[FrontMatter, str]:

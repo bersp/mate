@@ -141,6 +141,7 @@ Block = (
 class ParsedSlide:
     title: list[Inline] | None = None
     subtitle: list[Inline] | None = None
+    topic: str | None = None
     blocks: list[Block] = field(default_factory=list)
 
 
