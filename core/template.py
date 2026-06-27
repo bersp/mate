@@ -635,14 +635,15 @@ class PresentationTemplateBase:
         """Open a topic, fired at its first slide.
 
         Receives the whole :class:`Topic` and decides what to do with it. The
-        default renders a cover slide unless the ``cover`` property is off: it
-        pulls ``title`` (falling back to the topic name) and hands the remaining
-        properties to :meth:`add_cover`. A template overrides this to act on any
-        declared property (e.g. switch theme) before, instead of, or alongside
-        the cover; it owns its own slide via :meth:`new_slide`/:meth:`end_slide`.
+        default renders a cover slide unless the ``cover`` property is
+        ``false``: it pulls ``title`` (falling back to the topic name) and hands
+        the remaining properties to :meth:`add_cover`. A template overrides this
+        to act on any declared property (e.g. switch theme) before, instead of,
+        or alongside the cover; it owns its own slide via
+        :meth:`new_slide`/:meth:`end_slide`.
         """
         props = dict(topic.props)
-        if str(props.pop("cover", "on")).lower() in {"off", "false", "no"}:
+        if props.pop("cover", "true").lower() == "false":
             return
         title = props.pop("title", topic.name)
         self.new_slide(is_cover=True)
