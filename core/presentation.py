@@ -5,7 +5,8 @@ from pathlib import Path
 from ..backends.typst import TypstRenderer as _Renderer
 from ..config import config
 from ..log import logger
-from ..parser.ir import FrontMatter, Topic
+from ..parser.ir import FrontMatter
+from .topic import Topic
 from .registry import id_registry
 from .slide import Slide, Snapshot
 from .template import PresentationTemplateBase
@@ -54,7 +55,7 @@ class Presentation(PresentationTemplateBase):
         """Create, attach, and return a fresh open slide.
 
         The template's :meth:`background` element, when any, is added first so
-        it renders behind everything. When ``template.auto_footer`` is enabled,
+        it renders behind everything. When ``footer.show`` is enabled,
         a content slide's footer is added on creation; the footer shows
         ``/<total>`` when ``footer.show_total`` is set. A cover slide
         (``is_cover``) carries no footer.

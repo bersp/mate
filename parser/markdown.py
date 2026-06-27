@@ -41,8 +41,8 @@ from .ir import (
     ParsedDocument,
     ParsedSlide,
     TextRun,
-    Topic,
 )
+from ..core.topic import Topic
 
 _FRONTMATTER_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n?", re.DOTALL)
 

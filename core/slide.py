@@ -7,7 +7,7 @@ from ..log import logger
 from .element import Element
 
 if TYPE_CHECKING:
-    from ..parser.ir import Topic
+    from .topic import Topic
 
 
 @dataclass

@@ -7,6 +7,16 @@ import re
 
 _HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})")
 
+_MISSING = object()
+
+
+def _template_namespace(key: str) -> str | None:
+    """Return the ``<name>`` of a ``template.<name>.<prop>`` key, else ``None``."""
+    parts = key.split(".")
+    if len(parts) >= 3 and parts[0] == "template":
+        return parts[1]
+    return None
+
 # Default values templates may read via ``config.get``. Keys are dotted
 # paths; a template either uses the default or hardcodes its own literal.
 #
@@ -47,7 +57,7 @@ _DEFAULTS: dict[str, object] = {
     "list.bullet_scale": 0.8,
     "list.bullet_gap": 0.2,
     "list.dash_thickness": 0.06,
-    "template.auto_footer": True,
+    "footer.show": True,
     "footer.show_total": False,
 }
 
@@ -123,31 +133,45 @@ class Config:
         """Enable or disable DEBUG narration on the ``mate`` logger."""
         logging.getLogger("mate").setLevel(logging.DEBUG if enabled else logging.INFO)
 
-    def get(self, key: str) -> object:
-        """Return the default value registered under ``key``."""
-        try:
+    def get(self, key: str, default: object = _MISSING) -> object:
+        """Return the value registered under ``key``.
+
+        With ``default`` given, return it when ``key`` is unset — the path a
+        template uses for its ``template.<name>.<prop>`` keys, which carry no
+        :data:`_DEFAULTS` entry. Without ``default``, an unset key raises
+        :class:`ValueError`.
+        """
+        if key in self._defaults:
             return self._defaults[key]
-        except KeyError:
-            defined = ", ".join(sorted(self._defaults))
-            raise ValueError(
-                f"{key!r} is not a defined config key. Defined keys: {defined}."
-            ) from None
+        if default is not _MISSING:
+            return default
+        defined = ", ".join(sorted(self._defaults))
+        raise ValueError(
+            f"{key!r} is not a defined config key. Defined keys: {defined}."
+        )
 
     def set(self, key: str, value: object) -> None:
         """Override the default for ``key`` process-wide."""
         self._defaults[key] = value
 
     def apply_overrides(self, values: dict[str, object]) -> None:
-        """Set each key in ``values`` after checking it is a defined key.
+        """Set each key in ``values`` after checking it is allowed.
 
-        An undefined key raises :class:`ValueError` before any value is set.
+        A key is allowed when it is a defined :data:`_DEFAULTS` key or a
+        ``template.<name>.<prop>`` key; templates own that namespace and supply
+        their own defaults, and its keys carry no entry here. Any other key
+        raises :class:`ValueError` before any value is set.
         """
         for key in values:
-            if key not in self._defaults:
-                defined = ", ".join(sorted(self._defaults))
-                raise ValueError(
-                    f"{key!r} is not a defined config key. Defined keys: {defined}."
-                )
+            if key in self._defaults:
+                continue
+            if _template_namespace(key) is not None:
+                continue
+            defined = ", ".join(sorted(self._defaults))
+            raise ValueError(
+                f"{key!r} is not a defined config key and is not a "
+                f"'template.<name>.<prop>' key. Defined keys: {defined}."
+            )
         self._defaults.update(values)
 
 

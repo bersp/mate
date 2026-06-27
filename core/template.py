@@ -22,10 +22,10 @@ from ..parser.ir import (
     OrderedList,
     Paragraph,
     ParsedSlide,
-    Topic,
 )
 from ..parser.serialize import inlines_to_markdown
 from .registry import IDKey, id_registry
+from .topic import Topic
 from .vec import Vec
 from .element import Anchor, Element, HAlign, anchor_offsets, measure_all
 
@@ -52,7 +52,7 @@ class PresentationTemplateBase:
         if frontmatter is not None:
             config.apply_overrides(frontmatter.config)
             config.colors.set_multiple(frontmatter.colors)
-        self.auto_add_footer: bool = config.get("template.auto_footer")
+        self.auto_add_footer: bool = config.get("footer.show")
         self.footer_show_total: bool = config.get("footer.show_total")
         self.layout: Layout = self.build_layout()
         self._cap_height_cache: dict[tuple, float] = {}
