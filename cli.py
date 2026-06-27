@@ -44,10 +44,8 @@ def main() -> None:
     prev_topic = None
     for parsed in doc.slides:
         topic = parsed.topic
-        if topic is not None and topic is not prev_topic and topic.cover:
-            pres.new_slide(is_cover=True)
-            pres.add_cover(topic)
-            pres.end_slide()
+        if topic is not None and topic is not prev_topic:
+            pres.begin_topic(topic)
         prev_topic = topic
         pres.new_slide()
         pres.add_parsed_slide(parsed)

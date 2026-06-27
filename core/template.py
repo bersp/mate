@@ -631,32 +631,47 @@ class PresentationTemplateBase:
         slide.add(members)
         return members
 
-    def add_cover(self, topic: Topic) -> Group:
-        """Render a topic's cover page onto the current slide.
+    def begin_topic(self, topic: Topic) -> None:
+        """Open a topic, fired at its first slide.
 
-        Stacks the topic's ``title`` and any of ``subtitle``, ``author`` and
-        ``date`` as centred text in the ``full_with_margins`` region. A template
-        overrides this to change the cover layout.
+        Receives the whole :class:`Topic` and decides what to do with it. The
+        default renders a cover slide unless the ``cover`` property is off: it
+        pulls ``title`` (falling back to the topic name) and hands the remaining
+        properties to :meth:`add_cover`. A template overrides this to act on any
+        declared property (e.g. switch theme) before, instead of, or alongside
+        the cover; it owns its own slide via :meth:`new_slide`/:meth:`end_slide`.
+        """
+        props = dict(topic.props)
+        if str(props.pop("cover", "on")).lower() in {"off", "false", "no"}:
+            return
+        title = props.pop("title", topic.name)
+        self.new_slide(is_cover=True)
+        self.add_cover(title, **props)
+        self.end_slide()
+
+    def add_cover(self, title: str, **props: str) -> Group:
+        """Render a cover page from a ``title`` and generic topic properties.
+
+        Stacks ``title`` and any of ``subtitle``, ``author`` and ``date`` found
+        in ``props`` as centred text in the ``full_with_margins`` region; other
+        properties are ignored. A template overrides this to change the layout.
         """
         region = self.layout.get("full_with_margins")
         members = Group()
 
-        title = Text(
-            topic.title,
+        title_el = Text(
+            title,
             font=config.get("title.font"),
             fontsize=config.get("title.fontsize"),
             weight=config.get("title.fontweight"),
             fill_color=config.get("title.color"),
             align="center",
         )
-        region.add(title)
-        members.add(title)
+        region.add(title_el)
+        members.add(title_el)
 
-        for value, style in (
-            (topic.subtitle, "subtitle"),
-            (topic.author, "text"),
-            (topic.date, "text"),
-        ):
+        for key, style in (("subtitle", "subtitle"), ("author", "text"), ("date", "text")):
+            value = props.get(key)
             if value is None:
                 continue
             line = Text(

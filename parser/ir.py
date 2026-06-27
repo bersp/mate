@@ -141,25 +141,17 @@ Block = (
 class Topic:
     """A presentation topic declared by a ``#> Name`` marker.
 
-    ``name`` is the marker text. ``heading`` is the per-slide label shown on
-    the topic's slides; ``title``, ``subtitle``, ``author`` and ``date``
-    populate the topic's cover page. ``cover`` toggles whether a cover slide is
-    generated. ``heading`` and ``title`` default to ``name``.
+    ``name`` is the marker text. ``props`` holds the ``key: value`` lines of the
+    marker's blockquote verbatim; which keys are meaningful is up to the
+    template that consumes the topic (e.g. ``title``, ``author``, ``theme``).
     """
 
     name: str
-    heading: str | None = None
-    title: str | None = None
-    subtitle: str | None = None
-    author: str | None = None
-    date: str | None = None
-    cover: bool = True
+    props: dict[str, str] = field(default_factory=dict)
 
-    def __post_init__(self) -> None:
-        if self.heading is None:
-            self.heading = self.name
-        if self.title is None:
-            self.title = self.name
+    def get(self, key: str, default: str | None = None) -> str | None:
+        """Return the value of a declared property, or ``default``."""
+        return self.props.get(key, default)
 
 
 @dataclass

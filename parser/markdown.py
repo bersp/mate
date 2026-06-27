@@ -126,16 +126,13 @@ def _topic_marker(node: SyntaxTreeNode) -> str | None:
     return name
 
 
-_TOPIC_PROPS = ("heading", "title", "subtitle", "author", "date", "cover")
-
-
 def _apply_topic_props(topic: Topic, node: SyntaxTreeNode) -> None:
-    """Apply the ``key: value`` lines of a marker's blockquote to ``topic``.
+    """Collect the ``key: value`` lines of a marker's blockquote into ``topic``.
 
-    Each non-blank line is ``key: value``; ``key`` is one of
-    :data:`_TOPIC_PROPS`. ``cover`` takes a boolean (``on``/``off``); the rest
-    take the verbatim value. An unknown key, a malformed line, or an empty
-    value raises :class:`ValueError`.
+    Each non-blank line is ``key: value``; the value is kept verbatim and stored
+    in :attr:`Topic.props` under ``key``. Keys are not validated here — the
+    consuming template decides which are meaningful. A malformed line or an
+    empty value raises :class:`ValueError`.
     """
     content = node.children[0].children[0].content
     for line in content.split("\n"):
@@ -146,26 +143,9 @@ def _apply_topic_props(topic: Topic, node: SyntaxTreeNode) -> None:
         value = value.strip()
         if not sep or not key:
             raise ValueError(f"topic property must be 'key: value', got {line!r}")
-        if key not in _TOPIC_PROPS:
-            raise ValueError(
-                f"unknown topic property {key!r}; allowed: {list(_TOPIC_PROPS)}"
-            )
         if not value:
             raise ValueError(f"topic property {key!r} has an empty value")
-        if key == "cover":
-            topic.cover = _parse_topic_bool(value)
-        else:
-            setattr(topic, key, value)
-
-
-def _parse_topic_bool(value: str) -> bool:
-    """Parse a topic boolean: ``on``/``true``/``yes`` or ``off``/``false``/``no``."""
-    low = value.lower()
-    if low in {"on", "true", "yes"}:
-        return True
-    if low in {"off", "false", "no"}:
-        return False
-    raise ValueError(f"topic 'cover' must be on/off, got {value!r}")
+        topic.props[key] = value
 
 
 def _split_frontmatter(source: str) -> tuple[FrontMatter, str]:
