@@ -15,6 +15,7 @@ parse time.
 
 from __future__ import annotations
 
+import ast
 import re
 
 import yaml
@@ -129,8 +130,10 @@ def _topic_marker(node: SyntaxTreeNode) -> str | None:
 def _apply_topic_props(topic: Topic, node: SyntaxTreeNode) -> None:
     """Collect the ``key: value`` lines of a marker's blockquote into ``topic``.
 
-    Each non-blank line is ``key: value``; the value is kept verbatim and stored
-    in :attr:`Topic.props` under ``key``. Keys are not validated here — the
+    Each non-blank line is ``key: value``; the value is read as a Python literal
+    (``True``, ``42``, ``(1, 0)``, a quoted string, ...) when it parses as one,
+    otherwise kept as the raw string. The result is stored in
+    :attr:`Topic.props` under ``key``. Keys are not validated here — the
     consuming template decides which are meaningful. A malformed line or an
     empty value raises :class:`ValueError`.
     """
@@ -145,7 +148,10 @@ def _apply_topic_props(topic: Topic, node: SyntaxTreeNode) -> None:
             raise ValueError(f"topic property must be 'key: value', got {line!r}")
         if not value:
             raise ValueError(f"topic property {key!r} has an empty value")
-        topic.props[key] = value
+        try:
+            topic.props[key] = ast.literal_eval(value)
+        except (ValueError, SyntaxError):
+            topic.props[key] = value
 
 
 def _split_frontmatter(source: str) -> tuple[FrontMatter, str]:
