@@ -185,15 +185,17 @@ class Text(Drawable):
             source = _BLOCK_RE.sub(_strip, source)
             pending: list[tuple[Text, str]] = []
             math = _whole_math_span(source)
-            if math is not None and "||" in math[1]:
-                # A single equation with ``||`` reveals piece by piece: keep one
-                # math run whose fragments the backend hides until their step.
+            if math is not None and (_has_math_span(math[1]) or "||" in math[1]):
+                # A single equation carrying ``||`` reveal markers or
+                # ``[..][..]`` styling spans renders as one math run: the
+                # backend draws its fragments inside a single ``$...$``,
+                # hiding reveal tails and wrapping styled spans in ``#text``.
                 self.is_math_run = True
                 self.math_display = math[0]
-                fragments = [_leaf(frag) for frag in math[1].split("||")]
-                for frag in fragments:
-                    self.reveal_segments.append([frag])
-                self._take_children(fragments)
+                children = _build_math_fragments(
+                    math[1], self.subs, pending, self.reveal_segments
+                )
+                self._take_children(children)
             else:
                 segments = _split_pauses(source)
                 paused = len(segments) > 1
@@ -222,6 +224,10 @@ class Text(Drawable):
                     self._set_field("weight", weight, propagate=True)
                     self._set_field("style", style, propagate=True)
                     self._set_field("letter_spacing", letter_spacing, propagate=True)
+            # Strip inherited defaults off math fragments so each carries only
+            # its explicit overrides; the equation's own ``#text`` supplies the
+            # base font, size and fill the fragments inherit.
+            _strip_math_fragment_styles(self)
             # Block props affect the whole node first; sub props apply parent
             # before child (reversed source order) so a child override wins.
             for props in block_props:
@@ -374,17 +380,36 @@ def _leaf(content: str) -> Text:
     return t
 
 
+def _parse_markup_props(props: str) -> dict:
+    """Parse the keyword text of a ``[...][<props>]`` / ``[[<props>]]`` markup.
+
+    ``props`` is evaluated as ``dict(<props>)`` after stripping backslash
+    escapes, with :class:`~mate.core.gradient.Gradient` in scope so
+    ``fill=Gradient.linear(...)`` works. Returns the ``name -> value`` mapping.
+    """
+    props = re.sub(r"\\([\\*_`$])", r"\1", props)
+    return eval(f"dict({props})", {"dict": dict, "Gradient": Gradient})
+
+
 def _apply_markup_props(element: Element, props: str) -> None:
     """Apply each ``name=value`` of ``props`` to ``element``.
 
-    ``props`` is the keyword text of a ``[...][<props>]`` or ``[[<props>]]``
-    markup, evaluated as ``dict(<props>)`` after stripping backslash escapes.
     Each pair goes through :meth:`~mate.core.element.Element.apply_prop`, so
     ``color="red"`` calls ``set_color`` and ``shift=(1, 0)`` calls ``shift``; a
-    name matching neither raises.
+    name matching neither raises. A span inside math is text styling addressable
+    by ``id`` but has no box to position, so a layout property on it raises.
     """
-    props = re.sub(r"\\([\\*_`$])", r"\1", props)
-    for name, value in eval(f"dict({props})", {"dict": dict, "Gradient": Gradient}).items():
+    parsed = _parse_markup_props(props)
+    if _under_math_run(element):
+        bad = sorted(k for k in parsed if k in _MATH_DISALLOWED_PROPS)
+        if bad:
+            names = ", ".join(repr(k) for k in bad)
+            raise ValueError(
+                f"property {names} is not supported inside math; a math span "
+                f"[..][..] carries text styling and can be addressed by id, but "
+                f"has no box to position or wrap"
+            )
+    for name, value in parsed.items():
         element.apply_prop(name, value)
 
 
@@ -432,6 +457,144 @@ def _split_pauses(raw: str) -> list[str]:
                 buf = []
                 i += 2
                 continue
+        buf.append(c)
+        i += 1
+    pieces.append("".join(buf))
+    return pieces
+
+
+# Layout/identity traits that a math sub-span cannot carry: an equation places
+# as one atomic box, so a sub-expression has no box to position or wrap. ``id``
+# is allowed — a fragment is a real tree node and can be addressed by ``modify``.
+_MATH_DISALLOWED_PROPS = frozenset(
+    {"shift", "move_to", "anchor", "align", "placement", "max_width", "text_align", "line_gap"}
+)
+
+# Style fields a math fragment inherits from its equation unless it overrides
+# them; reset so only an explicit markup/``modify`` value is emitted.
+_MATH_INHERITED_STYLES = (
+    "fill_color",
+    "fill_opacity",
+    "stroke_color",
+    "stroke_width",
+    "stroke_dash",
+    "stroke_cap",
+    "stroke_join",
+    "stroke_opacity",
+    "weight",
+    "style",
+    "letter_spacing",
+    "font",
+    "fontsize",
+)
+
+
+def _under_math_run(element: Element) -> bool:
+    """Return whether ``element`` is a fragment of a math run."""
+    node = element.parent
+    while node is not None:
+        if isinstance(node, Text) and node.is_math_run:
+            return True
+        node = node.parent
+    return False
+
+
+def _has_math_span(body: str) -> bool:
+    """Return whether a math ``body`` contains a ``[..][..]`` styling span."""
+    if "[" not in body:
+        return False
+    i, n = 0, len(body)
+    while i < n:
+        if body[i] == "[":
+            j = _match_bracket(body, i)
+            if j is None:
+                return False
+            if j + 1 < n and body[j + 1] == "[" and _match_bracket(body, j + 1) is not None:
+                return True
+            i = j + 1
+        else:
+            i += 1
+    return False
+
+
+def _build_math_fragments(
+    body: str,
+    subs: list[Text],
+    pending: list[tuple[Text, str]],
+    reveal_segments: list[list[Text]],
+) -> list[Text]:
+    """Parse a math ``body`` into ordered fragment Texts.
+
+    Splits on top-level ``||`` reveal markers, then parses each segment's
+    ``[..][<props>]`` styling spans into sub-Texts (appended to ``subs``, props
+    queued in ``pending``). With reveal markers present, each segment's
+    fragments are recorded as one reveal step in ``reveal_segments``. Returns
+    the fragments flattened in source order.
+    """
+    segments = _split_math_reveals(body)
+    multi = len(segments) > 1
+    children: list[Text] = []
+    for seg in segments:
+        frags = _parse_segment(seg, subs, pending)
+        if multi:
+            reveal_segments.append(frags)
+        children.extend(frags)
+    return children
+
+
+def _build_math_run_node(
+    display: bool, body: str, pending: list[tuple[Text, str]]
+) -> Text:
+    """Build an inline math-run Text for a ``$...$`` span that carries spans."""
+    node = Text(placement="inline")
+    node.is_math_run = True
+    node.math_display = display
+    node._take_children(
+        _build_math_fragments(body, node.subs, pending, node.reveal_segments)
+    )
+    return node
+
+
+def _strip_math_fragment_styles(node: Element) -> None:
+    """Reset inherited style fields on every math fragment under ``node``."""
+    if isinstance(node, Text) and node.is_math_run:
+        for child in node.children:
+            _reset_inherited_styles(child)
+        return
+    for child in node.children:
+        _strip_math_fragment_styles(child)
+
+
+def _reset_inherited_styles(node: Element) -> None:
+    """Set every inherited style field of ``node`` and its descendants to None."""
+    for field in _MATH_INHERITED_STYLES:
+        setattr(node, field, None)
+    for child in node.children:
+        _reset_inherited_styles(child)
+
+
+def _split_math_reveals(body: str) -> list[str]:
+    """Split a math body on top-level ``||`` reveal markers.
+
+    A ``||`` splits only at bracket depth 0, so a ``[a||b][color="red"]`` span
+    inside the equation stays one fragment. Returns the fragment strings in
+    source order (one entry when no marker is present).
+    """
+    pieces: list[str] = []
+    buf: list[str] = []
+    depth = 0
+    i, n = 0, len(body)
+    while i < n:
+        c = body[i]
+        if c == "[":
+            depth += 1
+        elif c == "]":
+            depth = max(0, depth - 1)
+        elif depth == 0 and c == "|" and i + 1 < n and body[i + 1] == "|":
+            pieces.append("".join(buf))
+            buf = []
+            i += 2
+            continue
         buf.append(c)
         i += 1
     pieces.append("".join(buf))
@@ -511,16 +674,52 @@ def _parse_segment(
     result: list[Text] = []
     buf: list[str] = []
     i, n = 0, len(raw)
+
+    def flush() -> None:
+        if buf:
+            result.append(_leaf("".join(buf)))
+            buf.clear()
+
     while i < n:
-        if raw[i] == "[":
+        c = raw[i]
+        # A ``code`` span is opaque: consume it whole so brackets inside it stay
+        # literal, not ``[...][<props>]`` markup at this level.
+        if c == "`":
+            j = i
+            while j < n and raw[j] == "`":
+                j += 1
+            ticks = raw[i:j]
+            close = raw.find(ticks, j)
+            end = n if close == -1 else close + len(ticks)
+            buf.append(raw[i:end])
+            i = end
+            continue
+        # A ``$math$`` span is consumed whole. When it carries a ``[..][..]``
+        # styling span, it becomes an inline math-run node whose styled spans
+        # are addressable elements; otherwise it stays literal source the
+        # backend parses at emission.
+        if c == "$":
+            delim = "$$" if raw.startswith("$$", i) else "$"
+            close = raw.find(delim, i + len(delim))
+            if close == -1:
+                buf.append(c)
+                i += 1
+                continue
+            inner = raw[i + len(delim) : close]
+            end = close + len(delim)
+            if _has_math_span(inner):
+                flush()
+                result.append(_build_math_run_node(delim == "$$", inner, pending))
+            else:
+                buf.append(raw[i:end])
+            i = end
+            continue
+        if c == "[":
             j = _match_bracket(raw, i)
             if j is not None and j + 1 < n and raw[j + 1] == "[":
                 k = _match_bracket(raw, j + 1)
                 if k is not None:
-                    # Flush any pending plain text before emitting the sub.
-                    if buf:
-                        result.append(_leaf("".join(buf)))
-                        buf = []
+                    flush()
                     inner_subs: list[Text] = []
                     children = _parse_segment(raw[i + 1 : j], inner_subs, pending)
                     # Wrap eagerly when the body holds nested subs: reusing the
@@ -539,8 +738,7 @@ def _parse_segment(
                     continue
             # Unbalanced bracket or no `[<props>]` suffix: fall through and
             # keep the `[` as a literal character.
-        buf.append(raw[i])
+        buf.append(c)
         i += 1
-    if buf:
-        result.append(_leaf("".join(buf)))
+    flush()
     return result

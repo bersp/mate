@@ -158,20 +158,63 @@ def _inline_to_typst(nodes: list[Inline]) -> str:
     return "".join(out)
 
 
+def _math_node_attrs(node: Text) -> str:
+    """Typst ``#text`` attributes for a math fragment's explicit style overrides.
+
+    A math fragment inherits font, size and fill from its equation; only the
+    fields it overrides (via markup or ``modify``) are non-``None``, and each
+    becomes one ``#text`` attribute. An empty result means "inherit everything".
+    """
+    attrs: list[str] = []
+    if node.fill_color is not None or node.fill_opacity is not None:
+        attrs.append(
+            f"fill: {_typst_fill(node.fill_color, node.fill_opacity, zero_is_none=False)}"
+        )
+    stroke = _typst_stroke(node)
+    if stroke != "none":
+        attrs.append(f"stroke: {stroke}")
+    if node.weight is not None:
+        weight = f'"{node.weight}"' if isinstance(node.weight, str) else node.weight
+        attrs.append(f"weight: {weight}")
+    if node.style is not None:
+        attrs.append(f'style: "{node.style}"')
+    if node.letter_spacing is not None:
+        attrs.append(f"tracking: {node.letter_spacing}em")
+    if node.font is not None:
+        attrs.append(f'font: "{node.font}"')
+    if node.fontsize is not None:
+        attrs.append(f"size: {node.fontsize}pt")
+    return ", ".join(attrs)
+
+
+def _math_fragment_markup(node: Text, hidden_ids: set[int]) -> str:
+    """Render one math fragment as inner equation markup (no outer ``$``).
+
+    A fragment with style overrides wraps its body in ``#text(...)[$ ... $]``,
+    keeping one outer equation so math spacing is preserved; a plain fragment
+    contributes its raw math source. A fragment that is ``hidden`` or whose
+    ``id()`` is in ``hidden_ids`` is wrapped in ``hide`` to hold its place.
+    """
+    if node.children:
+        inner = "".join(_math_fragment_markup(c, hidden_ids) for c in node.children)
+    else:
+        inner = node.content
+    attrs = _math_node_attrs(node)
+    frag = f"#text({attrs})[$ {inner} $]" if attrs else inner
+    if node.hidden or id(node) in hidden_ids:
+        return f"#hide($ {frag} $)"
+    return frag
+
+
 def _math_run_markup(el: Text, hidden_ids: set[int] = frozenset()) -> str:
     """Render a math-run ``Text`` as one ``$...$`` equation.
 
-    Each fragment child contributes its raw math source. A fragment that is
-    ``hidden`` or whose ``id()`` is in ``hidden_ids`` is wrapped in Typst's
-    ``hide(...)``, which keeps its place in the equation without drawing it.
+    Fragments render in source order inside one equation: a plain fragment
+    contributes its raw math source, a styled fragment wraps its body in a
+    ``#text`` call, and a hidden or not-yet-revealed fragment is wrapped in
+    ``hide`` to hold its place without drawing.
     """
-    parts: list[str] = []
-    for c in el.children:
-        if c.hidden or id(c) in hidden_ids:
-            parts.append(f"#hide(${c.content}$)")
-        else:
-            parts.append(c.content)
-    body = "".join(parts)
+    body = "".join(_math_fragment_markup(c, hidden_ids) for c in el.children)
     return f"$ {body} $" if el.math_display else f"${body}$"
 
 
