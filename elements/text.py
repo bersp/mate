@@ -6,6 +6,7 @@ from ..config import config
 from ..core.element import Anchor, Element, HAlign, Placement
 from ..core.registry import IDKey
 from ..core.drawable import Drawable
+from ..core.gradient import Gradient
 from ..core.vec import VecLike
 
 _BLOCK_RE = re.compile(r"\[\[([^\[\]]+)\]\]")
@@ -383,7 +384,7 @@ def _apply_markup_props(element: Element, props: str) -> None:
     name matching neither raises.
     """
     props = re.sub(r"\\([\\*_`$])", r"\1", props)
-    for name, value in eval(f"dict({props})", {"dict": dict}).items():
+    for name, value in eval(f"dict({props})", {"dict": dict, "Gradient": Gradient}).items():
         element.apply_prop(name, value)
 
 

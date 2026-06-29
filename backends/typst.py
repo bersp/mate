@@ -8,6 +8,7 @@ import typst
 
 from ..config import config
 from ..core.element import anchor_offsets
+from ..core.gradient import Gradient
 from ..elements.group import Group
 from ..elements.image import Image
 from ..elements.shapes import (
@@ -209,25 +210,62 @@ def _bare(el: Element) -> str:
     return ""
 
 
+def _transparentize(value: str, opacity: float) -> str:
+    """Wrap a Typst colour ``value`` in ``.transparentize(...)`` when ``opacity < 1``."""
+    if opacity == 1:
+        return value
+    return f"{value}.transparentize({(1.0 - opacity) * 100}%)"
+
+
+def _typst_gradient(grad: Gradient, opacity: float) -> str:
+    """Emit a Typst ``gradient.linear``/``gradient.radial`` for ``grad``.
+
+    ``opacity`` is applied per stop; a Typst gradient carries no
+    transparency of its own. A stop with an explicit position becomes
+    ``(colour, N%)``; a positionless stop is emitted bare for even spacing.
+    """
+    stops = []
+    for hex_color, pos in grad.stops:
+        c = _transparentize(f'rgb("{hex_color}")', opacity)
+        stops.append(c if pos is None else f"({c}, {pos * 100}%)")
+    body = ", ".join(stops)
+    if grad.kind == "linear":
+        angle = f", angle: {grad.angle}deg" if grad.angle else ""
+        return f"gradient.linear({body}{angle})"
+    cx, cy = grad.center
+    return (
+        f"gradient.radial({body}, center: ({cx * 100}%, {cy * 100}%), "
+        f"radius: {grad.radius * 100}%)"
+    )
+
+
+def _typst_paint(color: str | Gradient | None, opacity: float, default: str) -> str:
+    """Resolve a paint (hex, :class:`Gradient`, or ``None``) to a Typst value.
+
+    ``None`` falls back to ``default``. ``opacity`` transparentizes a solid
+    colour, or each stop of a gradient.
+    """
+    if isinstance(color, Gradient):
+        return _typst_gradient(color, opacity)
+    c = f'rgb("{color}")' if color is not None else default
+    return _transparentize(c, opacity)
+
+
 def _typst_fill(
-    color: str | None, opacity: float | None, *, zero_is_none: bool = True
+    color: str | Gradient | None, opacity: float | None, *, zero_is_none: bool = True
 ) -> str:
     """Resolve ``(fill_color, fill_opacity)`` into a Typst ``fill:`` value.
 
     With ``zero_is_none`` (the default), ``opacity == 0`` returns ``"none"`` —
     the "no fill" value. With ``zero_is_none=False``, ``opacity == 0`` is a
-    fully transparent color instead, for contexts where Typst rejects
-    ``fill: none`` (such as ``#text``). For non-zero opacity, falls back to
-    ``"black"`` when ``color`` is ``None`` and wraps with ``.transparentize(...)``
-    when ``opacity < 1``.
+    fully transparent paint instead, for contexts where Typst rejects
+    ``fill: none`` (such as ``#text``). ``color`` is a hex string, a
+    :class:`Gradient`, or ``None`` (falling back to ``"black"``).
     """
     op = 1.0 if opacity is None else opacity
     if op == 0 and zero_is_none:
         return "none"
-    c = f'rgb("{color}")' if color is not None else _DEFAULT_FILL_COLOR
-    if op == 1:
-        return c
-    return f"{c}.transparentize({(1.0 - op) * 100}%)"
+    return _typst_paint(color, op, _DEFAULT_FILL_COLOR)
 
 
 def _typst_dash(dash: str | list[float]) -> str:
@@ -255,14 +293,8 @@ def _typst_stroke(el: Drawable) -> str:
     w = 0.0 if el.stroke_width is None else el.stroke_width
     if w == 0:
         return "none"
-    paint = (
-        f'rgb("{el.stroke_color}")'
-        if el.stroke_color is not None
-        else _DEFAULT_STROKE_COLOR
-    )
     op = 1.0 if el.stroke_opacity is None else el.stroke_opacity
-    if op != 1:
-        paint = f"{paint}.transparentize({(1.0 - op) * 100}%)"
+    paint = _typst_paint(el.stroke_color, op, _DEFAULT_STROKE_COLOR)
     if el.stroke_dash is None and el.stroke_cap is None and el.stroke_join is None:
         return f"{w}cm + {paint}"
     parts = [f"paint: {paint}", f"thickness: {w}cm"]

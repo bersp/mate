@@ -25,10 +25,15 @@ from ..parser.ir import (
     PythonBlock,
 )
 from ..parser.serialize import inlines_to_markdown
+from .gradient import Gradient
 from .registry import IDKey, id_registry
 from .topic import Topic
 from .vec import Vec
 from .element import Anchor, Element, HAlign, anchor_offsets, measure_all
+
+# Names exposed to authored Python expressions (blockquote method-call
+# arguments and fenced-block property text).
+_AUTHOR_GLOBALS = {"Gradient": Gradient}
 
 
 def _union_bbox(
@@ -243,7 +248,7 @@ class PresentationTemplateBase:
         calling its ``set_<prop>`` method (or bare ``<prop>``) when one exists,
         and ignored otherwise.
         """
-        props = eval(f"dict({args})", {"dict": dict})
+        props = eval(f"dict({args})", {"dict": dict, **_AUTHOR_GLOBALS})
         region = props.pop("region", None)
 
         before = {id(el) for el in self._root_elements()}
@@ -319,7 +324,7 @@ class PresentationTemplateBase:
         ``args`` may carry ``region=<name>`` to target a region other than the
         active one.
         """
-        props = eval(f"dict({args})", {"dict": dict})
+        props = eval(f"dict({args})", {"dict": dict, **_AUTHOR_GLOBALS})
         target = self._resolve_region(props.pop("region", "active"))
 
         variants: list[list[Block]] = [[]]
@@ -463,7 +468,7 @@ class PresentationTemplateBase:
         method = getattr(self, name, None)
         if method is None:
             raise ValueError(f"unknown blockquote method '> {name.replace('_', ' ')}'")
-        eval(f"_method({args})", {"_method": method})
+        eval(f"_method({args})", {"_method": method, **_AUTHOR_GLOBALS})
 
     # --- Content ------------------------------------------------------------
     def add_paragraph(self, text: str) -> Text:

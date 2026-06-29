@@ -4,8 +4,17 @@ from typing import NoReturn
 
 from ..config import config
 from .element import Anchor, Element, HAlign, Placement
+from .gradient import Gradient
 from .registry import IDKey
 from .vec import VecLike
+
+
+def _resolve_paint(color: str | Gradient | None) -> str | Gradient | None:
+    """Resolve a paint argument: a palette name to hex, a Gradient/None as is."""
+    if color is None or isinstance(color, Gradient):
+        return color
+    return config.colors.get(color)
+
 
 _STROKE_CAPS = ("butt", "round", "square")
 _STROKE_JOINS = ("miter", "round", "bevel")
@@ -58,12 +67,13 @@ class Drawable(Element):
 
     Adds optional visual properties on top of :class:`Element`:
 
-    - ``fill_color``    — hex string for the fill, resolved from a
-      palette name or literal hex via ``config.colors`` at construction
-      and on ``set_fill_color``. Renders as ``"black"`` when ``None``.
-    - ``stroke_color``  — hex string for the stroke, resolved the same
-      way. Renders as ``"black"`` when ``None`` (irrelevant when
-      ``stroke_width == 0``).
+    - ``fill_color``    — hex string or :class:`Gradient` for the fill. A
+      palette name or literal hex is resolved via ``config.colors`` at
+      construction and on ``set_fill_color``. Renders as ``"black"`` when
+      ``None``.
+    - ``stroke_color``  — hex string or :class:`Gradient` for the stroke,
+      resolved the same way. Renders as ``"black"`` when ``None``
+      (irrelevant when ``stroke_width == 0``).
     - ``fill_opacity``  — Float in ``[0, 1]``. Renders as ``1`` when
       ``None``. Setting ``0`` is the conventional way to ask for "no
       fill" (the renderer emits ``fill: none`` for shapes).
@@ -91,10 +101,10 @@ class Drawable(Element):
 
     Parameters
     ----------
-    fill_color, stroke_color : str or None, optional
-        A palette name (e.g. ``"red"``) or a literal hex string; both
-        are resolved to hex via ``config.colors`` and stored as hex.
-        Default ``None`` → resolved to ``"black"`` at render time.
+    fill_color, stroke_color : str or Gradient or None, optional
+        A palette name (e.g. ``"red"``), a literal hex string (resolved to
+        hex via ``config.colors``), or a :class:`Gradient`. Default ``None``
+        → resolved to ``"black"`` at render time.
     fill_opacity : float or None, optional
         Default ``None`` → ``1``. Set to ``0`` for no fill.
     stroke_width : float or None, optional
@@ -120,8 +130,8 @@ class Drawable(Element):
         align: HAlign | None = None,
         placement: Placement = "fixed",
         id: IDKey | list[IDKey] | None = None,
-        fill_color: str | None = None,
-        stroke_color: str | None = None,
+        fill_color: str | Gradient | None = None,
+        stroke_color: str | Gradient | None = None,
         fill_opacity: float | None = None,
         stroke_width: float | None = None,
         stroke_dash: str | list[float] | None = None,
@@ -133,12 +143,8 @@ class Drawable(Element):
         _validate_stroke_cap(stroke_cap)
         _validate_stroke_join(stroke_join)
         _validate_stroke_dash(stroke_dash)
-        self.fill_color: str | None = (
-            config.colors.get(fill_color) if fill_color is not None else None
-        )
-        self.stroke_color: str | None = (
-            config.colors.get(stroke_color) if stroke_color is not None else None
-        )
+        self.fill_color: str | Gradient | None = _resolve_paint(fill_color)
+        self.stroke_color: str | Gradient | None = _resolve_paint(stroke_color)
         self.fill_opacity: float | None = fill_opacity
         self.stroke_width: float | None = stroke_width
         self.stroke_dash: str | list[float] | None = stroke_dash
@@ -146,12 +152,12 @@ class Drawable(Element):
         self.stroke_join: str | None = stroke_join
         self.stroke_opacity: float | None = stroke_opacity
 
-    def get_fill_color(self) -> str | None:
-        """Return ``fill_color`` as hex; ``None`` renders as ``"black"``."""
+    def get_fill_color(self) -> str | Gradient | None:
+        """Return ``fill_color`` (hex or Gradient); ``None`` renders as ``"black"``."""
         return self.fill_color
 
-    def get_stroke_color(self) -> str | None:
-        """Return ``stroke_color`` as hex; ``None`` renders as ``"black"``."""
+    def get_stroke_color(self) -> str | Gradient | None:
+        """Return ``stroke_color`` (hex or Gradient); ``None`` renders as ``"black"``."""
         return self.stroke_color
 
     def get_color(self) -> NoReturn:
@@ -188,25 +194,23 @@ class Drawable(Element):
         """Return ``stroke_opacity``; ``None`` renders as ``1``."""
         return self.stroke_opacity
 
-    def set_fill_color(self, color: str | None, propagate: bool = True) -> Drawable:
+    def set_fill_color(
+        self, color: str | Gradient | None, propagate: bool = True
+    ) -> Drawable:
         """Set ``fill_color``; ``propagate`` cascades to Drawable descendants."""
-        self._set_field(
-            "fill_color",
-            config.colors.get(color) if color is not None else None,
-            propagate,
-        )
+        self._set_field("fill_color", _resolve_paint(color), propagate)
         return self
 
-    def set_stroke_color(self, color: str | None, propagate: bool = True) -> Drawable:
+    def set_stroke_color(
+        self, color: str | Gradient | None, propagate: bool = True
+    ) -> Drawable:
         """Set ``stroke_color``; ``propagate`` cascades to Drawable descendants."""
-        self._set_field(
-            "stroke_color",
-            config.colors.get(color) if color is not None else None,
-            propagate,
-        )
+        self._set_field("stroke_color", _resolve_paint(color), propagate)
         return self
 
-    def set_color(self, color: str | None, propagate: bool = True) -> Drawable:
+    def set_color(
+        self, color: str | Gradient | None, propagate: bool = True
+    ) -> Drawable:
         """Set both ``fill_color`` and ``stroke_color``; ``propagate`` cascades."""
         self.set_fill_color(color, propagate)
         self.set_stroke_color(color, propagate)
