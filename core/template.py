@@ -802,8 +802,9 @@ class PresentationTemplateBase:
         ``region`` is the target region name. ``width`` and ``height`` are
         each either a length in cm or a ``"<n>%"`` string read as that
         percentage of the region's width/height. Setting one alone lets the
-        other follow the file's aspect ratio; setting neither sizes the
-        image's longer side to the full matching region extent. ``align``
+        other follow the file's aspect ratio; setting neither scales the image
+        as large as it fits inside the region, binding whichever extent the
+        image's aspect ratio reaches first. ``align``
         defaults to the ``image.align`` config value; the remaining keyword
         arguments are forwarded to :class:`Image`.
         """
@@ -814,7 +815,9 @@ class PresentationTemplateBase:
         height_cm = self._resolve_image_extent(height, target_region.height)
         if width_cm is None and height_cm is None:
             natural = Image(path)
-            if natural.get_width() >= natural.get_height():
+            image_aspect = natural.get_width() / natural.get_height()
+            region_aspect = available_width / target_region.height
+            if image_aspect >= region_aspect:
                 width_cm = available_width
             else:
                 height_cm = target_region.height
