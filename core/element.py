@@ -412,6 +412,10 @@ class Element:
     def get_anchor(self) -> Anchor:
         return self._anchor
 
+    def get_align(self) -> HAlign | None:
+        """Return the horizontal alignment within the arranging region."""
+        return self.align
+
     def get_pos(self) -> Vec:
         """Return the stored anchor point. Never measures."""
         return self._pos

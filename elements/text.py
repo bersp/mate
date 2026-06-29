@@ -241,6 +241,21 @@ class Text(Drawable):
     def get_fontsize(self) -> float:
         return self.fontsize
 
+    def get_weight(self) -> str | int | None:
+        return self.weight
+
+    def get_style(self) -> str | None:
+        return self.style
+
+    def get_letter_spacing(self) -> float | None:
+        return self.letter_spacing
+
+    def get_max_width(self) -> float | None:
+        return self.max_width
+
+    def get_line_gap(self) -> float:
+        return self.line_gap
+
     def _repr_fields(self) -> str:
         return f"text={self.get_text()!r}"
 
@@ -259,6 +274,55 @@ class Text(Drawable):
         Geometric mutator: invalidates the bbox cache of this element's tree.
         """
         self._set_field("fontsize", fontsize, propagate)
+        self._invalidate_tree()
+        return self
+
+    def set_weight(self, weight: str | int | None, propagate: bool = True) -> Text:
+        """Set ``weight``; ``propagate`` (default) rewrites every Text descendant.
+
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        self._set_field("weight", weight, propagate)
+        self._invalidate_tree()
+        return self
+
+    def set_style(self, style: str | None, propagate: bool = True) -> Text:
+        """Set ``style``; ``propagate`` (default) rewrites every Text descendant.
+
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        self._set_field("style", style, propagate)
+        self._invalidate_tree()
+        return self
+
+    def set_letter_spacing(
+        self, letter_spacing: float | None, propagate: bool = True
+    ) -> Text:
+        """Set ``letter_spacing`` (em); ``propagate`` (default) rewrites Text descendants.
+
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        self._set_field("letter_spacing", letter_spacing, propagate)
+        self._invalidate_tree()
+        return self
+
+    def set_max_width(self, max_width: float | None) -> Text:
+        """Set the wrap width in cm, or ``None`` for no wrapping.
+
+        Applies to this node only. Geometric mutator: invalidates the bbox
+        cache of this element's tree.
+        """
+        self.max_width = max_width
+        self._invalidate_tree()
+        return self
+
+    def set_line_gap(self, line_gap: float) -> Text:
+        """Set the inter-line gap in cm for the wrapped text.
+
+        Applies to this node only. Geometric mutator: invalidates the bbox
+        cache of this element's tree.
+        """
+        self.line_gap = line_gap
         self._invalidate_tree()
         return self
 

@@ -76,6 +76,30 @@ class Image(Element):
         self.set_crop((x, y, width, height))
         return self
 
+    def get_crop(self) -> tuple[float, float, float, float] | None:
+        """Return the visible sub-rectangle ``(x, y, width, height)``, or ``None``."""
+        return self.crop_window
+
+    def set_width(self, width: float | None) -> Image:
+        """Set the rendered width constraint in cm, or ``None`` to leave it free.
+
+        ``get_width`` reports the measured bbox width, not this constraint.
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        self.width = width
+        self._invalidate_tree()
+        return self
+
+    def set_height(self, height: float | None) -> Image:
+        """Set the rendered height constraint in cm, or ``None`` to leave it free.
+
+        ``get_height`` reports the measured bbox height, not this constraint.
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        self.height = height
+        self._invalidate_tree()
+        return self
+
     def set_crop(self, window: tuple[float, float, float, float] | None) -> None:
         """Set the visible sub-rectangle, or clear it with ``None``.
 

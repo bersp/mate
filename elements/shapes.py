@@ -378,14 +378,8 @@ class Polygon(Drawable):
         fill_opacity: float | None = None,
         stroke_width: float | None = None,
     ) -> None:
-        verts = [Vec(p) for p in points]
-        if len(verts) < 3:
-            raise ValueError(
-                f"Polygon needs at least 3 vertices, got {len(verts)}."
-            )
-        center = _points_bounding_center(verts)
         super().__init__(
-            pos=center,
+            pos=None,
             anchor="center",
             placement=placement,
             id=id,
@@ -394,11 +388,28 @@ class Polygon(Drawable):
             fill_opacity=fill_opacity,
             stroke_width=stroke_width,
         )
-        self.points: list[Vec] = [Vec(p - center) for p in verts]
+        self.points: list[Vec] = []
+        self.set_points(points)
 
     def get_points(self) -> list[Vec]:
         """Return the vertices in slide coordinates."""
         return [Vec(self._pos + p) for p in self.points]
+
+    def set_points(self, points: list[VecLike]) -> Polygon:
+        """Replace the vertices, re-centering ``_pos`` on their bounding box.
+
+        ``points`` are vertices in slide coordinates; at least three are
+        required. Geometric mutator: invalidates the bbox cache of this
+        element's tree.
+        """
+        verts = [Vec(p) for p in points]
+        if len(verts) < 3:
+            raise ValueError(f"Polygon needs at least 3 vertices, got {len(verts)}.")
+        center = _points_bounding_center(verts)
+        self._pos = center
+        self.points = [Vec(p - center) for p in verts]
+        self._invalidate_tree()
+        return self
 
     def get_width(self) -> float:
         xs = [p.x for p in self.points]
@@ -568,6 +579,26 @@ class Curve(Drawable):
         fill_opacity: float | None = None,
         stroke_width: float | None = None,
     ) -> None:
+        super().__init__(
+            pos=None,
+            anchor="center",
+            placement=placement,
+            id=id,
+            fill_color=fill_color,
+            stroke_color=stroke_color,
+            fill_opacity=fill_opacity,
+            stroke_width=stroke_width,
+        )
+        self.segments: list[CurveSegment] = []
+        self.set_segments(segments)
+
+    def set_segments(self, segments: list[CurveSegment]) -> Curve:
+        """Replace the path segments, re-centering ``_pos`` on their bounding box.
+
+        ``segments`` are in slide coordinates and the first must be a
+        :class:`MoveTo`. Geometric mutator: invalidates the bbox cache of
+        this element's tree.
+        """
         segments = list(segments)
         if not segments:
             raise ValueError("Curve needs at least one segment.")
@@ -583,17 +614,14 @@ class Curve(Drawable):
             )
         points = [p for s in segments for p in s._points()]
         center = _points_bounding_center(points)
-        super().__init__(
-            pos=center,
-            anchor="center",
-            placement=placement,
-            id=id,
-            fill_color=fill_color,
-            stroke_color=stroke_color,
-            fill_opacity=fill_opacity,
-            stroke_width=stroke_width,
-        )
-        self.segments: list[CurveSegment] = [s._translated(Vec(-center)) for s in segments]
+        self._pos = center
+        self.segments = [s._translated(Vec(-center)) for s in segments]
+        self._invalidate_tree()
+        return self
+
+    def get_segments(self) -> list[CurveSegment]:
+        """Return the segments in slide coordinates."""
+        return [s._translated(self._pos) for s in self.segments]
 
     def _all_points(self) -> list[Vec]:
         """Return every point referenced by the segments, in local coordinates."""
