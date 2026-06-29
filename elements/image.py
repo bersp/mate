@@ -12,8 +12,9 @@ class Image(Element):
     natural size; with one set the other follows the file's aspect ratio;
     with both set the image is forced into that box.
 
-    ``clip`` crops the same amount off all four edges, shrinking the
-    element's measured size to match.
+    :meth:`crop` shows only a sub-rectangle of the image, given as
+    fractions of the image, shrinking the element's measured size to that
+    window.
 
     Parameters
     ----------
@@ -23,11 +24,6 @@ class Image(Element):
         Rendered width in cm, or ``None`` (default) to leave it free.
     height : float or None, optional
         Rendered height in cm, or ``None`` (default) to leave it free.
-    clip : float or str or None, optional
-        Crop removed from every edge, or ``None`` (default) for no
-        cropping. A number is read as centimetres; a ``"N%"`` string is
-        read as that percentage of the rendered width and applied
-        equally to all four edges.
     pos, anchor, align, placement, id
         Keyword-only. See :class:`~mate.core.element.Element`.
 
@@ -39,9 +35,9 @@ class Image(Element):
         Width constraint in cm, or ``None``.
     height : float or None
         Height constraint in cm, or ``None``.
-    clip : float or str or None
-        Crop in cm (number) or as a percentage of the rendered width
-        (``"N%"`` string), or ``None``.
+    crop_window : tuple of float or None
+        ``(x, y, width, height)`` in image fractions naming the visible
+        sub-rectangle, or ``None`` for the whole image.
     """
 
     def __init__(
@@ -50,7 +46,6 @@ class Image(Element):
         *,
         width: float | None = None,
         height: float | None = None,
-        clip: float | str | None = None,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
         align: HAlign | None = None,
@@ -58,22 +53,55 @@ class Image(Element):
         id: IDKey | list[IDKey] | None = None,
     ) -> None:
         super().__init__(pos=pos, anchor=anchor, align=align, placement=placement, id=id)
-        if not (
-            clip is None
-            or (isinstance(clip, (int, float)) and clip >= 0)
-            or (
-                isinstance(clip, str)
-                and clip.endswith("%")
-                and clip[:-1].replace(".", "", 1).isdigit()
-            )
-        ):
-            raise ValueError(
-                f'clip must be a non-negative number (cm) or an "N%" string, got {clip!r}'
-            )
         self.path: str = path
         self.width: float | None = width
         self.height: float | None = height
-        self.clip: float | str | None = clip
+        self.crop_window: tuple[float, float, float, float] | None = None
+
+    def crop(
+        self,
+        x: float = 0.0,
+        y: float = 0.0,
+        width: float = 1.0,
+        height: float = 1.0,
+    ) -> Image:
+        """Show only the ``(x, y, width, height)`` sub-rectangle of the image.
+
+        All four values are fractions of the image with the origin at its
+        top-left corner: ``x`` and ``width`` run along the width, ``y`` and
+        ``height`` down the height. The defaults name the whole image, so a
+        single axis can be cropped alone (``crop(y=0.2, height=0.6)``).
+        Returns ``self`` for chaining.
+        """
+        self.set_crop((x, y, width, height))
+        return self
+
+    def set_crop(self, window: tuple[float, float, float, float] | None) -> None:
+        """Set the visible sub-rectangle, or clear it with ``None``.
+
+        ``window`` is ``(x, y, width, height)`` in image fractions; the
+        whole-image window collapses to ``None``. Shrinks the element's
+        measured size; invalidates the bbox cache of its tree.
+        """
+        if window is not None:
+            x, y, width, height = window
+            if not (
+                0.0 <= x <= 1.0
+                and 0.0 <= y <= 1.0
+                and 0.0 < width <= 1.0
+                and 0.0 < height <= 1.0
+                and x + width <= 1.0 + 1e-9
+                and y + height <= 1.0 + 1e-9
+            ):
+                raise ValueError(
+                    "crop window must be fractions with 0 <= x, y, "
+                    "0 < width, height <= 1, x + width <= 1 and "
+                    f"y + height <= 1, got {window!r}"
+                )
+            if (x, y, width, height) == (0.0, 0.0, 1.0, 1.0):
+                window = None
+        self.crop_window = window
+        self._invalidate_subtree_and_ancestors()
 
     def _repr_fields(self) -> str:
         return f"path={self.path!r}"

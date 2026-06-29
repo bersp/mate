@@ -402,11 +402,10 @@ def _image_markup(el: Image) -> str:
     the dimensions that are set are emitted, so Typst keeps the file's
     aspect ratio for any left free.
 
-    A ``clip`` crops the image inside a ``#box(clip: true)``. A
-    centimetre crop uses a negative inset; a percentage crop measures
-    the image's rendered width and removes that fraction of it from all
-    four edges, so it tracks the aspect-derived size when a dimension is
-    left free.
+    A crop window measures the rendered image and shows only its
+    ``(x, y, width, height)`` fraction inside a ``#box(clip: true)``,
+    placing the full image at a negative offset that lands the window's
+    top-left at the box origin.
     """
     path = _escape_typst_string(str(Path(el.path).resolve()))
     attrs = [f'"{path}"']
@@ -415,17 +414,14 @@ def _image_markup(el: Image) -> str:
     if el.height is not None:
         attrs.append(f"height: {el.height}cm")
     image = f"image({', '.join(attrs)})"
-    if el.clip is None:
+    if el.crop_window is None:
         return f"#{image}"
-    if isinstance(el.clip, str):
-        frac = float(el.clip.rstrip("%")) / 100.0
-        return (
-            f"#context {{ let im = {image}; let m = measure(im); "
-            f"let c = m.width * {frac}; "
-            f"box(clip: true, width: m.width - 2 * c, height: m.height - 2 * c, "
-            f"place(dx: -c, dy: -c, im)) }}"
-        )
-    return f"#box(clip: true, inset: -{el.clip}cm)[#{image}]"
+    x, y, w, h = el.crop_window
+    return (
+        f"#context {{ let im = {image}; let m = measure(im); "
+        f"box(clip: true, width: m.width * {w}, height: m.height * {h}, "
+        f"place(dx: -m.width * {x}, dy: -m.height * {y}, im)) }}"
+    )
 
 
 def _leaf_markup(el: Element) -> str | None:

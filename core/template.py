@@ -828,6 +828,29 @@ class PresentationTemplateBase:
         target_region.add(el)
         return el
 
+    def crop_image(
+        self,
+        id: IDKey,
+        x: float = 0.0,
+        y: float = 0.0,
+        width: float = 1.0,
+        height: float = 1.0,
+    ) -> None:
+        """Crop every image registered under ``id`` to a sub-rectangle.
+
+        ``(x, y, width, height)`` are fractions of the image; see
+        :meth:`~mate.elements.image.Image.crop`. The crop applies from the
+        reveal step of this call onward.
+        """
+        self.modify(id, crop=(x, y, width, height))
+
+    def uncrop_image(self, id: IDKey) -> None:
+        """Drop the crop from every image registered under ``id``.
+
+        The whole image shows again from the reveal step of this call onward.
+        """
+        self.modify(id, crop=None)
+
     def modify(self, id: IDKey, **props) -> None:
         """Apply ``props`` to every element registered under ``id``.
 
