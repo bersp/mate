@@ -192,7 +192,7 @@ def _bare(el: Element) -> str:
             inner = "".join(_bare(c) for c in el.children if c.placement != "omitted")
         else:
             inner = _markdown_to_typst(el.content)
-        body = _wrap_text_attrs(el, inner, with_fill=False)
+        body = _wrap_text_attrs(el, inner, with_paint=False)
         if el.max_width is not None:
             # Width is measured from the leading-free body (leading does
             # not affect width); height from the leading-carrying body so
@@ -243,19 +243,19 @@ def _typst_stroke(color: str | None, width: float | None) -> str:
     return f"{w}cm + {c}"
 
 
-def _wrap_text_attrs(el: Text, inner: str, *, with_fill: bool = True) -> str:
+def _wrap_text_attrs(el: Text, inner: str, *, with_paint: bool = True) -> str:
     """Wrap ``inner`` in a ``#text(...)`` call with the element's font and
-    size, plus ``weight``/``style``/``tracking`` when set and ``fill`` when
-    present.
+    size, plus ``weight``/``style``/``tracking`` when set and ``fill``/``stroke``
+    when present.
 
     ``font`` and ``size`` are always emitted — every :class:`Text` carries
     them explicitly so the rendered output never relies on Typst's
-    implicit fallback. ``fill:`` is added only when the element has
-    explicit fill state, otherwise the body inherits Typst's lexical
-    default (black, matching :class:`~mate.core.drawable.Drawable`'s
-    visual default). ``with_fill=False`` drops it entirely: fill does not
-    affect glyph metrics, so the measurement form omits it to keep the
-    aux document small.
+    implicit fallback. ``fill:`` and ``stroke:`` are added only when the
+    element has explicit fill/stroke state, otherwise the body inherits
+    Typst's lexical defaults (black fill, no stroke, matching
+    :class:`~mate.core.drawable.Drawable`'s visual defaults).
+    ``with_paint=False`` drops both: neither affects glyph metrics, so the
+    measurement form omits them to keep the aux document small.
     """
     attrs = [f'font: "{el.font}"', f"size: {el.fontsize}pt"]
     if el.weight is not None:
@@ -265,10 +265,12 @@ def _wrap_text_attrs(el: Text, inner: str, *, with_fill: bool = True) -> str:
         attrs.append(f'style: "{el.style}"')
     if el.letter_spacing is not None:
         attrs.append(f"tracking: {el.letter_spacing}em")
-    if with_fill and not (el.fill_color is None and el.fill_opacity is None):
+    if with_paint and not (el.fill_color is None and el.fill_opacity is None):
         attrs.append(
             f"fill: {_typst_fill(el.fill_color, el.fill_opacity, zero_is_none=False)}"
         )
+    if with_paint and not (el.stroke_color is None and el.stroke_width is None):
+        attrs.append(f"stroke: {_typst_stroke(el.stroke_color, el.stroke_width)}")
     return f'#text({", ".join(attrs)})[{inner}]'
 
 
