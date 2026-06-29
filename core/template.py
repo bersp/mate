@@ -912,8 +912,10 @@ class PresentationTemplateBase:
                 buckets[root_id][1].append((step, members, props))
 
         for root, edits in buckets.values():
+            steps = sorted({edit[0] for edit in edits})
             previous = root
-            for step in sorted({edit[0] for edit in edits}):
+            clones: dict[int, Element] = {}
+            for step in steps:
                 mapping: dict[int, Element] = {}
                 clone = root._copy(mapping)
                 for edit_step, members, props in edits:
@@ -925,7 +927,15 @@ class PresentationTemplateBase:
                             node.apply_prop(name, value)
                 slide.replaced.append((step, previous))
                 slide.steps[step].append(clone)
+                clones[step] = clone
                 previous = clone
+            # A removal scheduled for the original (by an alternate or
+            # overwrite) also drops the clone standing in for it at that step.
+            for s, el in list(slide.replaced):
+                if el is root and s not in clones:
+                    active = [st for st in steps if st <= s]
+                    if active:
+                        slide.replaced.append((s, clones[active[-1]]))
         self._modifies = []
 
     @staticmethod
