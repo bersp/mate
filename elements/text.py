@@ -89,9 +89,8 @@ class Text(Drawable):
     fill_color : str or None, optional
         Palette name or literal hex for the glyph fill. ``None`` (default)
         reads ``text.color`` from the config.
-    pos, anchor, align, placement, id, stroke_color, fill_opacity, stroke_width
-        Keyword-only. See :class:`~mate.core.drawable.Drawable`. ``stroke_*``
-        fields are currently ignored for text rendering.
+    pos, anchor, align, placement, id, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
+        Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
     ----------
@@ -138,6 +137,10 @@ class Text(Drawable):
         stroke_color: str | None = None,
         fill_opacity: float | None = None,
         stroke_width: float | None = None,
+        stroke_dash: str | list[float] | None = None,
+        stroke_cap: str | None = None,
+        stroke_join: str | None = None,
+        stroke_opacity: float | None = None,
     ) -> None:
         super().__init__(
             pos=pos,
@@ -149,6 +152,10 @@ class Text(Drawable):
             stroke_color=stroke_color,
             fill_opacity=fill_opacity,
             stroke_width=stroke_width,
+            stroke_dash=stroke_dash,
+            stroke_cap=stroke_cap,
+            stroke_join=stroke_join,
+            stroke_opacity=stroke_opacity,
         )
         self.content: str = ""
         self.subs: list[Text] = []

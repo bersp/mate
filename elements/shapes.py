@@ -20,7 +20,7 @@ class Rectangle(Drawable):
     ----------
     width, height : float
         Width and height in cm. Positional.
-    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -43,6 +43,10 @@ class Rectangle(Drawable):
         stroke_color: str | None = None,
         fill_opacity: float | None = None,
         stroke_width: float | None = None,
+        stroke_dash: str | list[float] | None = None,
+        stroke_cap: str | None = None,
+        stroke_join: str | None = None,
+        stroke_opacity: float | None = None,
     ) -> None:
         super().__init__(
             pos=pos,
@@ -54,6 +58,10 @@ class Rectangle(Drawable):
             stroke_color=stroke_color,
             fill_opacity=fill_opacity,
             stroke_width=stroke_width,
+            stroke_dash=stroke_dash,
+            stroke_cap=stroke_cap,
+            stroke_join=stroke_join,
+            stroke_opacity=stroke_opacity,
         )
         self.width: float = width
         self.height: float = height
@@ -96,7 +104,7 @@ class Circle(Drawable):
     ----------
     radius : float
         Radius in cm. Positional.
-    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -118,6 +126,10 @@ class Circle(Drawable):
         stroke_color: str | None = None,
         fill_opacity: float | None = None,
         stroke_width: float | None = None,
+        stroke_dash: str | list[float] | None = None,
+        stroke_cap: str | None = None,
+        stroke_join: str | None = None,
+        stroke_opacity: float | None = None,
     ) -> None:
         super().__init__(
             pos=pos,
@@ -129,6 +141,10 @@ class Circle(Drawable):
             stroke_color=stroke_color,
             fill_opacity=fill_opacity,
             stroke_width=stroke_width,
+            stroke_dash=stroke_dash,
+            stroke_cap=stroke_cap,
+            stroke_join=stroke_join,
+            stroke_opacity=stroke_opacity,
         )
         self.radius: float = radius
 
@@ -167,7 +183,7 @@ class Ellipse(Drawable):
     ----------
     width, height : float
         Bounding box width and height in cm. Positional.
-    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -190,6 +206,10 @@ class Ellipse(Drawable):
         stroke_color: str | None = None,
         fill_opacity: float | None = None,
         stroke_width: float | None = None,
+        stroke_dash: str | list[float] | None = None,
+        stroke_cap: str | None = None,
+        stroke_join: str | None = None,
+        stroke_opacity: float | None = None,
     ) -> None:
         super().__init__(
             pos=pos,
@@ -201,6 +221,10 @@ class Ellipse(Drawable):
             stroke_color=stroke_color,
             fill_opacity=fill_opacity,
             stroke_width=stroke_width,
+            stroke_dash=stroke_dash,
+            stroke_cap=stroke_cap,
+            stroke_join=stroke_join,
+            stroke_opacity=stroke_opacity,
         )
         self.width: float = width
         self.height: float = height
@@ -252,7 +276,7 @@ class Line(Drawable):
     stroke_width : float or None, optional
         Stroke thickness in cm. ``None`` (default) reads
         ``line.stroke_width`` from the config.
-    placement, id, stroke_color
+    placement, id, stroke_color, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -271,6 +295,10 @@ class Line(Drawable):
         id: IDKey | list[IDKey] | None = None,
         stroke_color: str | None = None,
         stroke_width: float | None = None,
+        stroke_dash: str | list[float] | None = None,
+        stroke_cap: str | None = None,
+        stroke_join: str | None = None,
+        stroke_opacity: float | None = None,
     ) -> None:
         start = Vec(start)
         end = Vec(end)
@@ -286,6 +314,10 @@ class Line(Drawable):
                 if stroke_width is None
                 else stroke_width
             ),
+            stroke_dash=stroke_dash,
+            stroke_cap=stroke_cap,
+            stroke_join=stroke_join,
+            stroke_opacity=stroke_opacity,
         )
         self.start: Vec = Vec(start - center)
         self.end: Vec = Vec(end - center)
@@ -357,7 +389,7 @@ class Polygon(Drawable):
     ----------
     points : list of VecLike
         Vertices in cm. Positional. At least three are required.
-    placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    placement, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -377,6 +409,10 @@ class Polygon(Drawable):
         stroke_color: str | None = None,
         fill_opacity: float | None = None,
         stroke_width: float | None = None,
+        stroke_dash: str | list[float] | None = None,
+        stroke_cap: str | None = None,
+        stroke_join: str | None = None,
+        stroke_opacity: float | None = None,
     ) -> None:
         super().__init__(
             pos=None,
@@ -387,6 +423,10 @@ class Polygon(Drawable):
             stroke_color=stroke_color,
             fill_opacity=fill_opacity,
             stroke_width=stroke_width,
+            stroke_dash=stroke_dash,
+            stroke_cap=stroke_cap,
+            stroke_join=stroke_join,
+            stroke_opacity=stroke_opacity,
         )
         self.points: list[Vec] = []
         self.set_points(points)
@@ -559,7 +599,7 @@ class Curve(Drawable):
     segments : list of CurveSegment
         Path segments in draw order. Positional. The first must be a
         :class:`MoveTo`.
-    placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    placement, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -578,6 +618,10 @@ class Curve(Drawable):
         stroke_color: str | None = None,
         fill_opacity: float | None = None,
         stroke_width: float | None = None,
+        stroke_dash: str | list[float] | None = None,
+        stroke_cap: str | None = None,
+        stroke_join: str | None = None,
+        stroke_opacity: float | None = None,
     ) -> None:
         super().__init__(
             pos=None,
@@ -588,6 +632,10 @@ class Curve(Drawable):
             stroke_color=stroke_color,
             fill_opacity=fill_opacity,
             stroke_width=stroke_width,
+            stroke_dash=stroke_dash,
+            stroke_cap=stroke_cap,
+            stroke_join=stroke_join,
+            stroke_opacity=stroke_opacity,
         )
         self.segments: list[CurveSegment] = []
         self.set_segments(segments)

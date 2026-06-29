@@ -29,6 +29,7 @@ from ..parser.ir import Bold, Code, Italic, Math, TextRun
 from ..parser.markup import parse_markup
 
 if TYPE_CHECKING:
+    from ..core.drawable import Drawable
     from ..core.element import Element
     from ..parser.ir import Inline
 
@@ -229,18 +230,49 @@ def _typst_fill(
     return f"{c}.transparentize({(1.0 - op) * 100}%)"
 
 
-def _typst_stroke(color: str | None, width: float | None) -> str:
-    """Resolve ``(stroke_color, stroke_width)`` into a Typst ``stroke:`` value.
+def _typst_dash(dash: str | list[float]) -> str:
+    """Translate a dash preset name or a list of cm lengths to a Typst dash value.
 
-    Returns ``"none"`` when ``width`` is ``None`` or ``0`` (the
-    canonical "no stroke" case). Otherwise emits ``"<width>cm + <color>"``,
-    falling back to ``"black"`` when ``color`` is ``None``.
+    A string is a Typst preset (``"dashed"``, ...); a list becomes a length
+    array (``(0.2cm, 0.1cm)``).
     """
-    w = 0.0 if width is None else width
+    if isinstance(dash, str):
+        return f'"{dash}"'
+    inner = ", ".join(f"{x}cm" for x in dash)
+    return f"({inner},)" if len(dash) == 1 else f"({inner})"
+
+
+def _typst_stroke(el: Drawable) -> str:
+    """Resolve an element's stroke fields into a Typst ``stroke:`` value.
+
+    Returns ``"none"`` when ``stroke_width`` is ``None`` or ``0`` (the
+    canonical "no stroke" case). With only width and colour set, emits the
+    compact ``"<width>cm + <paint>"``; when ``stroke_dash``/``stroke_cap``/
+    ``stroke_join`` are present, emits a ``stroke(...)`` call carrying them.
+    ``stroke_opacity`` transparentizes the paint; the paint falls back to
+    ``"black"`` when ``stroke_color`` is ``None``.
+    """
+    w = 0.0 if el.stroke_width is None else el.stroke_width
     if w == 0:
         return "none"
-    c = f'rgb("{color}")' if color is not None else _DEFAULT_STROKE_COLOR
-    return f"{w}cm + {c}"
+    paint = (
+        f'rgb("{el.stroke_color}")'
+        if el.stroke_color is not None
+        else _DEFAULT_STROKE_COLOR
+    )
+    op = 1.0 if el.stroke_opacity is None else el.stroke_opacity
+    if op != 1:
+        paint = f"{paint}.transparentize({(1.0 - op) * 100}%)"
+    if el.stroke_dash is None and el.stroke_cap is None and el.stroke_join is None:
+        return f"{w}cm + {paint}"
+    parts = [f"paint: {paint}", f"thickness: {w}cm"]
+    if el.stroke_cap is not None:
+        parts.append(f'cap: "{el.stroke_cap}"')
+    if el.stroke_join is not None:
+        parts.append(f'join: "{el.stroke_join}"')
+    if el.stroke_dash is not None:
+        parts.append(f"dash: {_typst_dash(el.stroke_dash)}")
+    return f"stroke({', '.join(parts)})"
 
 
 def _wrap_text_attrs(el: Text, inner: str, *, with_paint: bool = True) -> str:
@@ -270,7 +302,7 @@ def _wrap_text_attrs(el: Text, inner: str, *, with_paint: bool = True) -> str:
             f"fill: {_typst_fill(el.fill_color, el.fill_opacity, zero_is_none=False)}"
         )
     if with_paint and not (el.stroke_color is None and el.stroke_width is None):
-        attrs.append(f"stroke: {_typst_stroke(el.stroke_color, el.stroke_width)}")
+        attrs.append(f"stroke: {_typst_stroke(el)}")
     return f'#text({", ".join(attrs)})[{inner}]'
 
 
@@ -324,7 +356,7 @@ def _shape_markup(el: Rectangle | Circle | Ellipse) -> str:
     fields, resolved locally — no parent walk.
     """
     fill = _typst_fill(el.fill_color, el.fill_opacity)
-    stroke = _typst_stroke(el.stroke_color, el.stroke_width)
+    stroke = _typst_stroke(el)
     if isinstance(el, Rectangle):
         return (
             f"#rect(width: {el.width}cm, height: {el.height}cm, "
@@ -350,7 +382,7 @@ def _line_markup(el: Line) -> str:
     ex, ey = el.end.x, el.end.y
     left = min(sx, ex)
     top = max(sy, ey)
-    stroke = _typst_stroke(el.stroke_color, el.stroke_width)
+    stroke = _typst_stroke(el)
     return (
         f"#line(start: ({sx - left}cm, {top - sy}cm), "
         f"end: ({ex - left}cm, {top - ey}cm), stroke: {stroke})"
@@ -376,7 +408,7 @@ def _polygon_markup(el: Polygon) -> str:
     frame; ``#polygon`` closes the path automatically.
     """
     fill = _typst_fill(el.fill_color, el.fill_opacity)
-    stroke = _typst_stroke(el.stroke_color, el.stroke_width)
+    stroke = _typst_stroke(el)
     left = min(p.x for p in el.points)
     top = max(p.y for p in el.points)
     verts = ", ".join(_local_point(p, left, top) for p in el.points)
@@ -395,7 +427,7 @@ def _curve_markup(el: Curve) -> str:
     hull of its control points, the box that bounds it.
     """
     fill = _typst_fill(el.fill_color, el.fill_opacity)
-    stroke = _typst_stroke(el.stroke_color, el.stroke_width)
+    stroke = _typst_stroke(el)
     points = el._all_points()
     left = min(p.x for p in points)
     top = max(p.y for p in points)

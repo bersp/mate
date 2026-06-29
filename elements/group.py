@@ -30,7 +30,7 @@ class Group(Drawable):
     children : iterable of :class:`Element`, optional
         Initial members. Each one's ``parent`` is set to this group.
         More can be appended later via :meth:`add`. Positional.
-    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width
+    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
     """
 
@@ -47,6 +47,10 @@ class Group(Drawable):
         stroke_color: str | None = None,
         fill_opacity: float | None = None,
         stroke_width: float | None = None,
+        stroke_dash: str | list[float] | None = None,
+        stroke_cap: str | None = None,
+        stroke_join: str | None = None,
+        stroke_opacity: float | None = None,
     ) -> None:
         super().__init__(
             pos=pos,
@@ -58,6 +62,10 @@ class Group(Drawable):
             stroke_color=stroke_color,
             fill_opacity=fill_opacity,
             stroke_width=stroke_width,
+            stroke_dash=stroke_dash,
+            stroke_cap=stroke_cap,
+            stroke_join=stroke_join,
+            stroke_opacity=stroke_opacity,
         )
         if children:
             self._take_children(list(children))
