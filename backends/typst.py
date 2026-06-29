@@ -32,6 +32,39 @@ if TYPE_CHECKING:
     from ..core.element import Element
     from ..parser.ir import Inline
 
+
+class TypstError(RuntimeError):
+    """The Typst compiler rejected generated markup.
+
+    Carries the offending markup snippet (when one could be isolated) and the
+    de-duplicated compiler diagnostics.
+    """
+
+
+def _typst_diagnostics(exc: Exception) -> str:
+    """Return a typst-py error's diagnostics, de-duplicated, preserving order.
+
+    The binding raises with ``failed to compile document: <diag>, <diag>, ...``
+    that repeats the same diagnostic once per occurrence in the generated
+    source. Strip the prefix and drop repeats.
+    """
+    message = str(exc)
+    prefix = "failed to compile document: "
+    body = message[len(prefix) :] if message.startswith(prefix) else message
+    seen: list[str] = []
+    for diagnostic in body.split(", "):
+        if diagnostic not in seen:
+            seen.append(diagnostic)
+    return ", ".join(seen)
+
+
+def _format_typst_error(markup: str | None, diagnostics: str) -> str:
+    """Build the message for a :class:`TypstError` from the culprit and error."""
+    if markup is None:
+        return f"Typst rejected the generated markup.\nTypst error: {diagnostics}"
+    return f"Typst rejected this markup:\n\n{markup}\n\nTypst error: {diagnostics}"
+
+
 # Font directory bundled with the package, always on the Typst font path.
 _FONTS_DIR = Path(__file__).resolve().parent.parent / "fonts"
 
@@ -570,6 +603,26 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content)
 
 
+def _isolate_compile_culprit(fragments: list[str], preamble: str) -> str | None:
+    """Return the first slide fragment that fails to compile on its own.
+
+    Runs on the render error path: compiles each fragment under ``preamble``
+    in isolation and returns the one Typst rejects, or ``None`` when no single
+    fragment reproduces the failure.
+    """
+    for fragment in fragments:
+        try:
+            typst.compile(
+                (preamble + "\n" + fragment + "\n").encode("utf-8"),
+                root="/",
+                font_paths=_font_paths(),
+                ignore_system_fonts=True,
+            )
+        except RuntimeError:
+            return fragment
+    return None
+
+
 def needs_inline_x(elements: list[Element]) -> bool:
     """Return whether any of ``elements`` needs the inline-``x`` probe pass.
 
@@ -634,13 +687,19 @@ class TypstRenderer:
         preamble = f"#set page(width: {width}cm, height: {height}cm, margin: 0cm)\n"
         body = "\n#pagebreak()\n".join(fragments)
         source = preamble + "\n" + body + "\n"
-        typst.compile(
-            source.encode("utf-8"),
-            output=str(path),
-            root="/",
-            font_paths=_font_paths(),
-            ignore_system_fonts=True,
-        )
+        try:
+            typst.compile(
+                source.encode("utf-8"),
+                output=str(path),
+                root="/",
+                font_paths=_font_paths(),
+                ignore_system_fonts=True,
+            )
+        except RuntimeError as exc:
+            culprit = _isolate_compile_culprit(fragments, preamble)
+            raise TypstError(
+                _format_typst_error(culprit, _typst_diagnostics(exc))
+            ) from None
 
     def _render_node(self, el: Element, placeholder: bool) -> str:
         """Render an element body (no ``#place`` wrapper).
@@ -832,15 +891,50 @@ class TypstMeasurer:
         absolute image paths emitted by ``_image_markup`` resolve to the
         filesystem.
         """
-        out = typst.query(
-            str(self.path),
-            "<bbox>",
-            field="value",
-            ignore_system_fonts=True,
-            font_paths=_font_paths(),
-            root="/",
-        )
+        try:
+            out = typst.query(
+                str(self.path),
+                "<bbox>",
+                field="value",
+                ignore_system_fonts=True,
+                font_paths=_font_paths(),
+                root="/",
+            )
+        except RuntimeError as exc:
+            culprit = self._isolate_measure_culprit()
+            raise TypstError(
+                _format_typst_error(culprit, _typst_diagnostics(exc))
+            ) from None
         return json.loads(out)
+
+    def _isolate_measure_culprit(self) -> str | None:
+        """Return the first element's markup that fails to measure on its own.
+
+        Runs on the measurement error path: measures each collected element's
+        bare markup in isolation and returns the one Typst rejects, or ``None``
+        when no single element reproduces the failure.
+        """
+        for el in self.elements.values():
+            bare = _bare(el)
+            if not bare:
+                continue
+            probe = (
+                "#set page(margin: 0cm)\n"
+                f"#context [ #metadata(measure([{bare}]).width/1cm)<bbox> ]\n"
+            )
+            _write(self.path, probe)
+            try:
+                typst.query(
+                    str(self.path),
+                    "<bbox>",
+                    field="value",
+                    ignore_system_fonts=True,
+                    font_paths=_font_paths(),
+                    root="/",
+                )
+            except RuntimeError:
+                return bare
+        return None
 
     def _collect(self, el: Element) -> None:
         """Register ``el`` and its subtree into ``self.elements``.
