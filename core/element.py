@@ -223,6 +223,10 @@ class Element:
         self._anchor: Anchor = anchor
         self.align: HAlign | None = align
         self.indent: float = 0.0
+        # Layout-relative displacement accumulated by `shift`. `arrange` adds it
+        # on top of the stack position; an element placed directly carries it
+        # unused.
+        self.offset: Vec = Vec(0, 0)
         self.placement: Placement = placement
         self.parent: Element | None = None
         self.hidden: bool = False
@@ -331,11 +335,13 @@ class Element:
         """Add ``d`` to ``_pos`` and translate descendants by the same delta.
 
         Accumulates over repeated calls (``shift((1, 0)).shift((1, 0))``
-        ends up at ``+2cm`` on x). When the element is currently
-        ``"inline"``, ``_pos`` is first frozen to the measured anchor
-        point so the increment is taken from the flowed position;
-        ``shift((0, 0))`` is then a true visual no-op. Forces
-        ``placement = "fixed"`` and may trigger one measurement on the
+        ends up at ``+2cm`` on x). The same delta accumulates into
+        :attr:`offset`, which :func:`~mate.composition.arrange.arrange` adds on
+        top of the stack position; a shift carries through the ``arrange`` of a
+        region element. When the element is currently ``"inline"``, ``_pos`` is
+        first frozen to the measured anchor point so the increment is taken from
+        the flowed position; ``shift((0, 0))`` is then a true visual no-op.
+        Forces ``placement = "fixed"`` and may trigger one measurement on the
         first call against an inline element.
 
         Geometric mutator: invalidates the bbox cache of this element's tree.
@@ -345,6 +351,7 @@ class Element:
         if was_inline:
             self._pos = self._current_anchor_point()
         self._pos = self._pos + delta
+        self.offset = self.offset + delta
         self.placement = "fixed"
         self._translate_children(delta)
         if was_inline:

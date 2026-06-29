@@ -120,7 +120,9 @@ def arrange(
         pos_x = left_edge + h_mul * w
         # bbox.bottom = y_cursor - h; pos_y = bbox.bottom + v_mul * h.
         pos_y = y_cursor - (1.0 - v_mul) * h
-        el.move_to((pos_x, pos_y))
+        # `offset` is the element's accumulated manual displacement (from
+        # `shift`), added on top of the stack position.
+        el.move_to((pos_x + el.offset.x, pos_y + el.offset.y))
         y_cursor -= h + (gaps[i] if i < len(gaps) else 0.0)
 
 
