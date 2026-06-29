@@ -282,7 +282,14 @@ class PresentationTemplateBase:
             targets = id_registry.get(target_id)
         except KeyError:
             raise ValueError(f"overwrite: no element with id {target_id!r}") from None
-        region = self._region_of(targets[0])
+        try:
+            region = self._region_of(targets[0])
+        except ValueError:
+            raise ValueError(
+                f"overwrite: id {target_id!r} is not a top-level element; "
+                "overwrite targets a whole block (e.g. one tagged with "
+                "'markdown fragment : id=...'), not an inline span"
+            ) from None
         anchor = anchor or region.anchor
 
         temp = Region(region.center, region.width, region.height, anchor=anchor)
