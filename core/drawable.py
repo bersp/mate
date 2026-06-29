@@ -91,6 +91,10 @@ class Drawable(Element):
         """Return ``fill_opacity``; ``None`` renders as ``1``."""
         return self.fill_opacity
 
+    def get_opacity(self) -> float | None:
+        """Return ``fill_opacity``; ``None`` renders as ``1``."""
+        return self.fill_opacity
+
     def get_stroke_width(self) -> float | None:
         """Return ``stroke_width``; ``None`` renders as ``0``."""
         return self.stroke_width
@@ -118,6 +122,10 @@ class Drawable(Element):
         self.set_fill_color(color, propagate)
         self.set_stroke_color(color, propagate)
         return self
+
+    def set_opacity(self, opacity: float | None, propagate: bool = True) -> Drawable:
+        """Set ``fill_opacity``; ``propagate`` cascades to Drawable descendants."""
+        return self.set_fill_opacity(opacity, propagate)
 
     def set_fill_opacity(
         self, opacity: float | None, propagate: bool = True

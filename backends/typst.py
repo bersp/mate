@@ -208,16 +208,20 @@ def _bare(el: Element) -> str:
     return ""
 
 
-def _typst_fill(color: str | None, opacity: float | None) -> str:
+def _typst_fill(
+    color: str | None, opacity: float | None, *, zero_is_none: bool = True
+) -> str:
     """Resolve ``(fill_color, fill_opacity)`` into a Typst ``fill:`` value.
 
-    Returns ``"none"`` for ``opacity == 0`` (the canonical "no fill"
-    case for shapes). For non-zero opacity, falls back to ``"black"``
-    when ``color`` is ``None`` and wraps with ``.transparentize(...)``
+    With ``zero_is_none`` (the default), ``opacity == 0`` returns ``"none"`` —
+    the "no fill" value. With ``zero_is_none=False``, ``opacity == 0`` is a
+    fully transparent color instead, for contexts where Typst rejects
+    ``fill: none`` (such as ``#text``). For non-zero opacity, falls back to
+    ``"black"`` when ``color`` is ``None`` and wraps with ``.transparentize(...)``
     when ``opacity < 1``.
     """
     op = 1.0 if opacity is None else opacity
-    if op == 0:
+    if op == 0 and zero_is_none:
         return "none"
     c = f'rgb("{color}")' if color is not None else _DEFAULT_FILL_COLOR
     if op == 1:
@@ -262,7 +266,9 @@ def _wrap_text_attrs(el: Text, inner: str, *, with_fill: bool = True) -> str:
     if el.letter_spacing is not None:
         attrs.append(f"tracking: {el.letter_spacing}em")
     if with_fill and not (el.fill_color is None and el.fill_opacity is None):
-        attrs.append(f"fill: {_typst_fill(el.fill_color, el.fill_opacity)}")
+        attrs.append(
+            f"fill: {_typst_fill(el.fill_color, el.fill_opacity, zero_is_none=False)}"
+        )
     return f'#text({", ".join(attrs)})[{inner}]'
 
 
