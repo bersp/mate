@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import atexit
+import hashlib
 import json
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
@@ -80,6 +83,35 @@ def _font_paths() -> list[str]:
 # Resolvable family names per ``font_paths`` set, cached.
 _FONT_FAMILIES: dict[tuple[str, ...], frozenset[str]] = {}
 
+# Content signature of the font files per ``font_paths`` set, cached.
+_FONT_SIGNATURES: dict[tuple[str, ...], str] = {}
+
+
+def _font_signature() -> str:
+    """Hash the font files reachable from ``_font_paths()`` by path, size and mtime.
+
+    Two runs share a measurement only when they typeset against the same fonts;
+    this catches an added, removed, or re-saved face (even a metric-only edit
+    that leaves the family name unchanged). Typst's embedded faces are covered
+    by the compiler version folded into the cache key separately.
+    """
+    key = tuple(_font_paths())
+    signature = _FONT_SIGNATURES.get(key)
+    if signature is None:
+        h = hashlib.sha256()
+        for directory in key:
+            base = Path(directory)
+            if not base.is_dir():
+                continue
+            for file in sorted(base.rglob("*")):
+                if file.is_file():
+                    stat = file.stat()
+                    h.update(str(file).encode("utf-8"))
+                    h.update(f"\0{stat.st_size}\0{stat.st_mtime_ns}\0".encode())
+        signature = h.hexdigest()
+        _FONT_SIGNATURES[key] = signature
+    return signature
+
 
 def _available_font_families() -> frozenset[str]:
     """Family names Typst resolves from embedded faces and ``_font_paths()``."""
@@ -114,6 +146,90 @@ def _assert_fonts_available(fonts: set[str]) -> None:
 
 
 _CACHE_MEASURE = Path(".mate_cache/measure.typ")
+_CACHE_MEASURE_DB = Path(".mate_cache/measure_cache.json")
+
+# Bumped whenever the measurement markup emitted for a size record changes, so
+# entries written by an older emission scheme are not read back.
+_CACHE_FORMAT_VERSION = "1"
+
+try:
+    _TYPST_VERSION = version("typst")
+except PackageNotFoundError:
+    _TYPST_VERSION = "unknown"
+
+
+def _size_cache_key(body: str, font_signature: str) -> str:
+    """Content key for the isolated size of an element measured as ``body``.
+
+    The isolated ``(w, h)`` is a pure function of the Typst ``body`` handed to
+    ``measure(...)``, the fonts it resolves against, and the compiler version;
+    the format version guards against a change in how the record is emitted.
+    """
+    h = hashlib.sha256()
+    h.update(_CACHE_FORMAT_VERSION.encode())
+    h.update(b"\0")
+    h.update(_TYPST_VERSION.encode())
+    h.update(b"\0")
+    h.update(font_signature.encode())
+    h.update(b"\0")
+    h.update(body.encode("utf-8"))
+    return h.hexdigest()
+
+
+class MeasureCache:
+    """Persistent content-addressed store of isolated element sizes.
+
+    Maps a :func:`_size_cache_key` to a measured ``(w, h)``. A hit lets the
+    measurer skip emitting that element's ``measure(...)`` record, and when no
+    record is left to emit, the whole Typst query is skipped. The file is
+    rewritten on interpreter exit with exactly the keys touched this run, so it
+    stays scoped to the current deck instead of accumulating stale entries.
+    """
+
+    def __init__(self, path: str | Path = _CACHE_MEASURE_DB) -> None:
+        self.path = Path(path)
+        self._store = self._load()
+        self._live: dict[str, tuple[float, float]] = {}
+        atexit.register(self.save)
+
+    def _load(self) -> dict[str, tuple[float, float]]:
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, ValueError):
+            return {}
+        return {key: (value[0], value[1]) for key, value in raw.items()}
+
+    def get(self, key: str) -> tuple[float, float] | None:
+        """Return the cached size for ``key``, promoting a hit into the live set."""
+        if key in self._live:
+            return self._live[key]
+        value = self._store.get(key)
+        if value is not None:
+            self._live[key] = value
+        return value
+
+    def put(self, key: str, size: tuple[float, float]) -> None:
+        """Record a freshly measured ``size`` for ``key``."""
+        self._live[key] = (size[0], size[1])
+
+    def save(self) -> None:
+        """Write the keys touched this run, replacing the file atomically."""
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        data = {key: [w, h] for key, (w, h) in self._live.items()}
+        tmp = self.path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(data), encoding="utf-8")
+        tmp.replace(self.path)
+
+
+_MEASURE_CACHE: MeasureCache | None = None
+
+
+def _measure_cache() -> MeasureCache:
+    """Return the process-wide measurement cache, loading it on first use."""
+    global _MEASURE_CACHE
+    if _MEASURE_CACHE is None:
+        _MEASURE_CACHE = MeasureCache()
+    return _MEASURE_CACHE
 
 # Function that turns an element into its rendered Typst string. The
 # `placeholder` flag means "still take space but emit `#hide[...]`": used
@@ -865,8 +981,9 @@ class TypstMeasurer:
     labeled ``<bbox>``:
 
     1. A ``#context [...]`` block with one ``#metadata((id, w, h))``
-       per element, used to recover the *isolated* size of each. Always
-       emitted; sufficient to place every fixed element.
+       per element whose isolated size is not already in the persistent
+       :class:`MeasureCache`, used to recover that size. Sufficient to
+       place every fixed element.
     2. The same ``#place`` tree the renderer would emit (with
        ``canvas=None``, so no centring or y-flip is applied), with
        ``here().position()`` probes injected before every inline
@@ -926,22 +1043,24 @@ class TypstMeasurer:
     def measure(self, with_inline_x: bool = True) -> None:
         """Run a measurement pass and assign ``_bbox`` on the reachable tree.
 
-        The size records (region 1) are always emitted; they suffice to
-        place every fixed element. The ``#place`` tree with inline
-        ``x`` probes (region 2) is emitted only when ``with_inline_x``
-        is set — it is the expensive part and is needed solely to give
-        inline elements their flowed bbox. When it is skipped, inline
-        nodes (and any :class:`Group` whose union depends on one) are
-        left with ``_bbox = None`` so the next :meth:`get_bbox` re-runs
-        with probes.
+        The size records (region 1) place every fixed element; each is
+        served from the persistent :class:`MeasureCache` when its body
+        was measured before, so only cache misses reach Typst. The
+        ``#place`` tree with inline ``x`` probes (region 2) is emitted
+        only when ``with_inline_x`` is set — it is the expensive part and
+        is needed solely to give inline elements their flowed bbox. When
+        it is skipped, inline nodes (and any :class:`Group` whose union
+        depends on one) are left with ``_bbox = None`` so the next
+        :meth:`get_bbox` re-runs with probes.
 
         Steps
         -----
         1. Walk every root and collect descendants into ``self.elements``.
-        2. Emit the auxiliary ``.typ`` (size queries, plus the probe
-           tree when ``with_inline_x``).
-        3. Run ``typst query`` and split the output into ``sizes`` /
-           ``xs``.
+        2. Resolve each isolated size from the cache; emit the auxiliary
+           ``.typ`` only for the missed sizes (plus the probe tree when
+           ``with_inline_x``).
+        3. Run ``typst query`` when anything was emitted, split the output
+           into ``sizes`` / ``xs``, and record the missed sizes.
         4. Walk every root again to assign each element's bbox,
            threading the y of the nearest fixed ancestor.
         """
@@ -955,22 +1074,43 @@ class TypstMeasurer:
             {el.font for el in self.elements.values() if isinstance(el, Text)}
         )
 
-        lines = [
-            "#set page(margin: 0cm)",
-            "",
-            "#context [",
-        ]
-        # One metadata record per element, asking Typst for its isolated
-        # (w, h) via `measure(...)`. Wrapped once in `#context [...]` so
-        # the call is valid in template scope.
+        # Serve isolated sizes from the persistent cache; only elements that
+        # miss need a `measure(...)` record. An element with an empty body (a
+        # Group, whose bbox is the union of its children) measures to zero
+        # without a query and is not cached.
+        cache = _measure_cache()
+        font_signature = _font_signature()
+        bodies: dict[int, str] = {}
+        keys: dict[int, str] = {}
+        pending: list[int] = []
         for mid, el in self.elements.items():
-            c = "[" + _bare(el) + "]"
-            lines.append(
-                f"  #metadata((id: {mid}, "
-                f"w: measure({c}).width/1cm, "
-                f"h: measure({c}).height/1cm))<bbox>"
-            )
-        lines.append("]")
+            body = _bare(el)
+            if not body:
+                self.sizes[mid] = (0.0, 0.0)
+                continue
+            key = _size_cache_key(body, font_signature)
+            keys[mid] = key
+            cached = cache.get(key)
+            if cached is not None:
+                self.sizes[mid] = cached
+            else:
+                bodies[mid] = body
+                pending.append(mid)
+
+        lines = ["#set page(margin: 0cm)", ""]
+        if pending:
+            # One metadata record per cache-miss element, asking Typst for its
+            # isolated (w, h) via `measure(...)`. Wrapped once in `#context
+            # [...]` so the call is valid in template scope.
+            lines.append("#context [")
+            for mid in pending:
+                c = "[" + bodies[mid] + "]"
+                lines.append(
+                    f"  #metadata((id: {mid}, "
+                    f"w: measure({c}).width/1cm, "
+                    f"h: measure({c}).height/1cm))<bbox>"
+                )
+            lines.append("]")
         if with_inline_x:
             # Mirror the real render so `here().position()` probes see the
             # actual layout flow; fixed roots become `#place` blocks.
@@ -978,16 +1118,22 @@ class TypstMeasurer:
                 if el.placement != "fixed":
                     continue
                 lines.extend(_render_placed(el, self._render_node))
-        _write(self.path, "\n".join(lines) + "\n")
 
-        # Demux the records by which keys they carry. Size and x
-        # records share the same `<bbox>` label because typst-query is
-        # invoked once per measurement pass.
-        for e in self._query():
-            if "w" in e:
-                self.sizes[e["id"]] = (e["w"], e["h"])
-            else:
-                self.xs[e["id"]] = e["x"]
+        # The query is needed only for missed sizes or for the inline-x probes;
+        # a fully cached size-only pass spawns no Typst process.
+        if pending or with_inline_x:
+            _write(self.path, "\n".join(lines) + "\n")
+            # Demux the records by which keys they carry. Size and x
+            # records share the same `<bbox>` label because typst-query is
+            # invoked once per measurement pass.
+            for e in self._query():
+                if "w" in e:
+                    mid = e["id"]
+                    size = (e["w"], e["h"])
+                    self.sizes[mid] = size
+                    cache.put(keys[mid], size)
+                else:
+                    self.xs[e["id"]] = e["x"]
 
         # Inline-at-root is unusual but tolerated: ancestor_top_y=0 by
         # convention, so the inline root's bbox.y collapses to `-h`.

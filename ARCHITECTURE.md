@@ -234,6 +234,10 @@ For each `Element` (other than `"omitted"`, which is pruned everywhere) we need:
 
 Everything is emitted under the same `<bbox>` label and recovered in a single `typst.query(..., field="value", ignore_system_fonts=True, font_paths=_font_paths())` call. Telling apart size and x is done by checking which key is present in the JSON entry.
 
+#### Persistent size cache
+
+The isolated `(w, h)` of an element is a pure function of the Typst body handed to `measure(...)`, the fonts it resolves against, and the compiler version. `MeasureCache` stores those sizes on disk (`.mate_cache/measure_cache.json`) keyed by `_size_cache_key(body, font_signature)` — a SHA-256 over the body, the font signature (path/size/mtime of every file under `_font_paths()`), the `typst` package version, and a format-version constant. A measurement pass serves every hit from the cache and emits a `measure(...)` record only for the misses; when no size misses and no inline-`x` probes remain, the pass runs no Typst query at all. The file is rewritten on interpreter exit with exactly the keys touched in the run, keeping it scoped to the current deck. Inline-`x` records are flow-dependent and are not cached.
+
 #### Fonts
 
 `query` (measure) and `compile` (render) both run with `ignore_system_fonts=True` and the same `_font_paths()`: Typst's embedded faces, the project `fonts/` directory, and the `config.font_paths` directories.
