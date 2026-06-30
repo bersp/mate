@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from itertools import cycle
 
+from ..composition.arrange import arrange
 from ..composition.layout import Layout, Region
 from ..composition.utils import layout_to_group
 from ..config import config
@@ -242,30 +243,53 @@ class PresentationTemplateBase:
     def add_fragment(self, blocks: list[Block], args: str) -> None:
         """Render a ``markdown fragment`` body, pushing its properties onto it.
 
-        ``args`` is the fence's verbatim property text. ``region`` is applied as
-        an ambient region honored by every content method while the body renders;
-        every other property is applied to each element the body produced by
-        calling its ``set_<prop>`` method (or bare ``<prop>``) when one exists,
-        and ignored otherwise.
+        ``args`` is the fence's verbatim property text. ``region``, ``floating``,
+        ``pos`` and ``anchor`` set placement; every other property is applied to
+        each root the body produced by calling its ``set_<prop>`` method (or bare
+        ``<prop>``) when one exists, and ignored otherwise.
+
+        ``region`` is an ambient region honored by every content method while the
+        body renders. With ``floating=True`` the produced roots are not added to
+        the region: they keep their own reveal steps and are stacked with their
+        ``anchor`` point at ``pos`` (the region's ``anchor`` point when ``pos`` is
+        omitted), with ``region`` supplying the wrap width for the body.
         """
         props = eval(f"dict({args})", {"dict": dict, **_AUTHOR_GLOBALS})
         region = props.pop("region", None)
+        floating = props.pop("floating", False)
+        pos = props.pop("pos", None)
+        anchor = props.pop("anchor", None)
 
         before = {id(el) for el in self._root_elements()}
-        previous_region = self._fragment_region
-        if region is not None:
-            self._fragment_region = region
-        for block in blocks:
-            self._dispatch_block(block)
-        self._fragment_region = previous_region
+        if floating:
+            geometry = self._resolve_region(region or "active")
+            cluster_anchor = anchor or geometry.anchor
+            temp = Region(
+                geometry.center, geometry.width, geometry.height, anchor=cluster_anchor
+            )
+            previous_override = self._region_override
+            self._region_override = temp
+            for block in blocks:
+                self._dispatch_block(block)
+            self._region_override = previous_override
+        else:
+            previous_region = self._fragment_region
+            if region is not None:
+                self._fragment_region = region
+            for block in blocks:
+                self._dispatch_block(block)
+            self._fragment_region = previous_region
 
-        for el in self._root_elements():
-            if id(el) in before:
-                continue
+        new_roots = [el for el in self._root_elements() if id(el) not in before]
+        for el in new_roots:
             for prop, value in props.items():
                 method = el.resolve_prop(prop)
                 if callable(method):
                     method(value)
+
+        if floating:
+            place = Vec(pos) if pos is not None else temp.get_anchor_point(cluster_anchor)
+            arrange(new_roots, place, cluster_anchor, gap=temp.arrange_gap)
 
     def _root_elements(self) -> list[Element]:
         """Return every root element added to the current slide so far."""
@@ -764,6 +788,7 @@ class PresentationTemplateBase:
         text: str,
         region: str = "active",
         *,
+        floating: bool = False,
         align: HAlign | None = None,
         **text_kwargs,
     ) -> Text:
@@ -777,6 +802,10 @@ class PresentationTemplateBase:
         ``text_align`` to override only the lines. ``line_gap`` defaults to the
         region's ``arrange_gap``, so a wrapped paragraph's inter-line gap matches
         the gap between elements stacked in the region.
+
+        With ``floating=True`` the text is not added to the region: the region's
+        :meth:`~mate.composition.layout.Region.arrange` does not stack it and it
+        keeps the ``pos``/``anchor`` passed in ``text_kwargs``.
         """
         target_region = self._resolve_region(region)
         indent = self._content_indent
@@ -785,7 +814,8 @@ class PresentationTemplateBase:
         el = Text(text, align=align, **text_kwargs)
         el.indent = indent
         self.current_slide.add(el)
-        target_region.add(el)
+        if not floating:
+            target_region.add(el)
         return el
 
     def add_vspace(self, height: float, region: str = "active") -> VSpace:
@@ -805,6 +835,7 @@ class PresentationTemplateBase:
         path: str,
         region: str = "active",
         *,
+        floating: bool = False,
         width: float | str | None = None,
         height: float | str | None = None,
         **image_kwargs,
@@ -819,6 +850,10 @@ class PresentationTemplateBase:
         image's aspect ratio reaches first. ``align``
         defaults to the ``image.align`` config value; the remaining keyword
         arguments are forwarded to :class:`Image`.
+
+        With ``floating=True`` the image is not added to the region: the region's
+        :meth:`~mate.composition.layout.Region.arrange` does not stack it and it
+        keeps the ``pos``/``anchor`` passed in ``image_kwargs``.
         """
         target_region = self._resolve_region(region)
         indent = self._content_indent
@@ -837,7 +872,8 @@ class PresentationTemplateBase:
         el = Image(path, width=width_cm, height=height_cm, **image_kwargs)
         el.indent = indent
         self.current_slide.add(el)
-        target_region.add(el)
+        if not floating:
+            target_region.add(el)
         return el
 
     def crop_image(
