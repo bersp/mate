@@ -36,6 +36,7 @@ _DEFAULTS: dict[str, object] = {
     "arrange.gap": 0.2,
     "line.stroke_width": 0.03,
     "image.align": "center",
+    "typst.preamble": "",
     "text.font": "libertinus serif",
     "text.fontweight": "regular",
     "text.fontsize": 12.0,

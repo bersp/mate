@@ -80,6 +80,17 @@ def _font_paths() -> list[str]:
     return [str(_FONTS_DIR), *config.font_paths]
 
 
+def _user_preamble() -> str:
+    """Return the ``typst.preamble`` config value, terminated with a newline.
+
+    The block sits at the top of every measure and render document, ahead of
+    the page setup; its imports and definitions are visible to all markup.
+    Empty by default, yielding an empty string.
+    """
+    text = str(config.get("typst.preamble"))
+    return text + "\n" if text else ""
+
+
 # Resolvable family names per ``font_paths`` set, cached.
 _FONT_FAMILIES: dict[tuple[str, ...], frozenset[str]] = {}
 
@@ -915,7 +926,10 @@ class TypstRenderer:
         fragments are separated by ``#pagebreak()``.
         """
         width, height = canvas
-        preamble = f"#set page(width: {width}cm, height: {height}cm, margin: 0cm)\n"
+        preamble = (
+            _user_preamble()
+            + f"#set page(width: {width}cm, height: {height}cm, margin: 0cm)\n"
+        )
         body = "\n#pagebreak()\n".join(fragments)
         source = preamble + "\n" + body + "\n"
         try:
@@ -1097,7 +1111,7 @@ class TypstMeasurer:
                 bodies[mid] = body
                 pending.append(mid)
 
-        lines = ["#set page(margin: 0cm)", ""]
+        lines = [_user_preamble() + "#set page(margin: 0cm)", ""]
         if pending:
             # One metadata record per cache-miss element, asking Typst for its
             # isolated (w, h) via `measure(...)`. Wrapped once in `#context
@@ -1180,8 +1194,9 @@ class TypstMeasurer:
             if not bare:
                 continue
             probe = (
-                "#set page(margin: 0cm)\n"
-                f"#context [ #metadata(measure([{bare}]).width/1cm)<bbox> ]\n"
+                _user_preamble()
+                + "#set page(margin: 0cm)\n"
+                + f"#context [ #metadata(measure([{bare}]).width/1cm)<bbox> ]\n"
             )
             _write(self.path, probe)
             try:
