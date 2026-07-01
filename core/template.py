@@ -289,7 +289,7 @@ class PresentationTemplateBase:
 
         if floating:
             place = Vec(pos) if pos is not None else temp.get_anchor_point(cluster_anchor)
-            arrange(new_roots, place, cluster_anchor, gap=temp.arrange_gap)
+            arrange(temp.elements, place, cluster_anchor, gap=temp.arrange_gap)
 
     def _root_elements(self) -> list[Element]:
         """Return every root element added to the current slide so far."""
@@ -826,7 +826,7 @@ class PresentationTemplateBase:
         height into :meth:`Region.arrange`, opening that much vertical space
         between the elements stacked around it.
         """
-        target_region = self.layout.get(region)
+        target_region = self._resolve_region(region)
         spacer = VSpace(height)
         target_region.add(spacer)
         return spacer
