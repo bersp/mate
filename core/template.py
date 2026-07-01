@@ -720,7 +720,7 @@ class PresentationTemplateBase:
         in ``props`` as centred text in the ``full_with_margins`` region; other
         properties are ignored. A template overrides this to change the layout.
         """
-        region = self.layout.get("full_with_margins")
+        region = self.layout.get("full_with_margins").set_anchor("center-left")
         members = Group()
 
         title_el = Text(
@@ -729,10 +729,12 @@ class PresentationTemplateBase:
             fontsize=config.get("title.fontsize"),
             weight=config.get("title.fontweight"),
             fill_color=config.get("title.color"),
-            align="center",
+            max_width=region.width,
         )
         region.add(title_el)
         members.add(title_el)
+
+        region.add(VSpace(1))
 
         for key, style in (("subtitle", "subtitle"), ("author", "text"), ("date", "text")):
             value = props.get(key)
@@ -743,7 +745,6 @@ class PresentationTemplateBase:
                 font=config.get(f"{style}.font"),
                 fontsize=config.get(f"{style}.fontsize"),
                 fill_color=config.get(f"{style}.color"),
-                align="center",
             )
             region.add(line)
             members.add(line)
