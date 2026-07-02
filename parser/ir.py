@@ -1,10 +1,10 @@
 """Tokenized representation of a parsed Markdown document.
 
-A :class:`ParsedDocument` holds a :class:`FrontMatter` config block and a list
-of :class:`ParsedSlide`s; each slide holds its title and subtitle as inline
-tokens plus a list of body blocks. Blocks and inlines are dataclasses so the
-later element-mapping step consumes a typed tree rather than a backend-specific
-token stream.
+A :class:`ParsedDocument` holds a :class:`FrontMatter` config block and an
+ordered stream of :class:`Topic` markers and :class:`ParsedSlide`s; each slide
+holds its title and subtitle as inline tokens plus a list of body blocks.
+Blocks and inlines are dataclasses so the later element-mapping step consumes a
+typed tree rather than a backend-specific token stream.
 """
 
 from __future__ import annotations
@@ -182,5 +182,17 @@ class FrontMatter:
 
 @dataclass
 class ParsedDocument:
-    slides: list[ParsedSlide] = field(default_factory=list)
+    """A parsed document as an ordered stream of topics and slides.
+
+    ``items`` interleaves :class:`Topic` markers with :class:`ParsedSlide`s in
+    source order; a topic opens its section (and optional cover) at the point it
+    appears, whether or not any slide follows it.
+    """
+
+    items: list[Topic | ParsedSlide] = field(default_factory=list)
     frontmatter: FrontMatter = field(default_factory=FrontMatter)
+
+    @property
+    def slides(self) -> list[ParsedSlide]:
+        """The document's content slides in order, topic markers excluded."""
+        return [item for item in self.items if isinstance(item, ParsedSlide)]

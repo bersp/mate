@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from . import Presentation, config
-from .parser import parse_markdown
+from .parser import ParsedSlide, parse_markdown
 
 
 def _resolve_template(name: str, base_dir: Path) -> str:
@@ -41,13 +41,11 @@ def main() -> None:
         total_slides=len(doc.slides),
         frontmatter=doc.frontmatter,
     )
-    prev_topic = None
-    for parsed in doc.slides:
-        topic = parsed.topic
-        if topic is not None and topic is not prev_topic:
-            pres.begin_topic(topic)
-        prev_topic = topic
-        pres.new_slide()
-        pres.add_parsed_slide(parsed)
-        pres.end_slide()
+    for item in doc.items:
+        if isinstance(item, ParsedSlide):
+            pres.new_slide()
+            pres.add_parsed_slide(item)
+            pres.end_slide()
+        else:
+            pres.begin_topic(item)
     pres.write()

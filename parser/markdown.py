@@ -58,7 +58,7 @@ def _tokenize(text: str) -> SyntaxTreeNode:
 
 
 def parse_markdown(source: str) -> ParsedDocument:
-    """Parse ``source`` into a :class:`ParsedDocument` of tokenized slides."""
+    """Parse ``source`` into a :class:`ParsedDocument` stream of topics and slides."""
     frontmatter, body = _split_frontmatter(source)
     body = _separate_math_blocks(body)
     tree = _tokenize(body)
@@ -73,6 +73,9 @@ def parse_markdown(source: str) -> ParsedDocument:
         if name is not None:
             current_topic = Topic(name)
             pending_topic = current_topic
+            # The topic enters the stream at its marker position; a trailing
+            # blockquote mutates this same object in place with its props.
+            doc.items.append(current_topic)
             continue
         # A blockquote right after a marker carries the topic's cover properties.
         if pending_topic is not None and node.type == "blockquote":
@@ -83,7 +86,7 @@ def parse_markdown(source: str) -> ParsedDocument:
 
         if node.type == "heading" and node.tag == "h1":
             current = ParsedSlide(title=_inlines_of(node), topic=current_topic)
-            doc.slides.append(current)
+            doc.items.append(current)
             continue
 
         if current is None:
