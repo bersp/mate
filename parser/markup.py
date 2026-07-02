@@ -3,14 +3,15 @@
 A deliberately simple scanner — not a full CommonMark engine — covering the
 constructs a :class:`~mate.elements.text.Text` leaf carries: ``**bold**``,
 ``*italic*`` / ``_italic_``, ``` `code` ```, inline ``$math$`` and display
-``$$math$$``, plus backslash escapes. The produced tokens are backend-agnostic;
+``$$math$$``, a trailing backslash before a newline as a hard line break,
+plus backslash escapes. The produced tokens are backend-agnostic;
 each backend turns them into its own syntax. This is the inverse of
 :func:`~mate.parser.serialize.inlines_to_markdown`.
 """
 
 from __future__ import annotations
 
-from .ir import Bold, Code, Inline, Italic, Math, TextRun
+from .ir import Bold, Code, Inline, Italic, LineBreak, Math, TextRun
 
 
 def parse_markup(source: str) -> list[Inline]:
@@ -29,7 +30,11 @@ def _scan(s: str, i: int, end: int) -> list[Inline]:
 
     while i < end:
         c = s[i]
-        if c == "\\" and i + 1 < end:
+        if c == "\\" and i + 1 < end and s[i + 1] == "\n":
+            flush()
+            out.append(LineBreak())
+            i += 2
+        elif c == "\\" and i + 1 < end:
             buf.append(s[i + 1])
             i += 2
         elif c == "`":

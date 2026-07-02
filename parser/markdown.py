@@ -5,10 +5,11 @@ the presentation's config (see :class:`~mate.parser.ir.FrontMatter`). Slide
 syntax: a ``#`` (h1) heading opens a new slide and is its title; a ``##`` (h2)
 heading that is the slide's first block is its subtitle. Every other construct
 becomes a body block. Supported v1 content: paragraphs with inline
-bold/italic/code, Typst-style ``$...$`` and ``$$...$$`` math, bullet and ordered
-lists (nested), in-body headings, and blockquotes that call a presentation
-method, one ``> method name : args`` (or no-arg ``> method name``) call per
-line. Math spans are carved out before emphasis parsing so
+bold/italic/code, hard line breaks (a trailing backslash or two trailing
+spaces before a newline), Typst-style ``$...$`` and ``$$...$$`` math, bullet
+and ordered lists (nested), in-body headings, and blockquotes that call a
+presentation method, one ``> method name : args`` (or no-arg ``> method
+name``) call per line. Math spans are carved out before emphasis parsing so
 their ``*``/``_`` are not consumed as markup. Unsupported constructs raise at
 parse time.
 """
@@ -33,6 +34,7 @@ from .ir import (
     Heading,
     Inline,
     Italic,
+    LineBreak,
     ListItem,
     Math,
     MathBlock,
@@ -317,8 +319,10 @@ def _fold_inlines(nodes: list[SyntaxTreeNode]) -> list[Inline]:
                 out.append(Code(n.content))
             case "math_inline":
                 out.append(Math(n.content.strip()))
-            case "softbreak" | "hardbreak":
+            case "softbreak":
                 out.append(TextRun(" "))
+            case "hardbreak":
+                out.append(LineBreak())
             case _:
                 raise _unsupported(n.type)
     return out

@@ -8,7 +8,7 @@ to translate Markdown markup into its own syntax. This module is the inverse of
 
 from __future__ import annotations
 
-from .ir import Bold, Code, Inline, Italic, Math, TextRun
+from .ir import Bold, Code, Inline, Italic, LineBreak, Math, TextRun
 
 _TEXT_ESCAPE = str.maketrans({c: f"\\{c}" for c in "\\*_`$"})
 
@@ -18,7 +18,8 @@ def inlines_to_markdown(inlines: list[Inline]) -> str:
 
     Literal text has its Markdown-significant characters backslash-escaped so
     it is not re-read as markup; emphasis, code, and math are re-emitted with
-    their Markdown delimiters.
+    their Markdown delimiters; a hard line break is re-emitted as a trailing
+    backslash before the newline.
     """
     out: list[str] = []
     for node in inlines:
@@ -33,4 +34,6 @@ def inlines_to_markdown(inlines: list[Inline]) -> str:
                 out.append(f"`{text}`")
             case Math(raw, display):
                 out.append(f"$$ {raw} $$" if display else f"${raw}$")
+            case LineBreak():
+                out.append("\\\n")
     return "".join(out)

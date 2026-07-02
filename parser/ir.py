@@ -53,7 +53,13 @@ class Math:
     display: bool = False
 
 
-Inline = TextRun | Bold | Italic | Code | Math
+@dataclass
+class LineBreak:
+    """An explicit hard line break within a paragraph (Markdown's trailing
+    backslash or two trailing spaces before a newline)."""
+
+
+Inline = TextRun | Bold | Italic | Code | Math | LineBreak
 
 
 # --- Block tokens -----------------------------------------------------------

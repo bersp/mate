@@ -7,6 +7,7 @@ from .ir import (
     Heading,
     Inline,
     Italic,
+    LineBreak,
     ListItem,
     Math,
     MathBlock,
@@ -42,4 +43,5 @@ __all__ = [
     "Italic",
     "Code",
     "Math",
+    "LineBreak",
 ]
