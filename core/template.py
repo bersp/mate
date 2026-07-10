@@ -717,7 +717,7 @@ class PresentationTemplateBase:
         """Render a cover page from a ``title`` and generic topic properties.
 
         Stacks ``title`` and any of ``subtitle``, ``author`` and ``date`` found
-        in ``props`` as centred text in the ``full_with_margins`` region; other
+        in ``props`` as text in the ``full_with_margins`` region; other
         properties are ignored. A template overrides this to change the layout.
         """
         region = self.layout.get("full_with_margins").set_anchor("center-left")
@@ -734,9 +734,11 @@ class PresentationTemplateBase:
         region.add(title_el)
         members.add(title_el)
 
-        region.add(VSpace(1))
+        meta = (("subtitle", "subtitle"), ("author", "text"), ("date", "text"))
+        if any(props.get(key) is not None for key, _ in meta):
+            region.add(VSpace(1))
 
-        for key, style in (("subtitle", "subtitle"), ("author", "text"), ("date", "text")):
+        for key, style in meta:
             value = props.get(key)
             if value is None:
                 continue
