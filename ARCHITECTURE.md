@@ -14,27 +14,42 @@ A Python-driven presentation tool.
 ```
 mate/
 ├── __init__.py        # public re-exports
+├── cli.py             # `mate <presentation.md>` entry point
 ├── config.py          # process-global `config` singleton (slide size, color palette)
 ├── log.py             # process-global `mate` logger
-├── demo.py            # usage example
 ├── pyproject.toml
 ├── core/              # primitives and central abstractions
 │   ├── vec.py
 │   ├── element.py
+│   ├── drawable.py
+│   ├── gradient.py
+│   ├── registry.py
 │   ├── slide.py
+│   ├── topic.py
+│   ├── template.py
 │   └── presentation.py
 ├── elements/          # concrete visual element types
 │   ├── group.py
+│   ├── image.py
 │   ├── shapes.py
 │   ├── spacing.py
 │   └── text.py
+├── parser/            # Markdown → parsed document (front matter, topics, slides)
+│   ├── ir.py
+│   ├── markdown.py
+│   ├── markup.py
+│   └── serialize.py
 ├── backends/          # backend-specific renderers/measurers
 │   └── typst.py
 ├── composition/       # spatial layout built on top of core + elements
 │   ├── arrange.py
 │   ├── layout.py
 │   └── utils.py
-└── .mate_cache/            # regenerated artifacts (measurement); safe to delete
+├── templates/         # built-in presentation templates
+│   ├── simple.py
+│   └── flow.py
+├── fonts/             # bundled font families, one directory per family
+└── .mate_cache/       # regenerated artifacts (measurement); safe to delete
 ```
 
 ## Coordinate system
@@ -79,7 +94,7 @@ All `Element` constructor parameters (`pos`, `anchor`, `placement`, `id`) are **
 
 **Inline → fixed freeze.** Inline elements have no anchor of their own — their visible position only exists after Typst lays them out. The freeze captures the current anchor point (`_current_anchor_point()` derives it from the measured bbox and the anchor's offsets) and stores it in `_pos` before applying the increment, which makes `shift((0, 0))` a true visual no-op. The cost is one measurement when the bbox cache is cold.
 
-**Movement propagates by default.** Mutating an element's position translates every fixed descendant by the same delta (`_translate` walks the subtree). `"inline"` descendants are not touched (their `_pos` is meaningless under flow), but the recursion descends through them so fixed grand-descendants still follow.
+**Movement propagates by default.** Mutating an element's position translates every fixed descendant by the same delta (`_translate` walks the subtree). `"inline"` descendants are not touched (their `_pos` is meaningless under flow), but the recursion descends through them so fixed grand-descendants follow too.
 
 **Cache invalidation is geometric only.** `move_to`, `shift`, `set_anchor`, and the intrinsic-size setters (`set_width`, `set_height`, `set_radius`) call `_invalidate_tree`, which clears `_bbox` on every node in the tree (a position or anchor change can shift the flowed `x` of inline siblings, so the whole tree must be re-measured). Visual-only mutators (color, opacity, stroke, hidden) leave the cache alone, since they do not affect typesetting size.
 
@@ -137,7 +152,7 @@ The backend resolves `None` to the default values locally at render time — eve
 
 Every `Text` carries explicit `font: str` and `size: float` (points) as keyword-only constructor params. Defaults are the Typst defaults hardcoded as constants (`DEFAULT_FONT = "libertinus serif"`, `DEFAULT_SIZE_PT = 11.0`). The backend wraps every rendered/measured Text in `#text(font: "...", size: ...pt, ...)`. Sub-elements built by the parser inherit the parent's font/size, propagated in the constructor after `_take_children`. An optional `max_width: float | None` (cm) wraps the text: the backend boxes it at `min(natural width, max_width)` via a Typst `#context` block, so the bbox width shrinks to fit and the height grows with the wrapped line count.
 
-Only `fill_color` / `fill_opacity` reach Typst (folded into the same `#text(...)` wrapper as `font` and `size`); `stroke_*` is accepted but currently ignored for text rendering.
+`fill_*` and `stroke_*` fold into the same `#text(...)` wrapper as `font` and `size`, each emitted only when the element carries explicit values; an element without them inherits Typst's lexical defaults (black fill, no stroke).
 
 **`_copy()`** override re-maps the `subs` list using the shared `mapping` from `Element._copy`, so the cloned subs point at the cloned descendants. Clones inherit structure but are not registered in `id_registry`: the registry indexes user-tagged originals.
 
@@ -163,7 +178,7 @@ Invisible spacers extending `Element` (no fill/stroke) with intrinsic size and n
 
 ### `elements/group.py` — `Group`
 
-`Group` extends `Drawable` with no markup of its own. It is a real tree node (children are reparented on construction) and its bbox is the **union** of children's bboxes (omitted children excluded), so `group.center` (and `group.get_bbox_center()`) returns the visual center of all the contained content. `group.anchor` still applies — `_current_anchor_point()` returns the corresponding corner of the union bbox.
+`Group` extends `Drawable` with no markup of its own. It is a real tree node (children are reparented on construction) and its bbox is the **union** of children's bboxes (omitted children excluded), so `group.center` (and `group.get_bbox_center()`) returns the visual center of all the contained content. `group.anchor` applies to that union bbox — `_current_anchor_point()` returns the corresponding corner of it.
 
 A Group has no rendered body, so its own `fill_color` / `stroke_color` / `fill_opacity` / `stroke_width` are inert at render time. Their purpose is to serve as the receiver for the `set_*` bulk setters, which walk and rewrite every `Drawable` descendant.
 
@@ -183,7 +198,7 @@ The `gap` is per-pair: it is inserted between two consecutive elements only when
 
 Math note: writing out the per-element `pos.x` in terms of the stack's `pos.x`, the stack's `h_mul`, the element's own `h_mul`, and its width, the stack's `total_width` cancels — only the element's own width is needed. So `arrange` never computes `max(widths)` and only reads `get_width()` for elements whose horizontal anchor half differs from the stack's.
 
-Performance is the reason this helper exists as a single function rather than a couple of inlined lines. Before the positioning loop it collects the elements that need a measured bbox — everything except the intrinsic-size types (`Rectangle`, `Circle`, `Ellipse`, `Line`, `Polygon`, `Curve`, `VSpace`, `HSpace`), which report their own dimensions — and runs `measure_all` over that subset, so the worst case is one Typst query for the whole call. A stack of intrinsic-size elements pays zero queries.
+Before the positioning loop it collects the elements that need a measured bbox — everything except the intrinsic-size types (`Rectangle`, `Circle`, `Ellipse`, `Line`, `Polygon`, `Curve`, `VSpace`, `HSpace`), which report their own dimensions — and runs `measure_all` over that subset, so the worst case is one Typst query for the whole call. A stack of intrinsic-size elements pays zero queries.
 
 ### `composition/layout.py` — `Region`, `Layout`
 
@@ -268,5 +283,5 @@ Messages opt into rich markup per call with `extra={"markup": True, "highlighter
 ## Notes
 
 - `.mate_cache/` is created automatically. Deleting it breaks nothing — it is regenerated on the next measurement.
-- Default path of `Presentation.write` is `"presentation.typ"` in cwd. The measurement path is internal to the backend (`.mate_cache/measure.typ`).
+- `Presentation.write` compiles to `<name>.pdf` in the cwd. The measurement path is internal to the backend (`.mate_cache/measure.typ`).
 - `_mid` is global and monotonic. Sufficient as long as a single Presentation is built per process. If isolation is needed later, move it to a per-`Presentation` counter.
