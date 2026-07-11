@@ -725,28 +725,29 @@ class PresentationTemplateBase:
 
         title_el = Text(
             title,
-            font=config.get("title.font"),
-            fontsize=config.get("title.fontsize"),
-            weight=config.get("title.fontweight"),
-            fill_color=config.get("title.color"),
+            font=config.get("cover.title.font"),
+            fontsize=config.get("cover.title.fontsize"),
+            weight=config.get("cover.title.fontweight"),
+            fill_color=config.get("cover.title.color"),
             max_width=region.width,
         )
         region.add(title_el)
         members.add(title_el)
 
-        meta = (("subtitle", "subtitle"), ("author", "text"), ("date", "text"))
+        meta = (("subtitle", "cover.subtitle"), ("author", "cover.author"), ("date", "cover.author"))
         if any(props.get(key) is not None for key, _ in meta):
             region.add(VSpace(1))
 
-        for key, style in meta:
+        for key, role in meta:
             value = props.get(key)
             if value is None:
                 continue
             line = Text(
                 value,
-                font=config.get(f"{style}.font"),
-                fontsize=config.get(f"{style}.fontsize"),
-                fill_color=config.get(f"{style}.color"),
+                font=config.get(f"{role}.font"),
+                fontsize=config.get(f"{role}.fontsize"),
+                weight=config.get(f"{role}.fontweight"),
+                fill_color=config.get(f"{role}.color"),
             )
             region.add(line)
             members.add(line)

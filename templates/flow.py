@@ -54,6 +54,17 @@ class PresentationTemplate(PresentationTemplateBase):
         config.set("subtitle.font", "Lato")
         config.set("subtitle.fontsize", 11.0)
 
+        config.set("cover.title.font", "Playfair Display")
+        config.set("cover.title.fontweight", 600)
+        config.set("cover.title.fontsize", 20.0)
+        config.set("cover.title.color", "flow.cover_title")
+        config.set("cover.subtitle.font", "Lato")
+        config.set("cover.subtitle.fontsize", 14.0)
+        config.set("cover.subtitle.color", "flow.cover_accent")
+        config.set("cover.author.font", "Lato")
+        config.set("cover.author.fontsize", 10.0)
+        config.set("cover.author.color", "flow.cover_author")
+
         config.set("footer.show", False)
 
         config.colors.set_multiple(self.palette)
@@ -102,15 +113,21 @@ class PresentationTemplate(PresentationTemplateBase):
             )
         if subtitle:
             stack.append(
-                Text(subtitle, font="Lato", fontsize=14, fill_color="flow.cover_accent")
+                Text(
+                    subtitle,
+                    font=config.get("cover.subtitle.font"),
+                    fontsize=config.get("cover.subtitle.fontsize"),
+                    weight=config.get("cover.subtitle.fontweight"),
+                    fill_color=config.get("cover.subtitle.color"),
+                )
             )
         stack.append(
             Text(
                 title,
-                font="Playfair Display",
-                fontsize=20,
-                weight=600,
-                fill_color="flow.cover_title",
+                font=config.get("cover.title.font"),
+                fontsize=config.get("cover.title.fontsize"),
+                weight=config.get("cover.title.fontweight"),
+                fill_color=config.get("cover.title.color"),
                 max_width=W * 0.62,
             )
         )
@@ -124,9 +141,10 @@ class PresentationTemplate(PresentationTemplateBase):
             elements.append(
                 Text(
                     " · ".join(meta),
-                    font="Lato",
-                    fontsize=10,
-                    fill_color="flow.cover_author",
+                    font=config.get("cover.author.font"),
+                    fontsize=config.get("cover.author.fontsize"),
+                    weight=config.get("cover.author.fontweight"),
+                    fill_color=config.get("cover.author.color"),
                     pos=(left_x, -H / 2 + 0.9),
                     anchor="bottom-left",
                 )

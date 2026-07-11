@@ -22,7 +22,9 @@ def _template_namespace(key: str) -> str | None:
 #
 # Typography keys follow ``<role>.<dimension>``: every typographic role
 # (``text``, ``title``, ``subtitle``, ``math``) carries the dimensions it needs
-# (``font``, ``fontweight``, ``fontsize``, ``color``). The font/size literals are kept in sync
+# (``font``, ``fontweight``, ``fontsize``, ``color``). The cover splits into
+# ``cover.title``, ``cover.subtitle`` and ``cover.author`` roles, each carrying
+# the same dimensions. The font/size literals are kept in sync
 # with ``typst query`` on a blank doc so the rendered output never relies on
 # Typst's implicit fallback; ``color`` is a palette name resolved via
 # ``config.colors``.
@@ -50,6 +52,18 @@ _DEFAULTS: dict[str, object] = {
     "subtitle.fontweight": "regular",
     "subtitle.fontsize": 12.0,
     "subtitle.color": "darker_gray",
+    "cover.title.font": "libertinus serif",
+    "cover.title.fontweight": "bold",
+    "cover.title.fontsize": 14.0,
+    "cover.title.color": "black",
+    "cover.subtitle.font": "libertinus serif",
+    "cover.subtitle.fontweight": "regular",
+    "cover.subtitle.fontsize": 12.0,
+    "cover.subtitle.color": "darker_gray",
+    "cover.author.font": "libertinus serif",
+    "cover.author.fontweight": "regular",
+    "cover.author.fontsize": 12.0,
+    "cover.author.color": "black",
     "math.font": "libertinus serif",
     "math.fontweight": "regular",
     "math.fontsize": 12.0,
