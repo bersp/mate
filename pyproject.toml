@@ -1,15 +1,30 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mate"
-version = "0.0.1"
+name = "yerba"
+version = "0.1.0"
+description = "Python-driven presentation tool: Markdown decks laid out in Python, rendered to PDF"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
 dependencies = ["numpy", "typst>=0.14", "rich>=13", "markdown-it-py>=3", "mdit-py-plugins>=0.4", "pyyaml>=6"]
 authors = [
   {name = "Bernardo L. Español", email = "esp.bernardo@gmail.com"},
 ]
+keywords = ["presentation", "slides", "markdown", "pdf"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Programming Language :: Python :: 3",
+  "Topic :: Multimedia :: Graphics :: Presentation",
+]
+
+[project.urls]
+Repository = "https://github.com/bersp/mate"
+Issues = "https://github.com/bersp/mate/issues"
 
 [project.scripts]
 mate = "mate.cli:main"
@@ -17,6 +32,9 @@ mate = "mate.cli:main"
 [tool.setuptools]
 packages = ["mate", "mate.core", "mate.elements", "mate.backends", "mate.composition", "mate.parser", "mate.templates"]
 package-dir = {"mate" = "."}
+
+[tool.setuptools.package-data]
+mate = ["fonts/*/*.ttf", "fonts/*/OFL.txt", "fonts/README.md"]
 
 [tool.ruff]
 line-length = 88

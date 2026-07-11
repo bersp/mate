@@ -2,3 +2,5 @@ __pycache__/
 *.pyc
 *.egg-info/
 .mate_cache/
+build/
+dist/
