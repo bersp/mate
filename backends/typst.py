@@ -29,7 +29,7 @@ from ..elements.shapes import (
 )
 from ..elements.spacing import HSpace, VSpace
 from ..elements.text import Text
-from ..parser.ir import Bold, Code, Italic, Math, TextRun
+from ..parser.ir import Bold, Code, Italic, LineBreak, Math, TextRun
 from ..parser.markup import parse_markup
 
 if TYPE_CHECKING:
@@ -262,8 +262,9 @@ def _markdown_to_typst(s: str) -> str:
 
     Parses ``s`` into inline tokens and emits the Typst form of each:
     ``**bold**`` / ``*italic*`` / ``_italic_`` become ``*...*`` / ``_..._``,
-    ``` `code` ``` and ``$math$`` keep their verbatim bodies, and every literal
-    character is Typst-escaped when special.
+    ``` `code` ``` and ``$math$`` keep their verbatim bodies, a hard line break
+    becomes Typst's ``\`` line break, and every literal character is
+    Typst-escaped when special.
     """
     return _inline_to_typst(parse_markup(s))
 
@@ -282,6 +283,8 @@ def _inline_to_typst(nodes: list[Inline]) -> str:
             out.append(f"`{node.text}`")
         elif isinstance(node, Math):
             out.append(f"$ {node.raw} $" if node.display else f"${node.raw}$")
+        elif isinstance(node, LineBreak):
+            out.append("\\\n")
     return "".join(out)
 
 

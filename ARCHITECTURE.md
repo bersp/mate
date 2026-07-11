@@ -222,7 +222,7 @@ Two classes with separate responsibilities:
 Module-level helpers (shared by both classes):
 - `_collect_fixed(el)` — recursively gathers descendants with `placement == "fixed"`.
 - `_render_placed(el, render_node)` — emits the `#place` and recurses. The body-render function is passed as a callable; it is the only thing that differs between renderer and measurer.
-- `_markdown_to_typst`, `_bare`, `_write` — utilities. `_markdown_to_typst` translates a leaf `Text`'s Markdown content (`**bold**`, `*italic*`/`_italic_`, `` `code` ``, inline `$math$`, display `$$math$$`) into Typst markup, backslash-escaping every other special character; it is the only place the Markdown-to-Typst mapping lives.
+- `_markdown_to_typst`, `_bare`, `_write` — utilities. `_markdown_to_typst` translates a leaf `Text`'s Markdown content (`**bold**`, `*italic*`/`_italic_`, `` `code` ``, inline `$math$`, display `$$math$$`, a trailing backslash before a newline as a hard line break) into Typst markup, backslash-escaping every other special character; it is the only place the Markdown-to-Typst mapping lives.
 
 #### Measurement logic (the subtle part)
 
