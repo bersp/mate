@@ -29,9 +29,8 @@ Issues = "https://github.com/bersp/mate/issues"
 [project.scripts]
 mate = "mate.cli:main"
 
-[tool.setuptools]
-packages = ["mate", "mate.core", "mate.elements", "mate.backends", "mate.composition", "mate.parser", "mate.templates"]
-package-dir = {"mate" = "."}
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools.package-data]
 mate = ["fonts/*/*.ttf", "fonts/*/OFL.txt", "fonts/README.md"]
