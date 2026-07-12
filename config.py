@@ -4,18 +4,11 @@ from __future__ import annotations
 
 import logging
 import re
+from pathlib import Path
 
 _HEX_RE = re.compile(r"#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})")
 
 _MISSING = object()
-
-
-def _template_namespace(key: str) -> str | None:
-    """Return the ``<name>`` of a ``template.<name>.<prop>`` key, else ``None``."""
-    parts = key.split(".")
-    if len(parts) >= 3 and parts[0] == "template":
-        return parts[1]
-    return None
 
 # Default values templates may read via ``config.get``. Keys are dotted
 # paths; a template either uses the default or hardcodes its own literal.
@@ -151,8 +144,8 @@ class Config:
     def get(self, key: str, default: object = _MISSING) -> object:
         """Return the value registered under ``key``.
 
-        With ``default`` given, return it when ``key`` is unset — the path a
-        template uses for its ``template.<name>.<prop>`` keys, which carry no
+        With ``default`` given, return it when ``key`` is unset: the path a
+        template uses for its ``<template>.<prop>`` keys, which carry no
         :data:`_DEFAULTS` entry. Without ``default``, an unset key raises
         :class:`ValueError`.
         """
@@ -169,23 +162,38 @@ class Config:
         """Override the default for ``key`` process-wide."""
         self._defaults[key] = value
 
+    def template_names(self) -> set[str]:
+        """Return the namespace name of every template in :attr:`templates`.
+
+        A ``.py`` entry is named by its file stem; any other entry is a
+        built-in template name.
+        """
+        return {
+            Path(entry).stem if entry.endswith(".py") else entry
+            for entry in self.templates
+        }
+
     def apply_overrides(self, values: dict[str, object]) -> None:
         """Set each key in ``values`` after checking it is allowed.
 
         A key is allowed when it is a defined :data:`_DEFAULTS` key or a
-        ``template.<name>.<prop>`` key; templates own that namespace and supply
-        their own defaults, and its keys carry no entry here. Any other key
-        raises :class:`ValueError` before any value is set.
+        ``<template>.<prop>`` key of a loaded template; templates own the
+        namespace carrying their name and supply their own defaults, so those
+        keys have no entry here. Any other key raises :class:`ValueError`
+        before any value is set.
         """
+        template_names = self.template_names()
         for key in values:
             if key in self._defaults:
                 continue
-            if _template_namespace(key) is not None:
+            if "." in key and key.split(".", 1)[0] in template_names:
                 continue
             defined = ", ".join(sorted(self._defaults))
+            namespaces = ", ".join(sorted(template_names)) or "none"
             raise ValueError(
                 f"{key!r} is not a defined config key and is not a "
-                f"'template.<name>.<prop>' key. Defined keys: {defined}."
+                f"'<template>.<prop>' key of a loaded template "
+                f"(loaded templates: {namespaces}). Defined keys: {defined}."
             )
         self._defaults.update(values)
 
