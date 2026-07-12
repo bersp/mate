@@ -140,7 +140,7 @@ class PresentationTemplate(PresentationTemplateBase):
         if meta:
             elements.append(
                 Text(
-                    " · ".join(meta),
+                    "~ · ~".join(meta),
                     font=config.get("cover.author.font"),
                     fontsize=config.get("cover.author.fontsize"),
                     weight=config.get("cover.author.fontweight"),
