@@ -1,4 +1,9 @@
-# mate
+<p align="center">
+    <a href="https://github.com/bersp/mate">
+        <img src="https://raw.githubusercontent.com/bersp/mate/master/.github/assets/logo.png" alt="mate" width="90%">
+    </a>
+</p>
+<br />
 
 `mate` is a Python application for creating presentations by writing Markdown files. The goal is to build aesthetically pleasing presentations in a short amount of time while staying highly customizable and versatile: the content is plain Markdown, and the details can be tweaked with a short, clean syntax (or at least that's the intention).
 
