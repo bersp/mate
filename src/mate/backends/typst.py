@@ -563,9 +563,10 @@ def _shape_markup(el: Rectangle | Circle | Ellipse) -> str:
     fill = _typst_fill(el.fill_color, el.fill_opacity)
     stroke = _typst_stroke(el)
     if isinstance(el, Rectangle):
+        radius = f", radius: {el.corner_radius}cm" if el.corner_radius else ""
         return (
             f"#rect(width: {el.width}cm, height: {el.height}cm, "
-            f"fill: {fill}, stroke: {stroke})"
+            f"fill: {fill}, stroke: {stroke}{radius})"
         )
     if isinstance(el, Circle):
         return f"#circle(radius: {el.radius}cm, " f"fill: {fill}, stroke: {stroke})"

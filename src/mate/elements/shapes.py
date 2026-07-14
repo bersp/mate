@@ -20,6 +20,9 @@ class Rectangle(Drawable):
     ----------
     width, height : float
         Width and height in cm. Positional.
+    corner_radius : float, optional
+        Corner rounding radius in cm. ``0`` (default) keeps sharp corners.
+        The rounding is visual-only: the bbox stays ``(width, height)``.
     pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
@@ -27,6 +30,8 @@ class Rectangle(Drawable):
     ----------
     width, height : float
         See ``width`` / ``height`` parameters.
+    corner_radius : float
+        See ``corner_radius`` parameter.
     """
 
     def __init__(
@@ -34,6 +39,7 @@ class Rectangle(Drawable):
         width: float,
         height: float,
         *,
+        corner_radius: float = 0.0,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
         align: HAlign | None = None,
@@ -65,12 +71,25 @@ class Rectangle(Drawable):
         )
         self.width: float = width
         self.height: float = height
+        self.corner_radius: float = corner_radius
 
     def get_width(self) -> float:
         return self.width
 
     def get_height(self) -> float:
         return self.height
+
+    def get_corner_radius(self) -> float:
+        return self.corner_radius
+
+    def set_corner_radius(self, corner_radius: float) -> Rectangle:
+        """Set the corner rounding radius in cm.
+
+        Visual-only: the bbox stays ``(width, height)``, so the bbox cache is
+        untouched.
+        """
+        self.corner_radius = corner_radius
+        return self
 
     def _repr_fields(self) -> str:
         return f"width={self.width:.4g}, height={self.height:.4g}"
