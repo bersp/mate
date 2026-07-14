@@ -258,7 +258,7 @@ def _escape_char(c: str) -> str:
 
 
 def _markdown_to_typst(s: str) -> str:
-    """Translate the Markdown markup of ``s`` into Typst markup.
+    r"""Translate the Markdown markup of ``s`` into Typst markup.
 
     Parses ``s`` into inline tokens and emits the Typst form of each:
     ``**bold**`` / ``*italic*`` / ``_italic_`` become ``*...*`` / ``_..._``,
