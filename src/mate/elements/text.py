@@ -28,10 +28,11 @@ class Text(Drawable):
 
     A ``||`` marker splits the text into reveal segments: the part before the
     first ``||`` shows immediately, and each following segment appears on a
-    later reveal step while reserving its space from the start. In running text
-    the split acts only at bracket depth 0, outside ``code`` and ``$math$``
-    spans, and sits between complete inline spans — a ``||`` inside a
-    ``**bold**`` or ``*italic*`` pair leaves an unbalanced marker in each
+    later reveal step while reserving its space from the start. ``\\||``
+    escapes the marker: it opens no step and renders as a literal ``||``. In
+    running text the split acts only at bracket depth 0, outside ``code`` and
+    ``$math$`` spans, and sits between complete inline spans — a ``||`` inside
+    a ``**bold**`` or ``*italic*`` pair leaves an unbalanced marker in each
     segment.
 
     When the whole source is a single math span (``$...$`` or ``$$...$$``), a
@@ -420,8 +421,10 @@ def _split_pauses(raw: str) -> list[str]:
     spans, so markup like ``[a||b][id=1]``, inline ``$||x||$`` and display
     ``$$ ... || ... $$`` stays intact. A run of ``$`` or backticks toggles its
     span as one delimiter: the double markers of display math and fenced code
-    count as one toggle. Returns the segment strings in source order (one entry
-    when no marker is present).
+    count as one toggle. A backslash escapes the next character: ``\\||``
+    opens no step (the pair is kept verbatim for the markup scanner, which
+    strips the backslash, so it renders as a literal ``||``). Returns the
+    segment strings in source order (one entry when no marker is present).
     """
     pieces: list[str] = []
     buf: list[str] = []
@@ -431,6 +434,10 @@ def _split_pauses(raw: str) -> list[str]:
     i, n = 0, len(raw)
     while i < n:
         c = raw[i]
+        if c == "\\" and not in_code and not in_math:
+            buf.append(raw[i : i + 2])
+            i += 2
+            continue
         if c == "`" and not in_math:
             j = i
             while j < n and raw[j] == "`":
@@ -577,8 +584,11 @@ def _split_math_reveals(body: str) -> list[str]:
     """Split a math body on top-level ``||`` reveal markers.
 
     A ``||`` splits only at bracket depth 0, so a ``[a||b][color="red"]`` span
-    inside the equation stays one fragment. Returns the fragment strings in
-    source order (one entry when no marker is present).
+    inside the equation stays one fragment. ``\\||`` opens no step and emits a
+    plain ``||`` (which Typst math renders as its usual double bar); any other
+    backslash pair is kept verbatim, since the body is Typst syntax and ``\\``
+    sequences carry meaning there. Returns the fragment strings in source
+    order (one entry when no marker is present).
     """
     pieces: list[str] = []
     buf: list[str] = []
@@ -586,6 +596,14 @@ def _split_math_reveals(body: str) -> list[str]:
     i, n = 0, len(body)
     while i < n:
         c = body[i]
+        if c == "\\":
+            if body.startswith("||", i + 1):
+                buf.append("||")
+                i += 3
+            else:
+                buf.append(body[i : i + 2])
+                i += 2
+            continue
         if c == "[":
             depth += 1
         elif c == "]":

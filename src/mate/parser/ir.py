@@ -59,7 +59,16 @@ class LineBreak:
     backslash or two trailing spaces before a newline)."""
 
 
-Inline = TextRun | Bold | Italic | Code | Math | LineBreak
+@dataclass
+class Pause:
+    """A ``||`` reveal marker: content after it appears on a later reveal step.
+
+    Written as a literal ``||`` in running text; ``\\||`` escapes it, yielding
+    the two pipe characters with no reveal step.
+    """
+
+
+Inline = TextRun | Bold | Italic | Code | Math | LineBreak | Pause
 
 
 # --- Block tokens -----------------------------------------------------------

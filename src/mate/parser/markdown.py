@@ -5,13 +5,13 @@ the presentation's config (see :class:`~mate.parser.ir.FrontMatter`). Slide
 syntax: a ``#`` (h1) heading opens a new slide and is its title; a ``##`` (h2)
 heading that is the slide's first block is its subtitle. Every other construct
 becomes a body block. Supported v1 content: paragraphs with inline
-bold/italic/code, hard line breaks (a trailing backslash or two trailing
-spaces before a newline), Typst-style ``$...$`` and ``$$...$$`` math, bullet
-and ordered lists (nested), in-body headings, and blockquotes that call a
-presentation method, one ``> method name : args`` (or no-arg ``> method
-name``) call per line. Math spans are carved out before emphasis parsing so
-their ``*``/``_`` are not consumed as markup. Unsupported constructs raise at
-parse time.
+bold/italic/code, ``||`` reveal markers (escapable as ``\\||``), hard line
+breaks (a trailing backslash or two trailing spaces before a newline),
+Typst-style ``$...$`` and ``$$...$$`` math, bullet and ordered lists (nested),
+in-body headings, and blockquotes that call a presentation method, one
+``> method name : args`` (or no-arg ``> method name``) call per line. Math
+spans are carved out before emphasis parsing so their ``*``/``_`` are not
+consumed as markup. Unsupported constructs raise at parse time.
 """
 
 from __future__ import annotations
@@ -43,6 +43,7 @@ from .ir import (
     Paragraph,
     ParsedDocument,
     ParsedSlide,
+    Pause,
     PythonBlock,
     TextRun,
 )
@@ -52,8 +53,14 @@ _FRONTMATTER_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n?", re.DOTALL)
 
 
 def _tokenize(text: str) -> SyntaxTreeNode:
-    """Tokenize Markdown ``text`` into a :class:`SyntaxTreeNode` tree."""
+    """Tokenize Markdown ``text`` into a :class:`SyntaxTreeNode` tree.
+
+    The ``text_join`` rule is disabled: backslash-escaped characters and HTML
+    entities then reach the fold as separate ``text_special`` nodes, keeping
+    an escaped ``\\||`` distinguishable from a literal ``||`` reveal marker.
+    """
     md = MarkdownIt("commonmark").use(dollarmath_plugin)
+    md.disable("text_join")
     return SyntaxTreeNode(md.parse(text))
 
 
@@ -313,7 +320,12 @@ def _fold_inlines(nodes: list[SyntaxTreeNode]) -> list[Inline]:
         match n.type:
             case "text":
                 if n.content:  # the tokenizer emits empty text nodes at span boundaries
-                    out.append(TextRun(n.content))
+                    out.extend(_split_pause_markers(n.content))
+            case "text_special":
+                # A backslash-escaped character or an HTML entity, resolved to
+                # its literal character(s). Kept out of the ``||`` split so an
+                # escaped ``\||`` never opens a reveal step.
+                out.append(TextRun(n.content))
             case "strong":
                 out.append(Bold(_fold_inlines(n.children)))
             case "em":
@@ -328,6 +340,21 @@ def _fold_inlines(nodes: list[SyntaxTreeNode]) -> list[Inline]:
                 out.append(LineBreak())
             case _:
                 raise _unsupported(n.type)
+    return out
+
+
+def _split_pause_markers(text: str) -> list[Inline]:
+    """Split ``text`` on ``||`` reveal markers into ``TextRun``/``Pause`` runs.
+
+    Only plain text carries markers: an escaped ``\\||`` reaches the fold as a
+    separate ``text_special`` node and is never split.
+    """
+    out: list[Inline] = []
+    for k, part in enumerate(text.split("||")):
+        if k:
+            out.append(Pause())
+        if part:
+            out.append(TextRun(part))
     return out
 
 
