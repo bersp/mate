@@ -6,6 +6,22 @@ from ..core.registry import IDKey
 from ..core.drawable import Drawable
 from ..core.vec import Vec, VecLike
 
+CORNERS = ("top-left", "top-right", "bottom-left", "bottom-right")
+
+
+def _check_corner_radius(corner_radius: float | dict) -> float | dict:
+    """Return ``corner_radius`` after checking a dict's keys name corners."""
+    if not isinstance(corner_radius, dict):
+        return corner_radius
+    unknown = sorted(set(corner_radius) - set(CORNERS))
+    if unknown:
+        names = ", ".join(repr(name) for name in unknown)
+        raise ValueError(
+            f"unknown corner_radius corner(s) {names}; "
+            f"valid: {', '.join(CORNERS)}"
+        )
+    return corner_radius
+
 
 class Rectangle(Drawable):
     """Filled axis-aligned rectangle with intrinsic dimensions.
@@ -20,9 +36,13 @@ class Rectangle(Drawable):
     ----------
     width, height : float
         Width and height in cm. Positional.
-    corner_radius : float, optional
-        Corner rounding radius in cm. ``0`` (default) keeps sharp corners.
-        The rounding is visual-only: the bbox stays ``(width, height)``.
+    corner_radius : float or dict, optional
+        Corner rounding radius in cm. A float rounds the four corners by the
+        same amount; a dict rounds each named corner on its own, keyed by
+        ``"top-left"``, ``"top-right"``, ``"bottom-left"``, ``"bottom-right"``,
+        with the corners left out staying sharp. ``0`` (default) keeps every
+        corner sharp. The rounding is visual-only: the bbox stays
+        ``(width, height)``.
     pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
@@ -30,7 +50,7 @@ class Rectangle(Drawable):
     ----------
     width, height : float
         See ``width`` / ``height`` parameters.
-    corner_radius : float
+    corner_radius : float or dict
         See ``corner_radius`` parameter.
     """
 
@@ -39,7 +59,7 @@ class Rectangle(Drawable):
         width: float,
         height: float,
         *,
-        corner_radius: float = 0.0,
+        corner_radius: float | dict[str, float] = 0.0,
         pos: VecLike | None = None,
         anchor: Anchor = "center",
         align: HAlign | None = None,
@@ -71,7 +91,9 @@ class Rectangle(Drawable):
         )
         self.width: float = width
         self.height: float = height
-        self.corner_radius: float = corner_radius
+        self.corner_radius: float | dict[str, float] = _check_corner_radius(
+            corner_radius
+        )
 
     def get_width(self) -> float:
         return self.width
@@ -79,16 +101,16 @@ class Rectangle(Drawable):
     def get_height(self) -> float:
         return self.height
 
-    def get_corner_radius(self) -> float:
+    def get_corner_radius(self) -> float | dict[str, float]:
         return self.corner_radius
 
-    def set_corner_radius(self, corner_radius: float) -> Rectangle:
-        """Set the corner rounding radius in cm.
+    def set_corner_radius(self, corner_radius: float | dict[str, float]) -> Rectangle:
+        """Set the corner rounding radius in cm, as a float or a per-corner dict.
 
         Visual-only: the bbox stays ``(width, height)``, so the bbox cache is
         untouched.
         """
-        self.corner_radius = corner_radius
+        self.corner_radius = _check_corner_radius(corner_radius)
         return self
 
     def _repr_fields(self) -> str:

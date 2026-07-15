@@ -578,6 +578,20 @@ def _wrap_align(body: str, text_align: str | None) -> str:
     return f"#align({text_align})[{body}]"
 
 
+def _typst_radius(corner_radius: float | dict[str, float]) -> str:
+    """Emit the ``radius:`` argument of a ``#rect``, empty when every corner is sharp.
+
+    A float becomes a single length; a dict becomes the per-corner dictionary
+    Typst takes, with the corners left out staying sharp.
+    """
+    if isinstance(corner_radius, dict):
+        entries = ", ".join(
+            f"{corner}: {radius}cm" for corner, radius in corner_radius.items()
+        )
+        return f", radius: ({entries})" if entries else ""
+    return f", radius: {corner_radius}cm" if corner_radius else ""
+
+
 def _shape_markup(el: Rectangle | Circle | Ellipse) -> str:
     """Emit the Typst body for a filled shape primitive.
 
@@ -589,7 +603,7 @@ def _shape_markup(el: Rectangle | Circle | Ellipse) -> str:
     fill = _typst_fill(el.fill_color, el.fill_opacity)
     stroke = _typst_stroke(el)
     if isinstance(el, Rectangle):
-        radius = f", radius: {el.corner_radius}cm" if el.corner_radius else ""
+        radius = _typst_radius(el.corner_radius)
         return (
             f"#rect(width: {el.width}cm, height: {el.height}cm, "
             f"fill: {fill}, stroke: {stroke}{radius})"

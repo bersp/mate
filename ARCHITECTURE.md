@@ -171,7 +171,7 @@ Pygments tokenizes the plain source; each token maps to a `code.theme` role whos
 
 Geometric primitives extending `Drawable` with intrinsic dimensions and no children. The three filled shapes render as solid black with no stroke under the `Drawable` defaults; pass `fill_opacity=0` to make a layout placeholder, and `stroke_width > 0` to draw an outline.
 
-- `Rectangle(width, height, ...)` → `#rect(width: Wcm, height: Hcm, fill: ..., stroke: ...)`. Bbox is `(width, height)`. A `corner_radius` rounds the corners (visual-only: the bbox is unchanged).
+- `Rectangle(width, height, ...)` → `#rect(width: Wcm, height: Hcm, fill: ..., stroke: ...)`. Bbox is `(width, height)`. A `corner_radius` rounds the corners (visual-only: the bbox is unchanged); it is a float for the four of them or a dict keyed by `"top-left"` / `"top-right"` / `"bottom-left"` / `"bottom-right"`, which the backend's `_typst_radius` turns into Typst's `radius:` length or per-corner dictionary. A dict naming something else raises at construction.
 - `Circle(radius, ...)` → `#circle(radius: Rcm, fill: ..., stroke: ...)`. Bbox is `(2 radius, 2 radius)`.
 - `Ellipse(width, height, ...)` → `#ellipse(width: Wcm, height: Hcm, fill: ..., stroke: ...)`. Bbox is `(width, height)`; semi-axes are `width/2` and `height/2`.
 
