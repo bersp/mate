@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+from functools import cache
 from itertools import cycle
 
 from ..composition.arrange import arrange
@@ -39,9 +40,28 @@ from .element import Anchor, Element, HAlign, anchor_offsets, measure_all
 # arguments and fenced-block property text).
 _AUTHOR_GLOBALS = {"Gradient": Gradient}
 
-# Keyword parameters a code fence's options may set (the ``Code`` signature
-# minus the source, which is the fence body itself).
-_CODE_OPTIONS = frozenset(inspect.signature(Code).parameters) - {"source"}
+
+@cache
+def _code_options(code_class: type[Code]) -> frozenset[str]:
+    """Return the keyword parameters a code fence's options may set.
+
+    The named parameters every ``__init__`` from ``code_class`` down to
+    :class:`Code` declares, minus the source, which is the fence body itself.
+    :class:`Code` spells out every parameter it takes and closes the walk; a
+    subclass names its own and passes the rest through ``**kwargs``.
+    """
+    options: set[str] = set()
+    for klass in code_class.__mro__:
+        init = klass.__dict__.get("__init__")
+        if init is not None:
+            options.update(
+                name
+                for name, param in inspect.signature(init).parameters.items()
+                if param.kind not in (param.VAR_KEYWORD, param.VAR_POSITIONAL)
+            )
+        if klass is Code:
+            break
+    return frozenset(options) - {"self", "source"}
 
 
 def _union_bbox(
@@ -831,6 +851,36 @@ class PresentationTemplateBase:
             target_region.add(el)
         return el
 
+    def resolve_code_options(
+        self,
+        options: str,
+        region: str,
+        code_kwargs: dict,
+        code_class: type[Code] = Code,
+    ) -> tuple[Region, dict]:
+        """Resolve a code fence's options into a target region and keyword arguments.
+
+        ``options`` is the fence's verbatim property text (e.g.
+        ``bg_color="gray", numbers=True``): each entry becomes a ``code_class``
+        keyword argument, with ``region=<name>`` selecting the target region;
+        entries win over ``code_kwargs``. An option that is not a ``code_class``
+        parameter raises :class:`ValueError` naming it. The returned arguments
+        span the region's width minus the ambient indent unless ``width`` is
+        among them.
+        """
+        props = eval(f"dict({options})", {"dict": dict, **_AUTHOR_GLOBALS})
+        region = props.pop("region", region)
+        code_kwargs = {**code_kwargs, **props}
+        valid_options = _code_options(code_class)
+        unknown = sorted(set(code_kwargs) - valid_options)
+        if unknown:
+            names = ", ".join(repr(u) for u in unknown)
+            valid = ", ".join(sorted(valid_options | {"region"}))
+            raise ValueError(f"unknown code option(s) {names}; valid: {valid}")
+        target_region = self._resolve_region(region)
+        code_kwargs.setdefault("width", target_region.width - self._content_indent)
+        return target_region, code_kwargs
+
     def add_code(
         self,
         source: str,
@@ -842,27 +892,13 @@ class PresentationTemplateBase:
         """Create a :class:`~mate.elements.code.Code` block and add it to a
         region and the slide.
 
-        ``options`` is a code fence's verbatim property text (e.g.
-        ``bg_color="gray", numbers=True``): each entry becomes a
-        :class:`Code` keyword argument, with ``region=<name>`` selecting the
-        target region; entries win over ``code_kwargs``. The block spans the
-        region's width minus the ambient indent unless ``width`` is given.
-        An option that is not a :class:`Code` parameter raises
-        :class:`ValueError` naming it.
+        ``options`` is a code fence's verbatim property text; see
+        :meth:`resolve_code_options`. A template building another
+        :class:`Code` subclass overrides this method and instantiates its own.
         """
-        props = eval(f"dict({options})", {"dict": dict, **_AUTHOR_GLOBALS})
-        region = props.pop("region", region)
-        code_kwargs.update(props)
-        unknown = sorted(set(code_kwargs) - _CODE_OPTIONS)
-        if unknown:
-            names = ", ".join(repr(u) for u in unknown)
-            valid = ", ".join(sorted(_CODE_OPTIONS | {"region"}))
-            raise ValueError(f"unknown code option(s) {names}; valid: {valid}")
-        target_region = self._resolve_region(region)
-        indent = self._content_indent
-        code_kwargs.setdefault("width", target_region.width - indent)
-        el = Code(source, language=language, **code_kwargs)
-        el.indent = indent
+        target_region, kwargs = self.resolve_code_options(options, region, code_kwargs)
+        el = Code(source, language=language, **kwargs)
+        el.indent = self._content_indent
         self.current_slide.add(el)
         target_region.add(el)
         return el

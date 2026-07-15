@@ -6,6 +6,11 @@ A :class:`Code` is a :class:`~mate.elements.group.Group` holding a background
 per line number. Syntax highlighting runs in Python: Pygments tokenizes the
 source and each token role is styled with the property dict the ``code.theme``
 config maps it to. The backend receives plain styled text and shapes.
+
+Construction runs in two phases. ``__init__`` resolves the options and scans
+the source into the styled leaf :class:`Text` runs of each line, then hands
+off to :meth:`Code.build`, which owns the geometry and every element the
+block draws. A subclass overrides ``build`` to give the block another look.
 """
 
 from __future__ import annotations
@@ -19,7 +24,7 @@ from pygments.token import Comment, Keyword, Name, Number, String
 from pygments.util import ClassNotFound
 
 from ..config import config
-from ..core.element import Anchor, HAlign, Placement, measure_all
+from ..core.element import Anchor, Element, HAlign, Placement, measure_all
 from ..core.registry import IDKey
 from ..core.vec import VecLike
 from .group import Group
@@ -136,6 +141,17 @@ def _theme_intervals(plain: str, language: str, theme: dict) -> list[_Interval]:
     return out
 
 
+def corner(corner_radius: float | dict[str, float], name: str) -> float:
+    """Return the radius one ``corner_radius`` value gives the ``name`` corner.
+
+    A float applies to every corner; a dict applies to the corners it names and
+    leaves the rest sharp.
+    """
+    if isinstance(corner_radius, dict):
+        return corner_radius.get(name, 0.0)
+    return corner_radius
+
+
 def _word_intervals(plain: str, words: dict[str, dict]) -> list[_Interval]:
     """Style every whole-word occurrence of each ``words`` entry.
 
@@ -180,6 +196,10 @@ class Code(Group):
     with the property dict ``code.theme`` maps it to. ``words`` styles
     whole-word matches on top of the theme, and explicit spans win over both.
 
+    :meth:`build` owns the geometry and every element the block draws, working
+    from the values ``__init__`` leaves on the instance. Overriding it in a
+    subclass restyles the block as a whole.
+
     Parameters
     ----------
     source : str
@@ -188,6 +208,9 @@ class Code(Group):
     language : str, optional
         Pygments lexer name (``"python"``, ``"c"``, ...). ``""`` (default)
         renders plain unhighlighted text.
+    title : str or None, optional
+        Name shown in a header bar above the code, e.g. the source file it
+        comes from. ``None`` (default) draws no header.
     width : float or None, optional
         Background width in cm. ``None`` (default) hugs the longest line
         plus padding.
@@ -200,11 +223,18 @@ class Code(Group):
     bg_color : str or None, optional
         Background fill (palette name or hex). ``None`` reads
         ``code.bg_color``.
+    header_bg_color : str or None, optional
+        Header bar fill (palette name or hex). ``None`` reads
+        ``code.header_bg_color``.
+    title_color : str or None, optional
+        Title color (palette name or hex). ``None`` reads ``code.title_color``.
     padding : float or None, optional
         Space in cm between the code and the background edges. ``None``
         reads ``code.padding``.
-    corner_radius : float or None, optional
-        Corner rounding radius of the background in cm. ``None`` reads
+    corner_radius : float or dict or None, optional
+        Corner rounding of the background in cm, as a radius for the four
+        corners or a per-corner dict (see
+        :class:`~mate.elements.shapes.Rectangle`). ``None`` reads
         ``code.corner_radius``.
     line_height : float or None, optional
         Vertical step between lines, in multiples of the font size. ``None``
@@ -227,9 +257,24 @@ class Code(Group):
 
     Attributes
     ----------
+    lines : list[list[Text]]
+        The styled leaf runs of each source line, in source order. Each list
+        is one line's content, ready to be taken by a positioned composite
+        ``Text``.
+    line_segments : list[int]
+        The reveal segment each line starts in, indexing ``reveal_segments``.
     reveal_segments : list[list[Element]]
-        Nodes grouped by reveal segment when the source carries ``||``
-        markers; empty otherwise.
+        Nodes grouped by reveal segment. A source without ``||`` markers has
+        one segment holding every node.
+    max_columns : int
+        Character count of the longest line.
+    char_width, cap_height : float
+        Advance width and cap height in cm of one character of ``font`` at
+        ``fontsize``.
+    line_step : float
+        Vertical distance in cm between consecutive lines.
+    title, width, font, fontsize, color, bg_color, header_bg_color, title_color, padding, corner_radius, line_height, numbers, numbers_start, numbers_color
+        The resolved value of the parameter carrying the same name.
     """
 
     def __init__(
@@ -237,16 +282,20 @@ class Code(Group):
         source: str,
         *,
         language: str = "",
+        title: str | None = None,
         width: float | None = None,
         font: str | None = None,
         fontsize: float | None = None,
         color: str | None = None,
         bg_color: str | None = None,
+        header_bg_color: str | None = None,
+        title_color: str | None = None,
         padding: float | None = None,
-        corner_radius: float | None = None,
+        corner_radius: float | dict[str, float] | None = None,
         line_height: float | None = None,
         numbers: bool | None = None,
         numbers_start: int | None = None,
+        numbers_color: str | None = None,
         words: dict[str, dict] | None = None,
         theme: dict[str, dict] | None = None,
         pos: VecLike | None = None,
@@ -258,20 +307,33 @@ class Code(Group):
         super().__init__(
             pos=pos, anchor=anchor, align=align, placement=placement, id=id
         )
-        font = config.get("code.font") if font is None else font
-        fontsize = config.get("code.fontsize") if fontsize is None else fontsize
-        color = config.get("code.color") if color is None else color
-        bg_color = config.get("code.bg_color") if bg_color is None else bg_color
-        padding = config.get("code.padding") if padding is None else padding
-        corner_radius = (
+        self.title = title
+        self.width = width
+        self.font = config.get("code.font") if font is None else font
+        self.fontsize = config.get("code.fontsize") if fontsize is None else fontsize
+        self.color = config.get("code.color") if color is None else color
+        self.bg_color = config.get("code.bg_color") if bg_color is None else bg_color
+        self.header_bg_color = (
+            config.get("code.header_bg_color")
+            if header_bg_color is None
+            else header_bg_color
+        )
+        self.title_color = (
+            config.get("code.title_color") if title_color is None else title_color
+        )
+        self.padding = config.get("code.padding") if padding is None else padding
+        self.corner_radius = (
             config.get("code.corner_radius") if corner_radius is None else corner_radius
         )
-        line_height = (
+        self.line_height = (
             config.get("code.line_height") if line_height is None else line_height
         )
-        numbers = config.get("code.numbers") if numbers is None else numbers
-        numbers_start = (
+        self.numbers = config.get("code.numbers") if numbers is None else numbers
+        self.numbers_start = (
             config.get("code.numbers_start") if numbers_start is None else numbers_start
+        )
+        self.numbers_color = (
+            config.get("code.numbers_color") if numbers_color is None else numbers_color
         )
         theme = {**config.get("code.theme"), **(theme or {})}
 
@@ -292,65 +354,112 @@ class Code(Group):
             for position in range(interval.start, interval.end):
                 contribs[position].append(interval)
 
-        char_w, cap_h = _mono_metrics(font, fontsize)
-        step = line_height * fontsize * _PT_TO_CM
-        lines = plain.split("\n")
+        self.char_width, self.cap_height = _mono_metrics(self.font, self.fontsize)
+        self.line_step = self.line_height * self.fontsize * _PT_TO_CM
 
+        text_lines = plain.split("\n")
+        self.max_columns = max(len(line) for line in text_lines)
+        self.reveal_segments: list[list[Element]] = [[] for _ in range(len(breaks) + 1)]
+        self.lines: list[list[Text]] = []
+        self.line_segments: list[int] = []
+        offset = 0
+        for line in text_lines:
+            self.line_segments.append(bisect_right(breaks, offset))
+            self.lines.append(
+                self._line_leaves(
+                    line, offset, contribs, breaks, self.reveal_segments,
+                    font=self.font, fontsize=self.fontsize, color=self.color,
+                )
+            )
+            offset += len(line) + 1
+
+        self._take_children(self.build())
+
+    def build(self) -> list[Element]:
+        """Return every element the block draws, positioned in its local frame.
+
+        Resolves the geometry from the values on the instance, then places the
+        background, the header bar a ``title`` opens, the line numbers, and one
+        composite ``Text`` per entry of :attr:`lines`. The origin is the block's
+        top-left corner; the code starts below the header, inside the padding.
+        Each number joins the reveal segment its line starts in.
+        """
         gutter = 0.0
-        if numbers:
-            digits = len(str(numbers_start + len(lines) - 1))
-            gutter = digits * char_w + 1.5 * char_w
-        code_x = padding + gutter
+        if self.numbers:
+            digits = len(str(self.numbers_start + len(self.lines) - 1))
+            gutter = digits * self.char_width + 1.5 * self.char_width
+        code_x = self.padding + gutter
+        header_height = 0.0 if self.title is None else self.line_step + self.padding
+        width = self.width
         if width is None:
-            width = code_x + max(len(li) for li in lines) * char_w + padding
-        height = 2 * padding + len(lines) * step
+            width = code_x + self.max_columns * self.char_width + self.padding
+        height = header_height + 2 * self.padding + len(self.lines) * self.line_step
 
-        segment_nodes: list[list] = [[] for _ in range(len(breaks) + 1)]
-        members: list = [
+        members: list[Element] = [
             Rectangle(
                 width,
                 height,
-                corner_radius=corner_radius,
-                fill_color=bg_color,
+                corner_radius=self.corner_radius,
+                fill_color=self.bg_color,
                 pos=(0.0, 0.0),
                 anchor="top-left",
             )
         ]
-        offset = 0
-        for line_index, line in enumerate(lines):
-            top_y = -padding - line_index * step - (step - cap_h) / 2
-            if numbers:
+        if self.title is not None:
+            members.append(
+                Rectangle(
+                    width,
+                    header_height,
+                    corner_radius={
+                        "top-left": corner(self.corner_radius, "top-left"),
+                        "top-right": corner(self.corner_radius, "top-right"),
+                    },
+                    fill_color=self.header_bg_color,
+                    pos=(0.0, 0.0),
+                    anchor="top-left",
+                )
+            )
+            members.append(
+                Text(
+                    self.title,
+                    font=self.font,
+                    fontsize=self.fontsize,
+                    fill_color=self.title_color,
+                    pos=(self.padding, -header_height / 2),
+                    anchor="center-left",
+                )
+            )
+
+        for index, leaves in enumerate(self.lines):
+            top_y = (
+                -header_height
+                - self.padding
+                - index * self.line_step
+                - (self.line_step - self.cap_height) / 2
+            )
+            if self.numbers:
                 number = Text(
-                    str(numbers_start + line_index),
-                    font=font,
-                    fontsize=fontsize,
-                    fill_color=config.get("code.numbers_color"),
-                    pos=(padding + gutter - 1.5 * char_w, top_y),
+                    str(self.numbers_start + index),
+                    font=self.font,
+                    fontsize=self.fontsize,
+                    fill_color=self.numbers_color,
+                    pos=(code_x - 1.5 * self.char_width, top_y),
                     anchor="top-right",
                 )
                 members.append(number)
-                segment_nodes[bisect_right(breaks, offset)].append(number)
-            leaves = self._line_leaves(
-                line, offset, contribs, breaks, segment_nodes,
-                font=font, fontsize=fontsize, color=color,
-            )
+                self.reveal_segments[self.line_segments[index]].append(number)
             if leaves:
                 text_line = Text(
                     None,
-                    font=font,
-                    fontsize=fontsize,
-                    fill_color=color,
+                    font=self.font,
+                    fontsize=self.fontsize,
+                    fill_color=self.color,
                     pos=(code_x, top_y),
                     anchor="top-left",
                 )
                 text_line._take_children(leaves)
                 members.append(text_line)
-            offset += len(line) + 1
-        self._take_children(members)
-        if breaks:
-            self.reveal_segments = segment_nodes
-        else:
-            self.reveal_segments = []
+        return members
 
     @staticmethod
     def _line_leaves(
@@ -404,12 +513,13 @@ class Code(Group):
         return leaves
 
     def _copy(self, mapping: dict) -> Code:
-        # Remap the `reveal_segments` cross-references onto the clones, like
-        # `Text._copy`.
+        # Remap the `reveal_segments` and `lines` cross-references onto the
+        # clones, like `Text._copy`.
         new = super()._copy(mapping)
         new.reveal_segments = [
             [mapping[id(node)] for node in seg] for seg in self.reveal_segments
         ]
+        new.lines = [[mapping[id(leaf)] for leaf in line] for line in self.lines]
         return new
 
 

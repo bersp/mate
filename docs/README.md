@@ -171,9 +171,12 @@ def f(x):
 
 | option | example | notes |
 |---|---|---|
+| `title` | `title="solver.py"` | name shown in a header bar above the code |
 | `numbers` | `numbers=True` | line numbers in a gutter |
 | `numbers_start` | `numbers_start=25` | number of the first line |
 | `bg_color` | `bg_color="gray"` | background color |
+| `header_bg_color` | `header_bg_color="gray"` | header bar color |
+| `title_color` | `title_color="black"` | title color |
 | `fontsize` | `fontsize=9` | points |
 | `padding` | `padding=0.5` | cm between the code and the box edges |
 | `corner_radius` | `corner_radius=0.2` | corner rounding of the box, in cm |
@@ -181,6 +184,17 @@ def f(x):
 | `words` | `words={"x": {"color": "red"}}` | style specific words, see below |
 | `theme` | `theme={"keyword": {"color": "red"}}` | restyle the syntax roles, see below |
 | `region` | `region="right"` | target region, instead of the active one |
+
+A `title` opens a header bar above the code, for the file the source comes from:
+
+````markdown
+```python : title="solver.py"
+def f(x):
+    return x**2
+```
+````
+
+A template can restyle the block as a whole, header included, and add options of its own (see [Templates](#templates)).
 
 Styling spans and `||` reveal markers work inside a fence like everywhere else (see [Styling text](#styling-text) and [Revealing content](#revealing-content)):
 
@@ -628,7 +642,53 @@ Saved as `my_template.py` next to the deck, it is used with `templates: [my_temp
 - Configuration is set before `super().__init__()`; the front matter is applied there, so deck values win over template values.
 The hooks one usually overrides are `build_layout` (the region map), `background` (drawn behind every slide), `add_title`, `add_cover`, `begin_topic`, `add_footer` and the `add_*` content methods, and any new method is callable from the deck as a command. In principle, though, a template can change every behavior, internals included: `mate/core/template.py` holds the full set of methods.
 
-The built-in templates are also worked examples: `simple` shows the minimal case (a font stack and a restyled title) and `flow` a complete one (its own palette, a generated background, custom cover and title logic). Both live in `mate/templates/`.
+The built-in templates are also worked examples: `simple` shows the minimal case (a font stack and a restyled title) and `flow` a complete one (its own palette, a generated background, custom cover and title logic). They live in `mate/templates/`.
+
+### Restyling code blocks
+
+A `Code` block's whole look lives in its `build` method, which returns every element the block draws from the styled lines the constructor prepares. A template restyles code blocks by subclassing `Code`, replacing `build`, and overriding `add_code` to instantiate it:
+
+```python
+from mate import Code, PresentationTemplateBase, Rectangle, Text, config
+
+
+class MyCode(Code):
+    def __init__(self, source, *, accent_color="my_template.accent", **code_kwargs):
+        self.accent_color = accent_color
+        super().__init__(source, **code_kwargs)
+
+    def build(self):
+        """Draw an accent bar down the left edge, then the code."""
+        width = self.width
+        height = 2 * self.padding + len(self.lines) * self.line_step
+        members = [
+            Rectangle(width, height, fill_color=self.bg_color, pos=(0, 0), anchor="top-left"),
+            Rectangle(0.1, height, fill_color=self.accent_color, pos=(0, 0), anchor="top-left"),
+        ]
+        for index, leaves in enumerate(self.lines):
+            top_y = -self.padding - index * self.line_step
+            line = Text(None, font=self.font, fontsize=self.fontsize,
+                        fill_color=self.color, pos=(self.padding, top_y), anchor="top-left")
+            line._take_children(leaves)
+            members.append(line)
+        return members
+
+
+class PresentationTemplate(PresentationTemplateBase):
+    def add_code(self, source, language="", options="", region="active", **code_kwargs):
+        target_region, kwargs = self.resolve_code_options(
+            options, region, code_kwargs, MyCode
+        )
+        el = MyCode(source, language=language, **kwargs)
+        el.indent = self._content_indent
+        self.current_slide.add(el)
+        target_region.add(el)
+        return el
+```
+
+`build` reads what the constructor leaves on the instance: `lines` (the styled leaf runs of each source line), `line_segments` (the reveal segment each line starts in), `max_columns`, the `char_width` / `cap_height` / `line_step` metrics, and every resolved option (`title`, `width`, `font`, `padding`, ...). It positions everything in a local frame whose origin is the block's top-left corner, and the geometry is its own to decide. A line number must join `reveal_segments[self.line_segments[index]]` to appear with its line.
+
+Passing the subclass to `resolve_code_options` makes its own parameters available as fence options: `accent_color="red"` above works from a deck.
 
 ## Python and shapes
 

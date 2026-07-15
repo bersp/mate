@@ -26,6 +26,8 @@ _MISSING = object()
 # property dict applied to its tokens (any ``set_<prop>`` of a ``Text`` leaf);
 # a role left out inherits ``code.color``. ``code.line_height`` is the
 # vertical step between lines in multiples of the font size.
+# ``code.header_bg_color`` and ``code.title_color`` style the header bar a
+# ``title`` opens above the code.
 _DEFAULTS: dict[str, object] = {
     "slide.width": 16.0,
     "slide.height": 9.0,
@@ -76,6 +78,8 @@ _DEFAULTS: dict[str, object] = {
     "code.numbers": False,
     "code.numbers_start": 1,
     "code.numbers_color": "gray",
+    "code.header_bg_color": "lighter_gray",
+    "code.title_color": "dark_gray",
     "code.theme": {
         "keyword": {"color": "purple"},
         "string": {"color": "green"},
