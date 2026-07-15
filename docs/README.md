@@ -14,6 +14,7 @@ The PDF lands next to the source, as `slides.pdf`.
 - [Front matter](#front-matter)
 - [Styling text](#styling-text)
 - [Math](#math)
+- [Code blocks](#code-blocks)
 - [Commands](#commands)
 - [Vertical space](#vertical-space)
 - [Images](#images)
@@ -147,6 +148,72 @@ $$
 ```
 
 Styling spans and `||` reveal markers work inside an equation too; see [Styling text](#styling-text) and [Revealing content](#revealing-content).
+
+## Code blocks
+
+A fenced code block renders its source in monospace over a background box, highlighted by language:
+
+````markdown
+```python
+def f(x):
+    return x**2
+```
+````
+
+The language is a [Pygments](https://pygments.org) lexer name (`python`, `c`, `bash`, `rust`, ...); a fence without one renders plain text. Options follow the language after a `:`
+
+````markdown
+```python : numbers=True, numbers_start=25, bg_color="lighter_gray"
+def f(x):
+    return x**2
+```
+````
+
+| option | example | notes |
+|---|---|---|
+| `numbers` | `numbers=True` | line numbers in a gutter |
+| `numbers_start` | `numbers_start=25` | number of the first line |
+| `bg_color` | `bg_color="gray"` | background color |
+| `fontsize` | `fontsize=9` | points |
+| `padding` | `padding=0.5` | cm between the code and the box edges |
+| `corner_radius` | `corner_radius=0.2` | corner rounding of the box, in cm |
+| `width` | `width=8` | box width in cm; the region's width by default |
+| `words` | `words={"x": {"color": "red"}}` | style specific words, see below |
+| `theme` | `theme={"keyword": {"color": "red"}}` | restyle the syntax roles, see below |
+| `region` | `region="right"` | target region, instead of the active one |
+
+Styling spans and `||` reveal markers work inside a fence like everywhere else (see [Styling text](#styling-text) and [Revealing content](#revealing-content)):
+
+````markdown
+```python
+def f(x):
+    return x**2
+
+||print(f([x][color="red", id="arg"]))
+```
+````
+
+Everything else is verbatim: Markdown markup does not apply, spacing is preserved exactly, and a bracket pair is a span only when its second bracket reads as properties, so real code like `a[i][j]` stays code. `\||` writes a literal `||`; languages where `||` is an operator need the escape.
+
+`words` styles every whole-word occurrence on top of the language highlighting; each value is a dict of span properties (see [Styling text](#styling-text)):
+
+````markdown
+```python : words={"x": {"color": "red", "weight": "bold"}}
+def f(x):
+    return x**2
+```
+````
+
+The highlighting itself is a theme: a mapping from each syntax role (`keyword`, `string`, `comment`, `number`, `function`, `builtin`, `decorator`) to the properties of its tokens, span properties again. The `code.theme` configuration key holds the deck-wide theme, and the `theme` option updates it for one fence, role by role: an entry replaces that role's properties, and roles left out keep the deck theme.
+
+````markdown
+```python : theme={"keyword": {"color": "red"}}
+def f(x):
+    return x**2  # keywords turn red; every other role keeps the theme
+```
+````
+
+The other `code.*` keys set the font, colors and geometry (see [Configuration](#configuration)).
 
 ## Commands
 
@@ -324,6 +391,8 @@ Then the answer.
 This shows first, || then this, || and this at the end.
 ```
 
+`\||` escapes the marker and renders a literal `||`.
+
 A `||` inside `$...$` or `$$...$$` splits the equation the same way, keeping the math spacing:
 
 ```markdown
@@ -486,6 +555,11 @@ The keys and their defaults:
 | `region.content.anchor`, `region.content.arrange_gap` | `"top-left"`, `0.25` |
 | `region.full_with_margins.margins` | `0.7` |
 | `image.align` | `"center"` |
+| `code.font`, `code.fontsize`, `code.color` | `"DejaVu Sans Mono"`, `10.0`, `"black"` |
+| `code.bg_color`, `code.padding`, `code.corner_radius` | `"lightest_gray"`, `0.35` (cm), `0.1` (cm) |
+| `code.line_height` | `1.25` (line step, in multiples of the font size) |
+| `code.numbers`, `code.numbers_start`, `code.numbers_color` | `False`, `1`, `"gray"` |
+| `code.theme` | syntax role to properties mapping (see [Code blocks](#code-blocks)) |
 | `line.stroke_width` | `0.03` |
 | `arrange.gap` | `0.2` |
 | `typst.preamble` | `""` (markup prepended to every generated document) |

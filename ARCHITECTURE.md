@@ -29,6 +29,7 @@ mate/
 │   ├── template.py
 │   └── presentation.py
 ├── elements/          # concrete visual element types
+│   ├── code.py
 │   ├── group.py
 │   ├── image.py
 │   ├── shapes.py
@@ -156,11 +157,21 @@ Every `Text` carries explicit `font: str` and `size: float` (points) as keyword-
 
 **`_copy()`** override re-maps the `subs` list using the shared `mapping` from `Element._copy`, so the cloned subs point at the cloned descendants. Clones inherit structure but are not registered in `id_registry`: the registry indexes user-tagged originals.
 
+A leaf with `verbatim=True` renders its `content` literally: no Markdown parsing, every punctuation character backslash-escaped and every space emitted as a no-break space, so exact characters and spacing survive Typst's markup mode.
+
+### `elements/code.py` — `Code`
+
+`Code` extends `Group`: a background `Rectangle`, one fixed monospace composite `Text` per source line, and one right-anchored `Text` per line number when numbers are on. Lines sit at a fixed vertical step, anchored top-left: Typst's default text edges (cap-height to baseline) give every single-line text the same measured height, so baselines stay aligned with no per-line measurement. One cached probe of a digit supplies the character advance and the cap height; the number gutter and the hugged width are character counts times the advance.
+
+The source is verbatim. Two constructs are parsed out of it: `[body][props]` spans and `||` reveal markers. A bracket pair is a span only when `props` reads as keyword properties, so code like `a[i][j]` stays literal; the props apply to each styled run the span covers, and `id=` registers those runs. `||` splits the whole block into segments recorded in `reveal_segments`. `\||` is the only escape, yielding a literal `||`; every other backslash is code.
+
+Pygments tokenizes the plain source; each token maps to a `code.theme` role whose property dict styles it, the `words` option overlays the theme on whole-word matches, and explicit spans win over both. Each run of uniform style becomes one verbatim leaf `Text`, so the backend renders a `Code` like any other Group.
+
 ### `elements/shapes.py` — `Rectangle`, `Circle`, `Ellipse`, `Line`, `Polygon`, `Curve`
 
 Geometric primitives extending `Drawable` with intrinsic dimensions and no children. The three filled shapes render as solid black with no stroke under the `Drawable` defaults; pass `fill_opacity=0` to make a layout placeholder, and `stroke_width > 0` to draw an outline.
 
-- `Rectangle(width, height, ...)` → `#rect(width: Wcm, height: Hcm, fill: ..., stroke: ...)`. Bbox is `(width, height)`.
+- `Rectangle(width, height, ...)` → `#rect(width: Wcm, height: Hcm, fill: ..., stroke: ...)`. Bbox is `(width, height)`. A `corner_radius` rounds the corners (visual-only: the bbox is unchanged).
 - `Circle(radius, ...)` → `#circle(radius: Rcm, fill: ..., stroke: ...)`. Bbox is `(2 radius, 2 radius)`.
 - `Ellipse(width, height, ...)` → `#ellipse(width: Wcm, height: Hcm, fill: ..., stroke: ...)`. Bbox is `(width, height)`; semi-axes are `width/2` and `height/2`.
 
@@ -237,7 +248,7 @@ Two classes with separate responsibilities:
 Module-level helpers (shared by both classes):
 - `_collect_fixed(el)` — recursively gathers descendants with `placement == "fixed"`.
 - `_render_placed(el, render_node)` — emits the `#place` and recurses. The body-render function is passed as a callable; it is the only thing that differs between renderer and measurer.
-- `_markdown_to_typst`, `_bare`, `_write` — utilities. `_markdown_to_typst` translates a leaf `Text`'s Markdown content (`**bold**`, `*italic*`/`_italic_`, `` `code` ``, inline `$math$`, display `$$math$$`, a trailing backslash before a newline as a hard line break) into Typst markup, backslash-escaping every other special character; it is the only place the Markdown-to-Typst mapping lives.
+- `_markdown_to_typst`, `_bare`, `_write` — utilities. `_markdown_to_typst` translates a leaf `Text`'s Markdown content (`**bold**`, `*italic*`/`_italic_`, `` `code` ``, inline `$math$`, display `$$math$$`, a trailing backslash before a newline as a hard line break) into Typst markup, backslash-escaping every other special character; it is the only place the Markdown-to-Typst mapping lives. A leaf with `verbatim=True` goes through `_verbatim_to_typst` instead, which backslash-escapes all punctuation and turns spaces into no-break spaces.
 
 #### Measurement logic (the subtle part)
 
