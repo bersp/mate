@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "yerba"
-version = "0.1.0"
+version = "0.2.0"
 description = "Python-driven presentation tool: Markdown decks laid out in Python, rendered to PDF"
 readme = "README.md"
 license = "MIT"
