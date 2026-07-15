@@ -13,7 +13,7 @@ _BLOCK_RE = re.compile(r"\[\[([^\[\]]+)\]\]")
 
 
 class Text(Drawable):
-    """Textual element: either a leaf with ``content`` or a tree of ``Text``.
+    r"""Textual element: either a leaf with ``content`` or a tree of ``Text``.
 
     Markup ``[...][<props>]`` parses balanced brackets into a sub-element
     and applies each ``name=value`` of ``<props>`` to it as ``set_<name>``
@@ -28,7 +28,7 @@ class Text(Drawable):
 
     A ``||`` marker splits the text into reveal segments: the part before the
     first ``||`` shows immediately, and each following segment appears on a
-    later reveal step while reserving its space from the start. ``\\||``
+    later reveal step while reserving its space from the start. ``\||``
     escapes the marker: it opens no step and renders as a literal ``||``. In
     running text the split acts only at bracket depth 0, outside ``code`` and
     ``$math$`` spans, and sits between complete inline spans — a ``||`` inside
@@ -98,6 +98,9 @@ class Text(Drawable):
     ----------
     content : str
         Raw text for leaves; empty string when this node has children.
+    verbatim : bool
+        When ``True`` on a leaf, ``content`` renders literally: no Markdown
+        markup, every character and space preserved. ``False`` by default.
     subs : list[Text]
         Id'd sub-Texts at this immediate level, in source order.
     font : str
@@ -160,6 +163,7 @@ class Text(Drawable):
             stroke_opacity=stroke_opacity,
         )
         self.content: str = ""
+        self.verbatim: bool = False
         self.subs: list[Text] = []
         self.reveal_segments: list[list[Text]] = []
         self.is_math_run: bool = False
@@ -415,13 +419,13 @@ def _apply_markup_props(element: Element, props: str) -> None:
 
 
 def _split_pauses(raw: str) -> list[str]:
-    """Split ``raw`` on top-level ``||`` reveal markers.
+    r"""Split ``raw`` on top-level ``||`` reveal markers.
 
     A ``||`` splits only at bracket depth 0 and outside ``code`` and math
     spans, so markup like ``[a||b][id=1]``, inline ``$||x||$`` and display
     ``$$ ... || ... $$`` stays intact. A run of ``$`` or backticks toggles its
     span as one delimiter: the double markers of display math and fenced code
-    count as one toggle. A backslash escapes the next character: ``\\||``
+    count as one toggle. A backslash escapes the next character: ``\||``
     opens no step (the pair is kept verbatim for the markup scanner, which
     strips the backslash, so it renders as a literal ``||``). Returns the
     segment strings in source order (one entry when no marker is present).
@@ -581,12 +585,12 @@ def _reset_inherited_styles(node: Element) -> None:
 
 
 def _split_math_reveals(body: str) -> list[str]:
-    """Split a math body on top-level ``||`` reveal markers.
+    r"""Split a math body on top-level ``||`` reveal markers.
 
     A ``||`` splits only at bracket depth 0, so a ``[a||b][color="red"]`` span
-    inside the equation stays one fragment. ``\\||`` opens no step and emits a
+    inside the equation stays one fragment. ``\||`` opens no step and emits a
     plain ``||`` (which Typst math renders as its usual double bar); any other
-    backslash pair is kept verbatim, since the body is Typst syntax and ``\\``
+    backslash pair is kept verbatim, since the body is Typst syntax and ``\``
     sequences carry meaning there. Returns the fragment strings in source
     order (one entry when no marker is present).
     """

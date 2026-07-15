@@ -21,6 +21,11 @@ _MISSING = object()
 # with ``typst query`` on a blank doc so the rendered output never relies on
 # Typst's implicit fallback; ``color`` is a palette name resolved via
 # ``config.colors``.
+#
+# ``code.*`` styles code blocks. ``code.theme`` maps each syntax role to the
+# property dict applied to its tokens (any ``set_<prop>`` of a ``Text`` leaf);
+# a role left out inherits ``code.color``. ``code.line_height`` is the
+# vertical step between lines in multiples of the font size.
 _DEFAULTS: dict[str, object] = {
     "slide.width": 16.0,
     "slide.height": 9.0,
@@ -61,6 +66,25 @@ _DEFAULTS: dict[str, object] = {
     "math.fontweight": "regular",
     "math.fontsize": 12.0,
     "math.color": "black",
+    "code.font": "DejaVu Sans Mono",
+    "code.fontsize": 10.0,
+    "code.color": "black",
+    "code.bg_color": "lightest_gray",
+    "code.padding": 0.35,
+    "code.corner_radius": 0.1,
+    "code.line_height": 1.25,
+    "code.numbers": False,
+    "code.numbers_start": 1,
+    "code.numbers_color": "gray",
+    "code.theme": {
+        "keyword": {"color": "purple"},
+        "string": {"color": "green"},
+        "comment": {"color": "gray", "style": "italic"},
+        "number": {"color": "orange"},
+        "function": {"color": "blue"},
+        "builtin": {"color": "aqua"},
+        "decorator": {"color": "red"},
+    },
     "list.bullet": "square",
     "list.bullet_scale": 0.8,
     "list.bullet_gap": 0.2,

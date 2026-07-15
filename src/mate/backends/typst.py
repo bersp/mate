@@ -3,6 +3,7 @@ from __future__ import annotations
 import atexit
 import hashlib
 import json
+import string
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
@@ -257,6 +258,31 @@ def _escape_char(c: str) -> str:
     return f"\\{c}" if c in _TYPST_SPECIAL else c
 
 
+# Verbatim emission: every ASCII punctuation character is backslash-escaped
+# (Typst renders any escaped punctuation literally) and every space becomes a
+# no-break space, which Typst never collapses. This shuts off all markup-mode
+# processing: smart quotes and dashes, comments, references, labels, lists.
+_VERBATIM_ESCAPE = {ord(c): f"\\{c}" for c in string.punctuation} | {
+    ord(" "): " "
+}
+
+
+def _verbatim_to_typst(s: str) -> str:
+    """Emit ``s`` as literal Typst markup, exact characters and spacing."""
+    return s.translate(_VERBATIM_ESCAPE)
+
+
+def _leaf_text_markup(el: Text) -> str:
+    """Emit the Typst markup for a leaf ``Text``'s own content.
+
+    A ``verbatim`` leaf renders its content literally; any other leaf carries
+    Markdown markup, translated via :func:`_markdown_to_typst`.
+    """
+    if el.verbatim:
+        return _verbatim_to_typst(el.content)
+    return _markdown_to_typst(el.content)
+
+
 def _markdown_to_typst(s: str) -> str:
     r"""Translate the Markdown markup of ``s`` into Typst markup.
 
@@ -366,7 +392,7 @@ def _bare(el: Element) -> str:
         elif el.children:
             inner = "".join(_bare(c) for c in el.children if c.placement != "omitted")
         else:
-            inner = _markdown_to_typst(el.content)
+            inner = _leaf_text_markup(el)
         body = _wrap_text_attrs(el, inner, with_paint=False)
         if el.max_width is not None:
             # Width is measured from the leading-free body (leading does
@@ -968,7 +994,7 @@ class TypstRenderer:
                     if c.placement != "omitted"
                 )
             else:
-                inner = _markdown_to_typst(el.content)
+                inner = _leaf_text_markup(el)
             inner = _wrap_text_attrs(el, inner)
             if el.max_width is not None:
                 inner = _wrap_max_width(
@@ -1246,7 +1272,7 @@ class TypstMeasurer:
             elif el.children:
                 inner = self._render_children_with_probes(el)
             else:
-                inner = _markdown_to_typst(el.content)
+                inner = _leaf_text_markup(el)
             inner = _wrap_text_attrs(el, inner)
             if el.max_width is not None:
                 # Width comes from the probe-free body; probes are

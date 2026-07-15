@@ -1,3 +1,4 @@
+from .code import Code
 from .group import Group
 from .image import Image
 from .shapes import (
@@ -19,6 +20,7 @@ from .text import Text
 
 __all__ = [
     "Circle",
+    "Code",
     "Close",
     "CubicTo",
     "Curve",

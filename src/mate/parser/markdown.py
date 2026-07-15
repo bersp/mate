@@ -1,17 +1,19 @@
-"""Parse a Markdown source string into a :class:`ParsedDocument`.
+r"""Parse a Markdown source string into a :class:`ParsedDocument`.
 
 An optional leading YAML front matter block, fenced by ``---`` lines, carries
 the presentation's config (see :class:`~mate.parser.ir.FrontMatter`). Slide
 syntax: a ``#`` (h1) heading opens a new slide and is its title; a ``##`` (h2)
 heading that is the slide's first block is its subtitle. Every other construct
 becomes a body block. Supported v1 content: paragraphs with inline
-bold/italic/code, ``||`` reveal markers (escapable as ``\\||``), hard line
+bold/italic/code, ``||`` reveal markers (escapable as ``\||``), hard line
 breaks (a trailing backslash or two trailing spaces before a newline),
 Typst-style ``$...$`` and ``$$...$$`` math, bullet and ordered lists (nested),
-in-body headings, and blockquotes that call a presentation method, one
-``> method name : args`` (or no-arg ``> method name``) call per line. Math
-spans are carved out before emphasis parsing so their ``*``/``_`` are not
-consumed as markup. Unsupported constructs raise at parse time.
+in-body headings, fenced code blocks (``python mate`` runs as Python,
+``markdown <name>`` is a directive body, anything else is displayed code),
+and blockquotes that call a presentation method, one ``> method name : args``
+(or no-arg ``> method name``) call per line. Math spans are carved out before
+emphasis parsing so their ``*``/``_`` are not consumed as markup. Unsupported
+constructs raise at parse time.
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ from .ir import (
     Bold,
     BulletList,
     Code,
+    CodeBlock,
     FencedBlock,
     FrontMatter,
     Heading,
@@ -53,11 +56,11 @@ _FRONTMATTER_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n?", re.DOTALL)
 
 
 def _tokenize(text: str) -> SyntaxTreeNode:
-    """Tokenize Markdown ``text`` into a :class:`SyntaxTreeNode` tree.
+    r"""Tokenize Markdown ``text`` into a :class:`SyntaxTreeNode` tree.
 
     The ``text_join`` rule is disabled: backslash-escaped characters and HTML
     entities then reach the fold as separate ``text_special`` nodes, keeping
-    an escaped ``\\||`` distinguishable from a literal ``||`` reveal marker.
+    an escaped ``\||`` distinguishable from a literal ``||`` reveal marker.
     """
     md = MarkdownIt("commonmark").use(dollarmath_plugin)
     md.disable("text_join")
@@ -252,9 +255,10 @@ def _fold_block(node: SyntaxTreeNode) -> Block:
             name, _, args = rest.partition(":")
             if lang.strip() == "python" and name.strip() == "mate":
                 return PythonBlock(node.content)
-            if lang.strip() != "markdown":
-                raise _unsupported("fence")
-            return FencedBlock(name.strip(), args.strip(), _fold_body(node.content))
+            if lang.strip() == "markdown":
+                return FencedBlock(name.strip(), args.strip(), _fold_body(node.content))
+            language, _, options = node.info.partition(":")
+            return CodeBlock(language.strip(), options.strip(), node.content)
     raise _unsupported(node.type)
 
 
@@ -344,9 +348,9 @@ def _fold_inlines(nodes: list[SyntaxTreeNode]) -> list[Inline]:
 
 
 def _split_pause_markers(text: str) -> list[Inline]:
-    """Split ``text`` on ``||`` reveal markers into ``TextRun``/``Pause`` runs.
+    r"""Split ``text`` on ``||`` reveal markers into ``TextRun``/``Pause`` runs.
 
-    Only plain text carries markers: an escaped ``\\||`` reaches the fold as a
+    Only plain text carries markers: an escaped ``\||`` reaches the fold as a
     separate ``text_special`` node and is never split.
     """
     out: list[Inline] = []

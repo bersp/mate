@@ -61,9 +61,9 @@ class LineBreak:
 
 @dataclass
 class Pause:
-    """A ``||`` reveal marker: content after it appears on a later reveal step.
+    r"""A ``||`` reveal marker: content after it appears on a later reveal step.
 
-    Written as a literal ``||`` in running text; ``\\||`` escapes it, yielding
+    Written as a literal ``||`` in running text; ``\||`` escapes it, yielding
     the two pipe characters with no reveal step.
     """
 
@@ -150,6 +150,21 @@ class PythonBlock:
     source: str
 
 
+@dataclass
+class CodeBlock:
+    """A fenced code block, rendered as a :class:`~mate.elements.code.Code`.
+
+    ``language`` is the fence info string's language (empty for a bare
+    fence); ``options`` is the verbatim property text after the info
+    string's ``:``, empty when absent; ``source`` is the fence body, kept
+    verbatim.
+    """
+
+    language: str
+    options: str
+    source: str
+
+
 Block = (
     Paragraph
     | Heading
@@ -159,6 +174,7 @@ Block = (
     | MethodCall
     | FencedBlock
     | PythonBlock
+    | CodeBlock
 )
 
 

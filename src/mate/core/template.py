@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from itertools import cycle
 
 from ..composition.arrange import arrange
@@ -7,6 +8,7 @@ from ..composition.layout import Layout, Region
 from ..composition.utils import layout_to_group
 from ..config import config
 from ..core.drawable import Drawable
+from ..elements.code import Code
 from ..elements.group import Group
 from ..elements.image import Image
 from ..elements.shapes import Circle, Ellipse, Line, Rectangle
@@ -15,6 +17,7 @@ from ..elements.text import Text
 from ..parser.ir import (
     Block,
     BulletList,
+    CodeBlock,
     FencedBlock,
     Heading,
     ListItem,
@@ -35,6 +38,10 @@ from .element import Anchor, Element, HAlign, anchor_offsets, measure_all
 # Names exposed to authored Python expressions (blockquote method-call
 # arguments and fenced-block property text).
 _AUTHOR_GLOBALS = {"Gradient": Gradient}
+
+# Keyword parameters a code fence's options may set (the ``Code`` signature
+# minus the source, which is the fence body itself).
+_CODE_OPTIONS = frozenset(inspect.signature(Code).parameters) - {"source"}
 
 
 def _union_bbox(
@@ -239,6 +246,8 @@ class PresentationTemplateBase:
                 getattr(self, f"add_{name}")(blocks, args)
             case PythonBlock(source):
                 self._run_python(source)
+            case CodeBlock(language, options, source):
+                self.add_code(source, language=language, options=options)
 
     def add_fragment(self, blocks: list[Block], args: str) -> None:
         """Render a ``markdown fragment`` body, pushing its properties onto it.
@@ -820,6 +829,42 @@ class PresentationTemplateBase:
         self.current_slide.add(el)
         if not floating:
             target_region.add(el)
+        return el
+
+    def add_code(
+        self,
+        source: str,
+        language: str = "",
+        options: str = "",
+        region: str = "active",
+        **code_kwargs,
+    ) -> Code:
+        """Create a :class:`~mate.elements.code.Code` block and add it to a
+        region and the slide.
+
+        ``options`` is a code fence's verbatim property text (e.g.
+        ``bg_color="gray", numbers=True``): each entry becomes a
+        :class:`Code` keyword argument, with ``region=<name>`` selecting the
+        target region; entries win over ``code_kwargs``. The block spans the
+        region's width minus the ambient indent unless ``width`` is given.
+        An option that is not a :class:`Code` parameter raises
+        :class:`ValueError` naming it.
+        """
+        props = eval(f"dict({options})", {"dict": dict, **_AUTHOR_GLOBALS})
+        region = props.pop("region", region)
+        code_kwargs.update(props)
+        unknown = sorted(set(code_kwargs) - _CODE_OPTIONS)
+        if unknown:
+            names = ", ".join(repr(u) for u in unknown)
+            valid = ", ".join(sorted(_CODE_OPTIONS | {"region"}))
+            raise ValueError(f"unknown code option(s) {names}; valid: {valid}")
+        target_region = self._resolve_region(region)
+        indent = self._content_indent
+        code_kwargs.setdefault("width", target_region.width - indent)
+        el = Code(source, language=language, **code_kwargs)
+        el.indent = indent
+        self.current_slide.add(el)
+        target_region.add(el)
         return el
 
     def add_vspace(self, height: float, region: str = "active") -> VSpace:

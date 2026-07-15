@@ -15,6 +15,7 @@ from .core import (
 )
 from .elements import (
     Circle,
+    Code,
     Close,
     CubicTo,
     Curve,
@@ -46,6 +47,7 @@ __all__ = [
     "Snapshot",
     "Circle",
     "Close",
+    "Code",
     "CubicTo",
     "Curve",
     "CurveSegment",
