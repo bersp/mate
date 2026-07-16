@@ -190,6 +190,10 @@ class Config:
         """Override the default for ``key`` process-wide."""
         self._defaults[key] = value
 
+    def set_multiple(self, values: dict[str, object]) -> None:
+        """Override the default for each ``key``/``value`` entry process-wide."""
+        self._defaults.update(values)
+
     def template_names(self) -> set[str]:
         """Return the namespace name of every template in :attr:`templates`.
 

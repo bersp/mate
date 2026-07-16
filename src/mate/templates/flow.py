@@ -46,28 +46,28 @@ class PresentationTemplate(PresentationTemplateBase):
             }
         )
 
-        config.set("text.font", "Lato")
-        config.set("text.fontsize", 9.0)
-
-        config.set("title.font", "Playfair Display")
-        config.set("title.fontweight", 600)
-        config.set("title.fontsize", 16.0)
-
-        config.set("subtitle.font", "Lato")
-        config.set("subtitle.fontsize", 11.0)
-
-        config.set("cover.title.font", "Playfair Display")
-        config.set("cover.title.fontweight", 600)
-        config.set("cover.title.fontsize", 20.0)
-        config.set("cover.title.color", "flow.cover_title")
-        config.set("cover.subtitle.font", "Lato")
-        config.set("cover.subtitle.fontsize", 14.0)
-        config.set("cover.subtitle.color", "flow.cover_accent")
-        config.set("cover.author.font", "Lato")
-        config.set("cover.author.fontsize", 10.0)
-        config.set("cover.author.color", "flow.cover_author")
-
-        config.set("footer.show", False)
+        config.set_multiple(
+            {
+                "text.font": "Lato",
+                "text.fontsize": 9.0,
+                "title.font": "Playfair Display",
+                "title.fontweight": 600,
+                "title.fontsize": 16.0,
+                "subtitle.font": "Lato",
+                "subtitle.fontsize": 11.0,
+                "cover.title.font": "Playfair Display",
+                "cover.title.fontweight": 600,
+                "cover.title.fontsize": 20.0,
+                "cover.title.color": "flow.cover_title",
+                "cover.subtitle.font": "Lato",
+                "cover.subtitle.fontsize": 14.0,
+                "cover.subtitle.color": "flow.cover_accent",
+                "cover.author.font": "Lato",
+                "cover.author.fontsize": 10.0,
+                "cover.author.color": "flow.cover_author",
+                "footer.show": False,
+            }
+        )
 
         super().__init__()
 

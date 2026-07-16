@@ -15,19 +15,20 @@ from ..elements.text import Text
 class PresentationTemplate(PresentationTemplateBase):
     def __init__(self) -> None:
         font = "Lato"
-        config.set("text.font", font)
-        config.set("title.font", font)
-        config.set("subtitle.font", font)
-        config.set("cover.title.font", font)
-        config.set("cover.subtitle.font", font)
-        config.set("cover.author.font", font)
-
-        config.set("title.fontweight", 700)
-        config.set("subtitle.fontweight", 300)
-
-        config.set("subtitle.color", "black")
-
-        config.set("footer.show", False)
+        config.set_multiple(
+            {
+                "text.font": font,
+                "title.font": font,
+                "subtitle.font": font,
+                "cover.title.font": font,
+                "cover.subtitle.font": font,
+                "cover.author.font": font,
+                "title.fontweight": 700,
+                "subtitle.fontweight": 300,
+                "subtitle.color": "black",
+                "footer.show": False,
+            }
+        )
 
         super().__init__()
 
