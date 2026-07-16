@@ -21,7 +21,7 @@ The PDF lands next to the source, as `slides.pdf`.
 - [Layout and regions](#layout-and-regions)
 - [Revealing content](#revealing-content)
 - [Fragments, overwrites and alternates](#fragments-overwrites-and-alternates)
-- [Topics and covers](#topics-and-covers)
+- [Directives and covers](#directives-and-covers)
 - [Configuration](#configuration)
 - [Colors](#colors)
 - [Templates](#templates)
@@ -517,15 +517,16 @@ A `markdown alternate` fence shows variants in one slot, one per step, separated
 ```
 ````
 
-## Topics and covers
+## Directives and covers
 
-`#> Name` opens a topic: a section carried by every slide until the next marker. A blockquote right after the marker sets its properties, and `cover: True` renders a cover page.
+`#>` opens an off-slide directive: the `>` lines right below it are `key: value` properties handed to the template between slides. The marker carries no name of its own; everything the template acts on lives in the properties. `cover: True` renders a cover page from the same block.
 
-A short presentation usually needs a single topic at the top of the file, defined for its cover:
+A short presentation usually needs a single directive at the top of the file, for its cover:
 
 ```markdown
-#> Bayesian model comparison
+#>
 > cover: True
+> title: Bayesian model comparison
 > subtitle: A guided tour
 > author: Jane Doe
 
@@ -534,9 +535,9 @@ A short presentation usually needs a single topic at the top of the file, define
 ...
 ```
 
-The cover pulls its title from the topic name (a `title:` property overrides it) and shows `subtitle`, `author` and `date` when present. Property values are Python literals when they parse as one, and raw strings otherwise.
+The cover takes its `title` and shows `subtitle`, `author` and `date` when present. Property values are Python literals when they parse as one, and raw strings otherwise.
 
-In a longer deck, markers placed along the file section the presentation, and the syntax grows with the template: a template receives every property declared at a marker and decides what to do with it, so a topic can put a heading on its slides, mark the footer, switch the theme halfway through the talk, or change whatever behavior the template wired to it.
+A directive placed anywhere in the file runs at that point, and what it does is up to the template: it receives every property and decides. A template can put a running heading on the slides that follow, switch the theme halfway through the talk, drop the footer, restyle code, or act on whatever property it reads. A property no template reads is ignored.
 
 ## Configuration
 
@@ -640,7 +641,7 @@ Saved as `my_template.py` next to the deck, it is used with `templates: [my_temp
 
 - A template's colors are palette entries, namespaced with the template's name (see [Colors](#colors)). Configuration keys accept both hex values and palette names, but a name lets the deck re-tint it from the front matter.
 - Configuration is set before `super().__init__()`; the front matter is applied there, so deck values win over template values.
-The hooks one usually overrides are `build_layout` (the region map), `background` (drawn behind every slide), `add_title`, `add_cover`, `begin_topic`, `add_footer` and the `add_*` content methods, and any new method is callable from the deck as a command. In principle, though, a template can change every behavior, internals included: `mate/core/template.py` holds the full set of methods.
+The hooks one usually overrides are `build_layout` (the region map), `background` (drawn behind every slide), `add_title`, `add_cover`, `on_directive`, `add_footer` and the `add_*` content methods, and any new method is callable from the deck as a command. In principle, though, a template can change every behavior, internals included: `mate/core/template.py` holds the full set of methods.
 
 The built-in templates are also worked examples: `simple` shows the minimal case (a font stack and a restyled title) and `flow` a complete one (its own palette, a generated background, custom cover and title logic). They live in `mate/templates/`.
 

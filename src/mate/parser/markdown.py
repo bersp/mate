@@ -50,7 +50,7 @@ from .ir import (
     PythonBlock,
     TextRun,
 )
-from ..core.topic import Topic
+from ..core.directive import Directive
 
 _FRONTMATTER_RE = re.compile(r"\A---[ \t]*\n(.*?)\n---[ \t]*\n?", re.DOTALL)
 
@@ -68,34 +68,31 @@ def _tokenize(text: str) -> SyntaxTreeNode:
 
 
 def parse_markdown(source: str) -> ParsedDocument:
-    """Parse ``source`` into a :class:`ParsedDocument` stream of topics and slides."""
+    """Parse ``source`` into a :class:`ParsedDocument` stream of directives and slides."""
     frontmatter, body = _split_frontmatter(source)
     body = _separate_math_blocks(body)
     tree = _tokenize(body)
 
     doc = ParsedDocument(frontmatter=frontmatter)
     current: ParsedSlide | None = None
-    current_topic: Topic | None = None
-    pending_topic: Topic | None = None
+    pending_directive: Directive | None = None
 
     for node in tree.children:
-        name = _topic_marker(node)
-        if name is not None:
-            current_topic = Topic(name)
-            pending_topic = current_topic
-            # The topic enters the stream at its marker position; a trailing
+        if _directive_marker(node):
+            pending_directive = Directive()
+            # The directive enters the stream at its marker position; a trailing
             # blockquote mutates this same object in place with its props.
-            doc.items.append(current_topic)
+            doc.items.append(pending_directive)
             continue
-        # A blockquote right after a marker carries the topic's cover properties.
-        if pending_topic is not None and node.type == "blockquote":
-            _apply_topic_props(pending_topic, node)
-            pending_topic = None
+        # A blockquote right after a marker carries the directive's properties.
+        if pending_directive is not None and node.type == "blockquote":
+            _apply_directive_props(pending_directive, node)
+            pending_directive = None
             continue
-        pending_topic = None
+        pending_directive = None
 
         if node.type == "heading" and node.tag == "h1":
-            current = ParsedSlide(title=_inlines_of(node), topic=current_topic)
+            current = ParsedSlide(title=_inlines_of(node))
             doc.items.append(current)
             continue
 
@@ -122,34 +119,36 @@ def parse_markdown(source: str) -> ParsedDocument:
     return doc
 
 
-def _topic_marker(node: SyntaxTreeNode) -> str | None:
-    """Return the name of a ``#> Name`` topic marker, or ``None``.
+def _directive_marker(node: SyntaxTreeNode) -> bool:
+    """Return whether ``node`` is a ``#>`` directive marker.
 
-    A topic marker is a single-line paragraph whose text starts with ``#>``,
-    opening a topic carried by every following slide until the next marker.
-    Such a line is not a valid ATX heading; the tokenizer yields it as a
-    paragraph. A marker with no name raises :class:`ValueError`.
+    A directive marker is a single-line paragraph whose only text is ``#>``,
+    opening an off-slide directive whose properties come from the blockquote
+    right below it. Such a line is not a valid ATX heading; the tokenizer
+    yields it as a paragraph. Text after ``#>`` on the same line raises
+    :class:`ValueError`: a directive carries no positional argument, only
+    ``key: value`` properties.
     """
     if node.type != "paragraph" or not node.children:
-        return None
+        return False
     text = node.children[0].content
     if "\n" in text or not text.lstrip().startswith("#>"):
-        return None
-    name = text.strip()[2:].strip()
-    if not name:
+        return False
+    if text.strip() != "#>":
         raise ValueError(
-            "topic marker '#>' must be followed by a name, e.g. '#> Introduction'"
+            f"a '#>' directive marker takes no text; put properties on the "
+            f"'>' lines below it, got {text.strip()!r}"
         )
-    return name
+    return True
 
 
-def _apply_topic_props(topic: Topic, node: SyntaxTreeNode) -> None:
-    """Collect the ``key: value`` lines of a marker's blockquote into ``topic``.
+def _apply_directive_props(directive: Directive, node: SyntaxTreeNode) -> None:
+    """Collect the ``key: value`` lines of a marker's blockquote into ``directive``.
 
     Each non-blank line is ``key: value``; the value is read as a Python literal
     (``True``, ``42``, ``(1, 0)``, a quoted string, ...) when it parses as one,
     otherwise kept as the raw string. The result is stored in
-    :attr:`Topic.props` under ``key``. Keys are not validated here — the
+    :attr:`Directive.props` under ``key``. Keys are not validated here — the
     consuming template decides which are meaningful. A malformed line or an
     empty value raises :class:`ValueError`.
     """
@@ -161,13 +160,13 @@ def _apply_topic_props(topic: Topic, node: SyntaxTreeNode) -> None:
         key = key.strip()
         value = value.strip()
         if not sep or not key:
-            raise ValueError(f"topic property must be 'key: value', got {line!r}")
+            raise ValueError(f"directive property must be 'key: value', got {line!r}")
         if not value:
-            raise ValueError(f"topic property {key!r} has an empty value")
+            raise ValueError(f"directive property {key!r} has an empty value")
         try:
-            topic.props[key] = ast.literal_eval(value)
+            directive.props[key] = ast.literal_eval(value)
         except (ValueError, SyntaxError):
-            topic.props[key] = value
+            directive.props[key] = value
 
 
 def _split_frontmatter(source: str) -> tuple[FrontMatter, str]:

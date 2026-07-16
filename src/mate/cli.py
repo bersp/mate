@@ -47,5 +47,5 @@ def main() -> None:
             pres.add_parsed_slide(item)
             pres.end_slide()
         else:
-            pres.begin_topic(item)
+            pres.on_directive(item)
     pres.write()

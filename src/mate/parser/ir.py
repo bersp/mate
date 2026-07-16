@@ -1,8 +1,8 @@
 """Tokenized representation of a parsed Markdown document.
 
 A :class:`ParsedDocument` holds a :class:`FrontMatter` config block and an
-ordered stream of :class:`Topic` markers and :class:`ParsedSlide`s; each slide
-holds its title and subtitle as inline tokens plus a list of body blocks.
+ordered stream of :class:`Directive` markers and :class:`ParsedSlide`s; each
+slide holds its title and subtitle as inline tokens plus a list of body blocks.
 Blocks and inlines are dataclasses so the later element-mapping step consumes a
 typed tree rather than a backend-specific token stream.
 """
@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..core.topic import Topic
+    from ..core.directive import Directive
 
 # --- Inline tokens ----------------------------------------------------------
 
@@ -185,7 +185,6 @@ Block = (
 class ParsedSlide:
     title: list[Inline] | None = None
     subtitle: list[Inline] | None = None
-    topic: Topic | None = None
     blocks: list[Block] = field(default_factory=list)
 
 
@@ -207,17 +206,17 @@ class FrontMatter:
 
 @dataclass
 class ParsedDocument:
-    """A parsed document as an ordered stream of topics and slides.
+    """A parsed document as an ordered stream of directives and slides.
 
-    ``items`` interleaves :class:`Topic` markers with :class:`ParsedSlide`s in
-    source order; a topic opens its section (and optional cover) at the point it
-    appears, whether or not any slide follows it.
+    ``items`` interleaves :class:`Directive` markers with :class:`ParsedSlide`s
+    in source order; a directive fires at the point it appears, whether or not
+    any slide follows it.
     """
 
-    items: list[Topic | ParsedSlide] = field(default_factory=list)
+    items: list[Directive | ParsedSlide] = field(default_factory=list)
     frontmatter: FrontMatter = field(default_factory=FrontMatter)
 
     @property
     def slides(self) -> list[ParsedSlide]:
-        """The document's content slides in order, topic markers excluded."""
+        """The document's content slides in order, directive markers excluded."""
         return [item for item in self.items if isinstance(item, ParsedSlide)]

@@ -71,6 +71,14 @@ class PresentationTemplate(PresentationTemplateBase):
 
         super().__init__()
 
+        self._heading: str | None = None
+
+    def on_directive(self, directive):
+        heading = directive.get("heading")
+        if heading is not None:
+            self._heading = heading
+        super().on_directive(directive)
+
     def background(self) -> Group:
         W, H = config.slide_width, config.slide_height
         group = Group(anchor="top-left")
@@ -159,11 +167,7 @@ class PresentationTemplate(PresentationTemplateBase):
         title_region = self.layout.get("title")
         members = Group()
 
-        heading = (
-            slide.topic.get("heading", slide.topic.name)
-            if slide.topic is not None
-            else None
-        )
+        heading = self._heading
         if heading:
             eyebrow = Text(
                 heading.upper(),

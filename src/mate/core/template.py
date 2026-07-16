@@ -32,7 +32,7 @@ from ..parser.ir import (
 from ..parser.serialize import inlines_to_markdown
 from .gradient import Gradient
 from .registry import IDKey, id_registry
-from .topic import Topic
+from .directive import Directive
 from .vec import Vec
 from .element import Anchor, Element, HAlign, anchor_offsets, measure_all
 
@@ -231,7 +231,6 @@ class PresentationTemplateBase:
         :class:`NotImplementedError`, so a subclass can supply its own.
         """
         slide = self.current_slide
-        slide.topic = parsed.topic
         if parsed.title is not None:
             slide.title = inlines_to_markdown(parsed.title)
         if parsed.subtitle is not None:
@@ -723,27 +722,30 @@ class PresentationTemplateBase:
         slide.add(members)
         return members
 
-    def begin_topic(self, topic: Topic) -> None:
-        """Open a topic, fired at its first slide.
+    def on_directive(self, directive: Directive) -> None:
+        """Handle an off-slide ``#>`` directive, fired at its position in the deck.
 
-        Receives the whole :class:`Topic` and decides what to do with it. The
-        default renders a cover slide only when the ``cover`` property is truthy
-        (``> cover: True``): it pulls ``title`` (falling back to the topic name)
-        and hands the remaining properties to :meth:`add_cover`. A template
-        overrides this to act on any declared property (e.g. switch theme)
-        before, instead of, or alongside the cover; it owns its own slide via
-        :meth:`new_slide`/:meth:`end_slide`.
+        Receives the whole :class:`Directive` and decides what to do with its
+        properties. The default renders a cover slide when the ``cover`` property
+        is truthy (``> cover: True``): it takes ``title`` from the properties and
+        hands the rest to :meth:`add_cover`. A template overrides this to act on
+        any property (switch theme, set a running heading, change the background,
+        ...); it owns its own slide via :meth:`new_slide`/:meth:`end_slide`.
         """
-        props = dict(topic.props)
+        props = dict(directive.props)
         if not props.pop("cover", False):
             return
-        title = props.pop("title", topic.name)
+        title = props.pop("title", None)
+        if title is None:
+            raise ValueError(
+                "a '#>' directive with 'cover: True' needs a 'title:' property"
+            )
         self.new_slide(is_cover=True)
         self.add_cover(title, **props)
         self.end_slide()
 
     def add_cover(self, title: str, **props: str) -> Group:
-        """Render a cover page from a ``title`` and generic topic properties.
+        """Render a cover page from a ``title`` and generic directive properties.
 
         Stacks ``title`` and any of ``subtitle``, ``author`` and ``date`` found
         in ``props`` as text in the ``full_with_margins`` region; other

@@ -25,7 +25,7 @@ mate/
 │   ├── gradient.py
 │   ├── registry.py
 │   ├── slide.py
-│   ├── topic.py
+│   ├── directive.py
 │   ├── template.py
 │   └── presentation.py
 ├── elements/          # concrete visual element types
@@ -35,7 +35,7 @@ mate/
 │   ├── shapes.py
 │   ├── spacing.py
 │   └── text.py
-├── parser/            # Markdown → parsed document (front matter, topics, slides)
+├── parser/            # Markdown → parsed document (front matter, directives, slides)
 │   ├── ir.py
 │   ├── markdown.py
 │   ├── markup.py

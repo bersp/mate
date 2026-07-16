@@ -6,7 +6,6 @@ from ..backends.typst import TypstRenderer as _Renderer
 from ..config import config
 from ..log import logger
 from ..parser.ir import FrontMatter
-from .topic import Topic
 from .registry import id_registry
 from .slide import Slide, Snapshot
 from .template import PresentationTemplateBase
@@ -49,7 +48,6 @@ class Presentation(PresentationTemplateBase):
         self,
         title: str | None = None,
         subtitle: str | None = None,
-        topic: Topic | None = None,
         is_cover: bool = False,
     ) -> Slide:
         """Create, attach, and return a fresh open slide.
@@ -61,7 +59,7 @@ class Presentation(PresentationTemplateBase):
         (``is_cover``) carries no footer.
         """
         id_registry.clear()
-        slide = Slide(title, subtitle, topic, is_cover)
+        slide = Slide(title, subtitle, is_cover)
         self.slides.append(slide)
         self.current_slide = slide
         self.layout.reset_active()
