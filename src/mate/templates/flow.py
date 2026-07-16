@@ -20,30 +20,32 @@ from ..elements.text import Text
 
 
 class PresentationTemplate(PresentationTemplateBase):
-    palette = {
-        "black": "#1f1828",
-        "darker_gray": "#3a3150",
-        "dark_gray": "#564d6e",
-        "gray": "#a8a3bb",
-        "white": "#f6f3fb",
-        "red": "#b5557a",
-        "orange": "#cc8a66",
-        "yellow": "#cbb37a",
-        "green": "#6e8f6a",
-        "aqua": "#5f9aa8",
-        "blue": "#7e6bb0",
-        "purple": "#5b3a86",
-        "flow.backdrop": "#34204a",
-        "flow.cover_title": "#f3ecf8",
-        "flow.cover_accent": "#c79fe6",
-        "flow.cover_author": "#b89ed2",
-        "flow.streamline": "#8a6bb0",
-        "flow.streamline_dot": "#a87fce",
-    }
-
     band_height = 2.6  # depth of the content-slide flow band
 
     def __init__(self) -> None:
+        config.colors.set_multiple(
+            {
+                "black": "#1f1828",
+                "darker_gray": "#3a3150",
+                "dark_gray": "#564d6e",
+                "gray": "#a8a3bb",
+                "white": "#f6f3fb",
+                "red": "#b5557a",
+                "orange": "#cc8a66",
+                "yellow": "#cbb37a",
+                "green": "#6e8f6a",
+                "aqua": "#5f9aa8",
+                "blue": "#7e6bb0",
+                "purple": "#5b3a86",
+                "flow.backdrop": "#34204a",
+                "flow.cover_title": "#f3ecf8",
+                "flow.cover_accent": "#c79fe6",
+                "flow.cover_author": "#b89ed2",
+                "flow.streamline": "#8a6bb0",
+                "flow.streamline_dot": "#a87fce",
+            }
+        )
+
         config.set("text.font", "Lato")
         config.set("text.fontsize", 9.0)
 
@@ -66,8 +68,6 @@ class PresentationTemplate(PresentationTemplateBase):
         config.set("cover.author.color", "flow.cover_author")
 
         config.set("footer.show", False)
-
-        config.colors.set_multiple(self.palette)
 
         super().__init__()
 
