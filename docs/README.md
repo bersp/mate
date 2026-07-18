@@ -95,6 +95,12 @@ Words can be styled in place: [this is red][color="red"], and
 The star [*][shift=(0, 0.12), color="yellow"] floats above the baseline.
 ```
 
+`rotate` spins a span in place, in degrees counterclockwise:
+
+```markdown
+Flip a digit with [6][rotate=180], or tilt a [label][rotate=15].
+```
+
 A `[[...]]` anywhere in a block applies its properties to the whole block:
 
 ```markdown
@@ -113,6 +119,7 @@ The most common properties:
 | `style` | `style="italic"` | `"normal"`, `"italic"` or `"oblique"` |
 | `letter_spacing` | `letter_spacing=0.2` | extra tracking, in em |
 | `shift` | `shift=(0.1, 0.3)` | displace by `(dx, dy)` cm |
+| `rotate` | `rotate=15` | spin in place, degrees counterclockwise |
 | `id` | `id="key"` | tag the span for later targeting |
 
 An `id` tags the span: every element carrying the same id can be addressed later by `> modify`, `markdown overwrite` blocks and `> crop image` (see [Revealing content](#revealing-content)).
@@ -123,7 +130,7 @@ Spans nest, and they also work inside math:
 $$ x(t) = [A e^(-gamma t)][id="envelope", color="red"] [cos(omega_0 t + phi)][opacity=0.4] $$
 ```
 
-The span becomes a piece of the equation: it takes any of the text styling properties, and its `id` can be targeted by `> modify` later (see [Revealing content](#revealing-content)).
+The span becomes a piece of the equation: it takes any of the text styling properties, `shift` and `rotate` move and turn it in place within the equation, and its `id` can be targeted by `> modify` later (see [Revealing content](#revealing-content)).
 
 ## Math
 
