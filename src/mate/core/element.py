@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy as _copy
+import math
 from typing import Iterable, Literal
 
 from .registry import IDKey, id_registry
@@ -221,6 +222,11 @@ class Element:
     ) -> None:
         self._pos: Vec = Vec(pos) if pos is not None else Vec(0, 0)
         self._anchor: Anchor = anchor
+        # Rotation of this element's own body about its centre, in degrees
+        # counterclockwise. Written by `rotate`; the backend emits the
+        # matching `#rotate` and the measured bbox grows to the rotated
+        # extents. Inert on nodes with no body of their own (a `Group`).
+        self.angle: float = 0.0
         self.align: HAlign | None = align
         self.indent: float = 0.0
         # Layout-relative displacement accumulated by `shift`. `arrange` adds it
@@ -371,6 +377,80 @@ class Element:
         self._anchor = anchor
         self._invalidate_subtree_and_ancestors()
         return self
+
+    def rotate(self, angle: float, pivot: VecLike | None = None) -> Element:
+        """Rotate this element and its fixed subtree rigidly by ``angle``.
+
+        ``angle`` is in degrees, positive counterclockwise (slide
+        coordinates are y-up). ``pivot`` is the centre of rotation in
+        slide coordinates and defaults to this element's own visual
+        centre. Every rendered piece of the fixed subtree re-orients by
+        ``angle`` about its own centre and revolves about ``pivot``,
+        giving a :class:`~mate.elements.group.Group` a single rigid turn.
+        A piece already sitting at ``pivot`` spins in place: its
+        position, anchor, and placement are untouched, and an inline run
+        keeps flowing in its line. A piece the revolution displaces
+        becomes ``"fixed"`` and is re-anchored to ``"center"`` at its
+        revolved point. :class:`Group` nodes carry no body of their own
+        and are left for their descendants to move.
+
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        from ..elements.group import Group
+
+        # A fragment inside a math run has no independent bbox and cannot be
+        # placed on its own; it only spins within the equation.
+        node = self.parent
+        while node is not None:
+            if getattr(node, "is_math_run", False):
+                self.angle += angle
+                self._invalidate_tree()
+                return self
+            node = node.parent
+
+        roots = self._place_roots()
+        measure_all(roots)
+        pivot_vec = self.center if pivot is None else Vec(pivot)
+        theta = math.radians(angle)
+        cos_t, sin_t = math.cos(theta), math.sin(theta)
+        for el in roots:
+            if isinstance(el, Group):
+                continue
+            el.angle += angle
+            rel = el.center - pivot_vec
+            if rel.x == 0 and rel.y == 0:
+                # Spins about its own centre: no displacement. Placement
+                # and anchor are left as they are, and an inline run
+                # stays in flow.
+                continue
+            if el.placement == "inline":
+                el.placement = "fixed"
+            el._anchor = "center"
+            el._pos = pivot_vec + Vec(
+                cos_t * rel.x - sin_t * rel.y,
+                sin_t * rel.x + cos_t * rel.y,
+            )
+        self._invalidate_tree()
+        return self
+
+    def _place_roots(self) -> list[Element]:
+        """Return this element plus every fixed descendant (omitted pruned).
+
+        These are exactly the nodes the backend gives their own ``#place``
+        block; a rigid rotation transforms each of them independently.
+        """
+        roots: list[Element] = []
+
+        def walk(el: Element, is_root: bool) -> None:
+            if el.placement == "omitted":
+                return
+            if is_root or el.placement == "fixed":
+                roots.append(el)
+            for c in el.children:
+                walk(c, False)
+
+        walk(self, True)
+        return roots
 
     def set_align(self, align: HAlign | None) -> Element:
         """Set the horizontal alignment within the arranging region.

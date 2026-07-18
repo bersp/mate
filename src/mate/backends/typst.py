@@ -356,7 +356,15 @@ def _math_fragment_markup(node: Text, hidden_ids: set[int]) -> str:
     else:
         inner = node.content
     attrs = _math_node_attrs(node)
-    frag = f"#text({attrs})[$ {inner} $]" if attrs else inner
+    if attrs:
+        frag = f"#text({attrs})[$ {inner} $]"
+    elif node.angle:
+        # `_wrap_rotate` embeds the body as content; re-enter math to keep
+        # the fragment's equation typesetting inside the rotation.
+        frag = f"$ {inner} $"
+    else:
+        frag = inner
+    frag = _wrap_rotate(node, frag)
     if node.hidden or id(node) in hidden_ids:
         return f"#hide($ {frag} $)"
     return frag
@@ -376,6 +384,26 @@ def _math_run_markup(el: Text, hidden_ids: set[int] = frozenset()) -> str:
 
 _DEFAULT_FILL_COLOR = "black"
 _DEFAULT_STROKE_COLOR = "black"
+
+
+def _wrap_rotate(el: Element, body: str) -> str:
+    """Wrap ``body`` in a centred ``#rotate`` when ``el`` carries an angle.
+
+    ``el.angle`` is in degrees counterclockwise (slide coordinates are
+    y-up); Typst's ``#rotate`` turns clockwise, and the emitted sign is
+    negated. ``reflow: true`` grows the layout box to the rotated
+    content's bounding box; ``measure(...)`` then reports the rotated
+    axis-aligned extents and the element's bbox reflects the rotation.
+    The ``#box`` keeps the rotation inline: a bare ``#rotate`` is a block
+    that breaks the surrounding paragraph. An inline run spins in place
+    within its line.
+    """
+    if not body or not el.angle:
+        return body
+    return (
+        f"#box(rotate({-el.angle}deg, origin: center + horizon, "
+        f"reflow: true)[{body}])"
+    )
 
 
 def _bare(el: Element) -> str:
@@ -399,10 +427,10 @@ def _bare(el: Element) -> str:
             # not affect width); height from the leading-carrying body so
             # the recorded bbox reflects the wrapped line spacing.
             body = _wrap_max_width(body, _wrap_line_gap(body, el.line_gap), el.max_width)
-        return body
+        return _wrap_rotate(el, body)
     leaf = _leaf_markup(el)
     if leaf is not None:
-        return leaf
+        return _wrap_rotate(el, leaf)
     # Groups (and any unknown leaf) contribute nothing to size: the
     # group's bbox is computed as the union of children in `_assign`,
     # so the per-element measurement record is intentionally empty.
@@ -1024,6 +1052,7 @@ class TypstRenderer:
             )
         else:
             inner = _leaf_markup(el) or ""
+        inner = _wrap_rotate(el, inner)
         if el.hidden or placeholder or id(el) in self._hidden_now:
             inner = f"#hide[{inner}]"
         return inner
@@ -1302,6 +1331,7 @@ class TypstMeasurer:
             inner = self._render_children_with_probes(el)
         else:
             inner = _leaf_markup(el) or ""
+        inner = _wrap_rotate(el, inner)
         if el.hidden or placeholder:
             inner = f"#hide[{inner}]"
         return inner
