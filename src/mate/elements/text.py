@@ -474,11 +474,12 @@ def _split_pauses(raw: str) -> list[str]:
     return pieces
 
 
-# Layout/identity traits that a math sub-span cannot carry: an equation places
-# as one atomic box, so a sub-expression has no box to position or wrap. ``id``
-# is allowed — a fragment is a real tree node and can be addressed by ``modify``.
+# Layout/identity traits a math sub-span cannot carry: an equation places as one
+# atomic box. A sub-expression cannot be re-anchored, re-aligned, wrapped, or
+# lifted to its own placement. ``id`` addresses a fragment for ``modify``;
+# ``rotate`` and ``shift`` apply as a local ``#rotate``/``#move`` in the equation.
 _MATH_DISALLOWED_PROPS = frozenset(
-    {"shift", "move_to", "anchor", "align", "placement", "max_width", "text_align", "line_gap"}
+    {"move_to", "anchor", "align", "placement", "max_width", "text_align", "line_gap"}
 )
 
 # Style fields a math fragment inherits from its equation unless it overrides

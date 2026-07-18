@@ -348,11 +348,19 @@ class Element:
         first frozen to the measured anchor point so the increment is taken from
         the flowed position; ``shift((0, 0))`` is then a true visual no-op.
         Forces ``placement = "fixed"`` and may trigger one measurement on the
-        first call against an inline element.
+        first call against an inline element. A fragment inside a math run
+        instead accumulates the delta into :attr:`offset` and stays in the
+        equation, where the backend renders it as an in-place ``#move``.
 
         Geometric mutator: invalidates the bbox cache of this element's tree.
         """
         delta = Vec(d)
+        # A math fragment has no independent bbox and cannot be lifted out of
+        # the equation; the accumulated offset renders as a local `#move`.
+        if self._is_math_fragment():
+            self.offset = self.offset + delta
+            self._invalidate_tree()
+            return self
         was_inline = self.placement == "inline"
         if was_inline:
             self._pos = self._current_anchor_point()
@@ -400,13 +408,10 @@ class Element:
 
         # A fragment inside a math run has no independent bbox and cannot be
         # placed on its own; it only spins within the equation.
-        node = self.parent
-        while node is not None:
-            if getattr(node, "is_math_run", False):
-                self.angle += angle
-                self._invalidate_tree()
-                return self
-            node = node.parent
+        if self._is_math_fragment():
+            self.angle += angle
+            self._invalidate_tree()
+            return self
 
         roots = self._place_roots()
         measure_all(roots)
@@ -451,6 +456,20 @@ class Element:
 
         walk(self, True)
         return roots
+
+    def _is_math_fragment(self) -> bool:
+        """Return whether this element is a fragment inside a math run.
+
+        A math fragment renders inside one equation and has no independent
+        bbox: it carries only local visual transforms (``rotate``, ``shift``),
+        never its own placement.
+        """
+        node = self.parent
+        while node is not None:
+            if getattr(node, "is_math_run", False):
+                return True
+            node = node.parent
+        return False
 
     def set_align(self, align: HAlign | None) -> Element:
         """Set the horizontal alignment within the arranging region.

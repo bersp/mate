@@ -356,15 +356,21 @@ def _math_fragment_markup(node: Text, hidden_ids: set[int]) -> str:
     else:
         inner = node.content
     attrs = _math_node_attrs(node)
+    has_move = node.offset.x != 0 or node.offset.y != 0
     if attrs:
         frag = f"#text({attrs})[$ {inner} $]"
-    elif node.angle:
-        # `_wrap_rotate` embeds the body as content; re-enter math to keep
-        # the fragment's equation typesetting inside the rotation.
+    elif node.angle or has_move:
+        # `_wrap_rotate` and the `#move` embed the body as content; re-enter
+        # math to keep the fragment's equation typesetting inside them.
         frag = f"$ {inner} $"
     else:
         frag = inner
     frag = _wrap_rotate(node, frag)
+    if has_move:
+        # Slide coordinates are y-up, Typst's y-down: a positive shift on y
+        # takes a negative dy. `#move` offsets in place with no reflow,
+        # leaving the fragment's original slot in the equation.
+        frag = f"#box(move(dx: {node.offset.x}cm, dy: {-node.offset.y}cm)[{frag}])"
     if node.hidden or id(node) in hidden_ids:
         return f"#hide($ {frag} $)"
     return frag
