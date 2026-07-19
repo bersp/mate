@@ -15,9 +15,11 @@ _MISSING = object()
 #
 # Typography keys follow ``<role>.<dimension>``: every typographic role
 # (``text``, ``title``, ``subtitle``, ``math``) carries the dimensions it needs
-# (``font``, ``fontweight``, ``fontsize``, ``color``). The cover splits into
-# ``cover.title``, ``cover.subtitle`` and ``cover.author`` roles, each carrying
-# the same dimensions. The font/size literals are kept in sync
+# (``font``, ``fontweight``, ``fontsize``, ``color``). In-body ``###``..
+# ``######`` headings map to the ``h3``..``h6`` roles by their markdown level;
+# a level past 6 uses ``h6``.
+# The cover splits into ``cover.title``, ``cover.subtitle`` and ``cover.author``
+# roles, each carrying the same dimensions. The font/size literals are kept in sync
 # with ``typst query`` on a blank doc so the rendered output never relies on
 # Typst's implicit fallback; ``color`` is a palette name resolved via
 # ``config.colors``.
@@ -52,6 +54,22 @@ _DEFAULTS: dict[str, object] = {
     "subtitle.fontweight": "regular",
     "subtitle.fontsize": 12.0,
     "subtitle.color": "darker_gray",
+    "h3.font": "libertinus serif",
+    "h3.fontweight": "bold",
+    "h3.fontsize": 13.0,
+    "h3.color": "black",
+    "h4.font": "libertinus serif",
+    "h4.fontweight": "bold",
+    "h4.fontsize": 12.0,
+    "h4.color": "black",
+    "h5.font": "libertinus serif",
+    "h5.fontweight": "bold",
+    "h5.fontsize": 11.0,
+    "h5.color": "black",
+    "h6.font": "libertinus serif",
+    "h6.fontweight": "bold",
+    "h6.fontsize": 10.0,
+    "h6.color": "black",
     "cover.title.font": "libertinus serif",
     "cover.title.fontweight": "bold",
     "cover.title.fontsize": 14.0,

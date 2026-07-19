@@ -537,10 +537,20 @@ class PresentationTemplateBase:
             fill_color=config.get("math.color"),
         )
 
-    def add_heading(self, level: int, text: str) -> None:
-        """Render an in-body heading of the given ``level``."""
-        raise NotImplementedError(
-            f"add_heading is not implemented (level {level} heading: {text!r})"
+    def add_heading(self, level: int, text: str) -> Text:
+        """Render an in-body heading of the given ``level`` into the active region.
+
+        The `#`/`##` that open a slide are its title and subtitle; an in-body
+        heading runs from level 3 (`###`) and reads the ``h<level>`` role.
+        A level past 6 uses ``h6``.
+        """
+        role = f"h{min(max(level, 3), 6)}"
+        return self.add_text(
+            text,
+            font=config.get(f"{role}.font"),
+            fontsize=config.get(f"{role}.fontsize"),
+            weight=config.get(f"{role}.fontweight"),
+            fill_color=config.get(f"{role}.color"),
         )
 
     def add_bullet_list(self, block: BulletList) -> None:

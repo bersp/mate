@@ -55,7 +55,7 @@ Regular paragraphs. **Bold**, _italic_ and `code` work as usual.
 
 Nesting, multi-paragraph items, hard line breaks and the rest follow standard Markdown syntax.
 
-Ordered lists and in-body `###` headings parse, but rendering them is up to the template; the built-in ones leave them unimplemented.
+In-body `###`..`######` headings render with the `h3`..`h6` styling, one role per markdown level. Ordered lists parse, but rendering them is up to the template; the built-in ones leave them unimplemented.
 
 ## Front matter
 
@@ -569,6 +569,7 @@ The keys and their defaults:
 | `text.font`, `text.fontweight`, `text.fontsize`, `text.color` | `"libertinus serif"`, `"regular"`, `12.0`, `"black"` |
 | `text.line_gap` | `0.25` |
 | `title.*`, `subtitle.*`, `math.*` | same four dimensions per role |
+| `h3.*` .. `h6.*` | same four dimensions, one role per in-body heading level |
 | `cover.title.*`, `cover.subtitle.*`, `cover.author.*` | same four dimensions per role |
 | `list.bullet` | `"square"` (also `"circle"`, `"dash"`) |
 | `list.bullet_scale`, `list.bullet_gap`, `list.dash_thickness` | `0.8`, `0.2`, `0.06` |
@@ -586,7 +587,7 @@ The keys and their defaults:
 | `arrange.gap` | `0.2` |
 | `typst.preamble` | `""` (markup prepended to every generated document) |
 
-Every typographic role (`text`, `title`, `subtitle`, `math`, `cover.title`, `cover.subtitle`, `cover.author`) carries the same four dimensions: `font`, `fontweight`, `fontsize` and `color`.
+Every typographic role (`text`, `title`, `subtitle`, `h3`..`h6`, `math`, `cover.title`, `cover.subtitle`, `cover.author`) carries the same four dimensions: `font`, `fontweight`, `fontsize` and `color`.
 
 Templates read their own knobs from the namespace carrying their name (`flow.<prop>` keys belong to the `flow` template), which the front matter can set freely.
 
