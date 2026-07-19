@@ -71,12 +71,12 @@ class PresentationTemplate(PresentationTemplateBase):
 
         super().__init__()
 
-        self._heading: str | None = None
+        self._section: str | None = None
 
     def on_directive(self, directive):
-        heading = directive.get("heading")
-        if heading is not None:
-            self._heading = heading
+        section = directive.get("section")
+        if section is not None:
+            self._section = section
         super().on_directive(directive)
 
     def background(self) -> Group:
@@ -104,21 +104,9 @@ class PresentationTemplate(PresentationTemplateBase):
     def add_cover(self, title, **props):
         W, H = config.slide_width, config.slide_height
         left_x = -W / 2 + 1.15
-        heading = props.get("heading")
         subtitle = props.get("subtitle")
 
         stack = []
-        if heading and heading != title:
-            stack.append(
-                Text(
-                    heading.upper(),
-                    font="Lato",
-                    fontsize=8,
-                    weight=600,
-                    fill_color="flow.cover_accent",
-                    letter_spacing=0.25,
-                )
-            )
         if subtitle:
             stack.append(
                 Text(
@@ -167,10 +155,10 @@ class PresentationTemplate(PresentationTemplateBase):
         title_region = self.layout.get("title")
         members = Group()
 
-        heading = self._heading
-        if heading:
+        section = self._section
+        if section:
             eyebrow = Text(
-                heading.upper(),
+                section.upper(),
                 font="Lato",
                 fontsize=7,
                 weight=600,

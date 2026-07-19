@@ -544,7 +544,7 @@ A short presentation usually needs a single directive at the top of the file, fo
 
 The cover takes its `title` and shows `subtitle`, `author` and `date` when present. Property values are Python literals when they parse as one, and raw strings otherwise.
 
-A directive placed anywhere in the file runs at that point, and what it does is up to the template: it receives every property and decides. A template can put a running heading on the slides that follow, switch the theme halfway through the talk, drop the footer, restyle code, or act on whatever property it reads. A property no template reads is ignored.
+A directive placed anywhere in the file runs at that point, and what it does is up to the template: it receives every property and decides. A template can put a running section label on the slides that follow, switch the theme halfway through the talk, drop the footer, restyle code, or act on whatever property it reads. A property no template reads is ignored.
 
 ## Configuration
 
