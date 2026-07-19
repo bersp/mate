@@ -59,9 +59,9 @@ class PresentationTemplate(PresentationTemplateBase):
                 "cover.title.fontweight": 600,
                 "cover.title.fontsize": 20.0,
                 "cover.title.color": "flow.cover_title",
-                "cover.subtitle.font": "Lato",
-                "cover.subtitle.fontsize": 14.0,
-                "cover.subtitle.color": "flow.cover_accent",
+                "cover.tagline.font": "Lato",
+                "cover.tagline.fontsize": 14.0,
+                "cover.tagline.color": "flow.cover_accent",
                 "cover.author.font": "Lato",
                 "cover.author.fontsize": 10.0,
                 "cover.author.color": "flow.cover_author",
@@ -104,17 +104,17 @@ class PresentationTemplate(PresentationTemplateBase):
     def add_cover(self, title, **props):
         W, H = config.slide_width, config.slide_height
         left_x = -W / 2 + 1.15
-        subtitle = props.get("subtitle")
+        tagline = props.get("tagline")
 
         stack = []
-        if subtitle:
+        if tagline:
             stack.append(
                 Text(
-                    subtitle,
-                    font=config.get("cover.subtitle.font"),
-                    fontsize=config.get("cover.subtitle.fontsize"),
-                    weight=config.get("cover.subtitle.fontweight"),
-                    fill_color=config.get("cover.subtitle.color"),
+                    tagline,
+                    font=config.get("cover.tagline.font"),
+                    fontsize=config.get("cover.tagline.fontsize"),
+                    weight=config.get("cover.tagline.fontweight"),
+                    fill_color=config.get("cover.tagline.color"),
                 )
             )
         stack.append(

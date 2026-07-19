@@ -534,7 +534,6 @@ A short presentation usually needs a single directive at the top of the file, fo
 #>
 > cover: True
 > title: Bayesian model comparison
-> subtitle: A guided tour
 > author: Jane Doe
 
 # First slide
@@ -542,7 +541,7 @@ A short presentation usually needs a single directive at the top of the file, fo
 ...
 ```
 
-The cover takes its `title` and shows `subtitle`, `author` and `date` when present. Property values are Python literals when they parse as one, and raw strings otherwise.
+The cover takes its `title` and shows `author` and `date` when present. Some templates also render a `tagline` line with the cover title. Property values are Python literals when they parse as one, and raw strings otherwise.
 
 A directive placed anywhere in the file runs at that point, and what it does is up to the template: it receives every property and decides. A template can put a running section label on the slides that follow, switch the theme halfway through the talk, drop the footer, restyle code, or act on whatever property it reads. A property no template reads is ignored.
 
@@ -570,7 +569,7 @@ The keys and their defaults:
 | `text.line_gap` | `0.25` |
 | `title.*`, `subtitle.*`, `math.*` | same four dimensions per role |
 | `h3.*` .. `h6.*` | same four dimensions, one role per in-body heading level |
-| `cover.title.*`, `cover.subtitle.*`, `cover.author.*` | same four dimensions per role |
+| `cover.title.*`, `cover.tagline.*`, `cover.author.*` | same four dimensions per role |
 | `list.bullet` | `"square"` (also `"circle"`, `"dash"`) |
 | `list.bullet_scale`, `list.bullet_gap`, `list.dash_thickness` | `0.8`, `0.2`, `0.06` |
 | `footer.show`, `footer.show_total` | `True`, `False` |
@@ -587,7 +586,7 @@ The keys and their defaults:
 | `arrange.gap` | `0.2` |
 | `typst.preamble` | `""` (markup prepended to every generated document) |
 
-Every typographic role (`text`, `title`, `subtitle`, `h3`..`h6`, `math`, `cover.title`, `cover.subtitle`, `cover.author`) carries the same four dimensions: `font`, `fontweight`, `fontsize` and `color`.
+Every typographic role (`text`, `title`, `subtitle`, `h3`..`h6`, `math`, `cover.title`, `cover.tagline`, `cover.author`) carries the same four dimensions: `font`, `fontweight`, `fontsize` and `color`.
 
 Templates read their own knobs from the namespace carrying their name (`flow.<prop>` keys belong to the `flow` template), which the front matter can set freely.
 

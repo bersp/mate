@@ -18,8 +18,9 @@ _MISSING = object()
 # (``font``, ``fontweight``, ``fontsize``, ``color``). In-body ``###``..
 # ``######`` headings map to the ``h3``..``h6`` roles by their markdown level;
 # a level past 6 uses ``h6``.
-# The cover splits into ``cover.title``, ``cover.subtitle`` and ``cover.author``
-# roles, each carrying the same dimensions. The font/size literals are kept in sync
+# The cover splits into ``cover.title``, ``cover.tagline`` (a lead line a
+# template may place with the cover title) and ``cover.author`` roles, each
+# carrying the same dimensions. The font/size literals are kept in sync
 # with ``typst query`` on a blank doc so the rendered output never relies on
 # Typst's implicit fallback; ``color`` is a palette name resolved via
 # ``config.colors``.
@@ -74,10 +75,10 @@ _DEFAULTS: dict[str, object] = {
     "cover.title.fontweight": "bold",
     "cover.title.fontsize": 14.0,
     "cover.title.color": "black",
-    "cover.subtitle.font": "libertinus serif",
-    "cover.subtitle.fontweight": "regular",
-    "cover.subtitle.fontsize": 12.0,
-    "cover.subtitle.color": "darker_gray",
+    "cover.tagline.font": "libertinus serif",
+    "cover.tagline.fontweight": "regular",
+    "cover.tagline.fontsize": 12.0,
+    "cover.tagline.color": "darker_gray",
     "cover.author.font": "libertinus serif",
     "cover.author.fontweight": "regular",
     "cover.author.fontsize": 12.0,

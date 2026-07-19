@@ -21,7 +21,6 @@ class PresentationTemplate(PresentationTemplateBase):
                 "title.font": font,
                 "subtitle.font": font,
                 "cover.title.font": font,
-                "cover.subtitle.font": font,
                 "cover.author.font": font,
                 "title.fontweight": 700,
                 "subtitle.fontweight": 300,

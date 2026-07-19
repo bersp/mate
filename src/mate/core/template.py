@@ -757,9 +757,9 @@ class PresentationTemplateBase:
     def add_cover(self, title: str, **props: str) -> Group:
         """Render a cover page from a ``title`` and generic directive properties.
 
-        Stacks ``title`` and any of ``subtitle``, ``author`` and ``date`` found
-        in ``props`` as text in the ``full_with_margins`` region; other
-        properties are ignored. A template overrides this to change the layout.
+        Stacks ``title`` and any of ``author`` and ``date`` found in ``props``
+        as text in the ``full_with_margins`` region; other properties are
+        ignored. A template overrides this to change the layout.
         """
         region = self.layout.get("full_with_margins").set_anchor("center-left")
         members = Group()
@@ -775,7 +775,7 @@ class PresentationTemplateBase:
         region.add(title_el)
         members.add(title_el)
 
-        meta = (("subtitle", "cover.subtitle"), ("author", "cover.author"), ("date", "cover.author"))
+        meta = (("author", "cover.author"), ("date", "cover.author"))
         if any(props.get(key) is not None for key, _ in meta):
             region.add(VSpace(1))
 
