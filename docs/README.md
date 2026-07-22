@@ -555,7 +555,7 @@ config:
   slide.width: 20
   slide.height: 11.25
   text.fontsize: 11
-  list.bullet: "circle"
+  list.bullet.symbols: ["circle", "dash", "circle_outline"]
   footer.show: false
 ---
 ```
@@ -570,8 +570,9 @@ The keys and their defaults:
 | `title.*`, `subtitle.*`, `math.*` | same four dimensions per role |
 | `h3.*` .. `h6.*` | same four dimensions, one role per in-body heading level |
 | `cover.title.*`, `cover.tagline.*`, `cover.author.*` | same four dimensions per role |
-| `list.bullet` | `"square"` (also `"circle"`, `"dash"`) |
-| `list.bullet_scale`, `list.bullet_gap`, `list.dash_thickness` | `0.8`, `0.2`, `0.06` |
+| `list.bullet.symbols` | `["circle", "dash", "circle_outline"]` (symbol per nesting level; a level past the list reuses the last). Built-in symbols: `"square"`, `"square_outline"`, `"circle"`, `"circle_outline"`, `"dash"` |
+| `list.bullet.scale`, `list.bullet.gap` | `0.7`, `0.15` |
+| `list.bullet.dash_thickness`, `list.bullet.outline_width` | `0.04`, `0.04` (bar height of `dash`; stroke of the outline symbols) |
 | `footer.show`, `footer.show_total` | `True`, `False` |
 | `region.default` | `"content"` |
 | `region.content.anchor`, `region.content.arrange_gap` | `"top-left"`, `0.25` |

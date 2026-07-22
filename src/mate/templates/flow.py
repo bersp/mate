@@ -65,6 +65,7 @@ class PresentationTemplate(PresentationTemplateBase):
                 "cover.author.font": "Lato",
                 "cover.author.fontsize": 10.0,
                 "cover.author.color": "flow.cover_author",
+                "list.bullet.symbols": ["square", "dash", "square_outline"],
                 "footer.show": False,
             }
         )

@@ -25,6 +25,7 @@ class PresentationTemplate(PresentationTemplateBase):
                 "title.fontweight": 700,
                 "subtitle.fontweight": 300,
                 "subtitle.color": "black",
+                "list.bullet.symbols": ["square", "dash", "square_outline"],
                 "footer.show": False,
             }
         )

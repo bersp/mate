@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+from collections.abc import Callable
 from functools import cache
 from itertools import cycle
 
@@ -76,6 +77,58 @@ def _union_bbox(
     return ((left + right) / 2, (bottom + top) / 2, right - left, top - bottom)
 
 
+# Built-in bullet-symbol builders. Each takes the target longest-dimension
+# ``size`` and a ``color`` and returns a finished :class:`Drawable`. A template
+# copies this into ``self.bullet_symbols`` and adds its own by name.
+BulletSymbolBuilder = Callable[[float, str], Drawable]
+
+
+def _bullet_square(size: float, color: str) -> Drawable:
+    shape = Rectangle(size, size)
+    shape.set_fill_color(color)
+    return shape
+
+
+def _bullet_square_outline(size: float, color: str) -> Drawable:
+    return Rectangle(
+        size,
+        size,
+        fill_opacity=0,
+        stroke_color=color,
+        stroke_width=config.get("list.bullet.outline_width"),
+    )
+
+
+def _bullet_circle(size: float, color: str) -> Drawable:
+    shape = Circle(size / 2)
+    shape.set_fill_color(color)
+    return shape
+
+
+def _bullet_circle_outline(size: float, color: str) -> Drawable:
+    return Circle(
+        size / 2,
+        fill_opacity=0,
+        stroke_color=color,
+        stroke_width=config.get("list.bullet.outline_width"),
+    )
+
+
+def _bullet_dash(size: float, color: str) -> Drawable:
+    shape = Rectangle(size, config.get("list.bullet.dash_thickness"))
+    shape.set_fill_color(color)
+    return shape
+
+
+_BUILTIN_BULLET_SYMBOLS: dict[str, BulletSymbolBuilder] = {
+    "square": _bullet_square,
+    "square_outline": _bullet_square_outline,
+    "circle": _bullet_circle,
+    "circle_outline": _bullet_circle_outline,
+    "dash": _bullet_dash,
+}
+
+
 class PresentationTemplateBase:
     """Base for presentation templates: the layout, content methods, and reveal
     machinery a concrete ``PresentationTemplate`` subclass builds on."""
@@ -88,9 +141,13 @@ class PresentationTemplateBase:
             config.colors.set_multiple(frontmatter.colors)
         self.auto_add_footer: bool = config.get("footer.show")
         self.footer_show_total: bool = config.get("footer.show_total")
+        self.bullet_symbols: dict[str, BulletSymbolBuilder] = dict(
+            _BUILTIN_BULLET_SYMBOLS
+        )
         self.layout: Layout = self.build_layout()
         self._cap_height_cache: dict[tuple, float] = {}
         self._content_indent: float = 0.0
+        self._list_level: int = 0
         self._fragment_region: str | None = None
         self._region_override: Region | None = None
         self._overwrites: list[tuple[Group, list[Element], str, int]] = []
@@ -554,9 +611,24 @@ class PresentationTemplateBase:
         )
 
     def add_bullet_list(self, block: BulletList) -> None:
-        """Render a bullet list, one item per :meth:`_add_list_item` call."""
+        """Render a bullet list, one item per :meth:`_add_list_item` call.
+
+        The nesting level rises by one for the list's items and drops back
+        after them. A nested sub-list reached through an item's blocks picks
+        the next level's bullet.
+        """
+        self._list_level += 1
         for item in block.items:
             self._add_list_item(item)
+        self._list_level -= 1
+
+    def _bullet_for_level(self, level: int) -> str:
+        """Return the bullet symbol for a 1-based nesting ``level``.
+
+        Reads ``list.bullet.symbols``; a level past the last entry reuses it.
+        """
+        bullets = config.get("list.bullet.symbols")
+        return bullets[min(level, len(bullets)) - 1]
 
     def _add_list_item(
         self,
@@ -573,8 +645,8 @@ class PresentationTemplateBase:
         method calls (``> pause``, ``> add image``) and nested sub-lists all land
         under the item text and reveal in document order.
         """
-        symbol = config.get("list.bullet") if symbol is None else symbol
-        spacing = config.get("list.bullet_gap") if spacing is None else spacing
+        symbol = self._bullet_for_level(self._list_level) if symbol is None else symbol
+        spacing = config.get("list.bullet.gap") if spacing is None else spacing
 
         first, *rest = item.blocks
         self.add_bullet_item(
@@ -600,8 +672,8 @@ class PresentationTemplateBase:
     ) -> Group:
         """Add one bullet item (symbol plus ``text``) to a region and the slide.
 
-        ``symbol`` is a built-in name (``"square"``, ``"circle"``, ``"dash"``) or
-        a :class:`~mate.core.drawable.Drawable`; its longest dimension is scaled
+        ``symbol`` is a built-in name (a key of ``bullet_symbols``) or a
+        :class:`~mate.core.drawable.Drawable`; its longest dimension is scaled
         to the cap height of ``"A"`` in the body font. ``spacing`` is the gap
         between symbol and text. The text wraps within the region's remaining
         width and hangs-indents under itself; the symbol is centered on the
@@ -611,8 +683,9 @@ class PresentationTemplateBase:
         its own gap, independent of blank lines in the source.
         """
         target_region = self._resolve_region(region)
-        symbol = config.get("list.bullet") if symbol is None else symbol
-        spacing = config.get("list.bullet_gap") if spacing is None else spacing
+        if symbol is None:
+            symbol = self._bullet_for_level(self._list_level or 1)
+        spacing = config.get("list.bullet.gap") if spacing is None else spacing
         color = config.get("text.color") if color is None else color
 
         indent = self._content_indent
@@ -637,7 +710,7 @@ class PresentationTemplateBase:
 
     def _make_bullet(self, symbol: str | Drawable, color: str) -> tuple[Drawable, float]:
         """Return a filled bullet sized to the body cap height and its width."""
-        size = self._cap_height() * config.get("list.bullet_scale")
+        size = self._cap_height() * config.get("list.bullet.scale")
         bullet = self._make_bullet_symbol(symbol, size, color)
         return bullet, bullet.get_width()
 
@@ -659,27 +732,25 @@ class PresentationTemplateBase:
     def _make_bullet_symbol(
         self, symbol: str | Drawable, size: float, color: str
     ) -> Drawable:
-        """Build a filled bullet whose longest dimension equals ``size``.
+        """Build a bullet whose longest dimension equals ``size``.
 
-        ``symbol`` is a built-in name or a :class:`Drawable` (scaled in place on
-        a copy so the caller's instance is untouched).
+        ``symbol`` is a key of ``bullet_symbols`` or a :class:`Drawable` (scaled
+        in place on a copy so the caller's instance is untouched, then filled in
+        ``color``).
         """
-        match symbol:
-            case "square":
-                shape = Rectangle(size, size)
-            case "circle":
-                shape = Circle(size / 2)
-            case "dash":
-                shape = Rectangle(size, config.get("list.dash_thickness"))
-            case Drawable():
-                shape = self._scale_to_longest(symbol.copy(), size)
-            case _:
-                raise ValueError(
-                    f"{symbol!r} is not a bullet symbol. "
-                    'Use "square", "circle", "dash", or a Drawable.'
-                )
-        shape.set_fill_color(color)
-        return shape
+        if isinstance(symbol, Drawable):
+            shape = self._scale_to_longest(symbol.copy(), size)
+            shape.set_fill_color(color)
+            return shape
+
+        builder = self.bullet_symbols.get(symbol)
+        if builder is None:
+            names = ", ".join(map(repr, self.bullet_symbols))
+            raise ValueError(
+                f"{symbol!r} is not a bullet symbol. Use one of {names}, "
+                "or a Drawable."
+            )
+        return builder(size, color)
 
     @staticmethod
     def _scale_to_longest(shape: Drawable, size: float) -> Drawable:

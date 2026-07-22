@@ -31,6 +31,12 @@ _MISSING = object()
 # vertical step between lines in multiples of the font size.
 # ``code.header_bg_color`` and ``code.title_color`` style the header bar a
 # ``title`` opens above the code.
+#
+# ``list.bullet.symbols`` gives the bullet symbol per nesting level (index 0 is
+# the first level); a level past the list reuses the last entry. Each symbol is
+# a key of a template's ``bullet_symbols`` catalog. ``circle_outline`` and
+# ``square_outline`` are hollow, stroked with ``list.bullet.outline_width``;
+# ``dash`` is a bar ``list.bullet.dash_thickness`` tall.
 _DEFAULTS: dict[str, object] = {
     "slide.width": 16.0,
     "slide.height": 9.0,
@@ -108,10 +114,11 @@ _DEFAULTS: dict[str, object] = {
         "builtin": {"color": "aqua"},
         "decorator": {"color": "red"},
     },
-    "list.bullet": "square",
-    "list.bullet_scale": 0.8,
-    "list.bullet_gap": 0.2,
-    "list.dash_thickness": 0.06,
+    "list.bullet.symbols": ["circle", "dash", "circle_outline"],
+    "list.bullet.scale": 0.7,
+    "list.bullet.gap": 0.15,
+    "list.bullet.dash_thickness": 0.04,
+    "list.bullet.outline_width": 0.04,
     "footer.show": True,
     "footer.show_total": False,
 }
