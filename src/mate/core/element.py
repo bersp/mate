@@ -710,6 +710,23 @@ class Element:
         """Return the bbox height in cm (measures on cache miss)."""
         return self.get_bbox()[3]
 
+    def _transformed_extents(self, width: float, height: float) -> tuple[float, float]:
+        """Return the bbox extents of a ``width`` x ``height`` body box under
+        this element's own transforms (scale, then rotation).
+
+        The rotation extents are those of the rotated box, matching the
+        backend's ``reflow: true``: ``w' = w|cos| + h|sin|`` and
+        ``h' = w|sin| + h|cos|``. An intrinsic size read through this
+        agrees with the measured bbox without a Typst query.
+        """
+        w = width * self.scale_factor
+        h = height * self.scale_factor
+        if not self.angle:
+            return w, h
+        theta = math.radians(self.angle)
+        cos_t, sin_t = abs(math.cos(theta)), abs(math.sin(theta))
+        return w * cos_t + h * sin_t, w * sin_t + h * cos_t
+
     def get_bbox_center(self) -> Vec:
         """Return the bbox center as a :class:`Vec`.
 

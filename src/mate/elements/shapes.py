@@ -96,10 +96,10 @@ class Rectangle(Drawable):
         )
 
     def get_width(self) -> float:
-        return self.width * self.scale_factor
+        return self._transformed_extents(self.width, self.height)[0]
 
     def get_height(self) -> float:
-        return self.height * self.scale_factor
+        return self._transformed_extents(self.width, self.height)[1]
 
     def get_corner_radius(self) -> float | dict[str, float]:
         return self.corner_radius
@@ -196,12 +196,12 @@ class Circle(Drawable):
         return f"radius={self.radius:.4g}"
 
     def get_width(self) -> float:
-        """Return the circle's bbox width (``2 * radius``, scaled)."""
-        return 2 * self.radius * self.scale_factor
+        """Return the circle's bbox width: ``2 * radius`` under its transforms."""
+        return self._transformed_extents(2 * self.radius, 2 * self.radius)[0]
 
     def get_height(self) -> float:
-        """Return the circle's bbox height (``2 * radius``, scaled)."""
-        return 2 * self.radius * self.scale_factor
+        """Return the circle's bbox height: ``2 * radius`` under its transforms."""
+        return self._transformed_extents(2 * self.radius, 2 * self.radius)[1]
 
     def set_radius(self, radius: float, propagate: bool = True) -> Circle:
         """Set ``radius``; ``propagate`` (default) rewrites descendants with ``radius``.
@@ -271,10 +271,10 @@ class Ellipse(Drawable):
         self.height: float = height
 
     def get_width(self) -> float:
-        return self.width * self.scale_factor
+        return self._transformed_extents(self.width, self.height)[0]
 
     def get_height(self) -> float:
-        return self.height * self.scale_factor
+        return self._transformed_extents(self.width, self.height)[1]
 
     def _repr_fields(self) -> str:
         return f"width={self.width:.4g}, height={self.height:.4g}"
@@ -372,10 +372,14 @@ class Line(Drawable):
         return Vec(self._pos + self.end)
 
     def get_width(self) -> float:
-        return abs(self.end.x - self.start.x) * self.scale_factor
+        return self._transformed_extents(
+            abs(self.end.x - self.start.x), abs(self.end.y - self.start.y)
+        )[0]
 
     def get_height(self) -> float:
-        return abs(self.end.y - self.start.y) * self.scale_factor
+        return self._transformed_extents(
+            abs(self.end.x - self.start.x), abs(self.end.y - self.start.y)
+        )[1]
 
     def _repr_fields(self) -> str:
         s, e = self.get_start(), self.get_end()
@@ -493,12 +497,16 @@ class Polygon(Drawable):
         return self
 
     def get_width(self) -> float:
-        xs = [p.x for p in self.points]
-        return (max(xs) - min(xs)) * self.scale_factor
+        return self._transformed_extents(*self._point_spans())[0]
 
     def get_height(self) -> float:
+        return self._transformed_extents(*self._point_spans())[1]
+
+    def _point_spans(self) -> tuple[float, float]:
+        """Return the width and height of the vertex bounding box."""
+        xs = [p.x for p in self.points]
         ys = [p.y for p in self.points]
-        return (max(ys) - min(ys)) * self.scale_factor
+        return max(xs) - min(xs), max(ys) - min(ys)
 
     def _repr_fields(self) -> str:
         return f"points={len(self.points)}"
@@ -717,12 +725,17 @@ class Curve(Drawable):
         return [p for s in self.segments for p in s._points()]
 
     def get_width(self) -> float:
-        xs = [p.x for p in self._all_points()]
-        return (max(xs) - min(xs)) * self.scale_factor
+        return self._transformed_extents(*self._point_spans())[0]
 
     def get_height(self) -> float:
-        ys = [p.y for p in self._all_points()]
-        return (max(ys) - min(ys)) * self.scale_factor
+        return self._transformed_extents(*self._point_spans())[1]
+
+    def _point_spans(self) -> tuple[float, float]:
+        """Return the width and height of the control-point bounding box."""
+        points = self._all_points()
+        xs = [p.x for p in points]
+        ys = [p.y for p in points]
+        return max(xs) - min(xs), max(ys) - min(ys)
 
     def _repr_fields(self) -> str:
         return f"segments={len(self.segments)}"
