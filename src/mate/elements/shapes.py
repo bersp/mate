@@ -96,10 +96,10 @@ class Rectangle(Drawable):
         )
 
     def get_width(self) -> float:
-        return self.width
+        return self.width * self.scale_factor
 
     def get_height(self) -> float:
-        return self.height
+        return self.height * self.scale_factor
 
     def get_corner_radius(self) -> float | dict[str, float]:
         return self.corner_radius
@@ -196,12 +196,12 @@ class Circle(Drawable):
         return f"radius={self.radius:.4g}"
 
     def get_width(self) -> float:
-        """Return the circle's bbox width (``2 * radius``)."""
-        return 2 * self.radius
+        """Return the circle's bbox width (``2 * radius``, scaled)."""
+        return 2 * self.radius * self.scale_factor
 
     def get_height(self) -> float:
-        """Return the circle's bbox height (``2 * radius``)."""
-        return 2 * self.radius
+        """Return the circle's bbox height (``2 * radius``, scaled)."""
+        return 2 * self.radius * self.scale_factor
 
     def set_radius(self, radius: float, propagate: bool = True) -> Circle:
         """Set ``radius``; ``propagate`` (default) rewrites descendants with ``radius``.
@@ -271,10 +271,10 @@ class Ellipse(Drawable):
         self.height: float = height
 
     def get_width(self) -> float:
-        return self.width
+        return self.width * self.scale_factor
 
     def get_height(self) -> float:
-        return self.height
+        return self.height * self.scale_factor
 
     def _repr_fields(self) -> str:
         return f"width={self.width:.4g}, height={self.height:.4g}"
@@ -372,10 +372,10 @@ class Line(Drawable):
         return Vec(self._pos + self.end)
 
     def get_width(self) -> float:
-        return abs(self.end.x - self.start.x)
+        return abs(self.end.x - self.start.x) * self.scale_factor
 
     def get_height(self) -> float:
-        return abs(self.end.y - self.start.y)
+        return abs(self.end.y - self.start.y) * self.scale_factor
 
     def _repr_fields(self) -> str:
         s, e = self.get_start(), self.get_end()
@@ -494,11 +494,11 @@ class Polygon(Drawable):
 
     def get_width(self) -> float:
         xs = [p.x for p in self.points]
-        return max(xs) - min(xs)
+        return (max(xs) - min(xs)) * self.scale_factor
 
     def get_height(self) -> float:
         ys = [p.y for p in self.points]
-        return max(ys) - min(ys)
+        return (max(ys) - min(ys)) * self.scale_factor
 
     def _repr_fields(self) -> str:
         return f"points={len(self.points)}"
@@ -718,11 +718,11 @@ class Curve(Drawable):
 
     def get_width(self) -> float:
         xs = [p.x for p in self._all_points()]
-        return max(xs) - min(xs)
+        return (max(xs) - min(xs)) * self.scale_factor
 
     def get_height(self) -> float:
         ys = [p.y for p in self._all_points()]
-        return max(ys) - min(ys)
+        return (max(ys) - min(ys)) * self.scale_factor
 
     def _repr_fields(self) -> str:
         return f"segments={len(self.segments)}"

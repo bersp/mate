@@ -42,7 +42,7 @@ class VSpace(Element):
         return 0.0
 
     def get_height(self) -> float:
-        return self.height
+        return self.height * self.scale_factor
 
     def _repr_fields(self) -> str:
         return f"height={self.height:.4g}"
@@ -90,7 +90,7 @@ class HSpace(Element):
         self.width: float = width
 
     def get_width(self) -> float:
-        return self.width
+        return self.width * self.scale_factor
 
     def get_height(self) -> float:
         return 0.0

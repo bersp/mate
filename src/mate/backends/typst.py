@@ -359,13 +359,13 @@ def _math_fragment_markup(node: Text, hidden_ids: set[int]) -> str:
     has_move = node.offset.x != 0 or node.offset.y != 0
     if attrs:
         frag = f"#text({attrs})[$ {inner} $]"
-    elif node.angle or has_move:
-        # `_wrap_rotate` and the `#move` embed the body as content; re-enter
-        # math to keep the fragment's equation typesetting inside them.
+    elif node.angle or node.scale_factor != 1 or has_move:
+        # The transform wraps and the `#move` embed the body as content;
+        # re-enter math to keep the fragment's equation typesetting inside.
         frag = f"$ {inner} $"
     else:
         frag = inner
-    frag = _wrap_rotate(node, frag)
+    frag = _wrap_transforms(node, frag)
     if has_move:
         # Slide coordinates are y-up, Typst's y-down: a positive shift on y
         # takes a negative dy. `#move` offsets in place with no reflow,
@@ -412,6 +412,29 @@ def _wrap_rotate(el: Element, body: str) -> str:
     )
 
 
+def _wrap_scale(el: Element, body: str) -> str:
+    """Wrap ``body`` in a centred ``#scale`` when ``el`` carries a scale factor.
+
+    ``reflow: true`` sizes the layout box to the scaled content;
+    ``measure(...)`` then reports the scaled extents and the element's
+    bbox reflects the scale. The ``#box`` keeps the transform inline: an
+    inline run scales within its own line. A :class:`Group` body is left
+    bare: its factor records the rigid scale applied through it, and each
+    rendered piece carries its own transform.
+    """
+    if not body or el.scale_factor == 1 or isinstance(el, Group):
+        return body
+    return (
+        f"#box(scale({el.scale_factor * 100}%, origin: center + horizon, "
+        f"reflow: true)[{body}])"
+    )
+
+
+def _wrap_transforms(el: Element, body: str) -> str:
+    """Apply ``el``'s visual transforms to ``body``: scale, then rotation."""
+    return _wrap_rotate(el, _wrap_scale(el, body))
+
+
 def _bare(el: Element) -> str:
     """Render ``el`` without `#place`/`#hide` wrappers (size-measurement form).
 
@@ -433,10 +456,10 @@ def _bare(el: Element) -> str:
             # not affect width); height from the leading-carrying body so
             # the recorded bbox reflects the wrapped line spacing.
             body = _wrap_max_width(body, _wrap_line_gap(body, el.line_gap), el.max_width)
-        return _wrap_rotate(el, body)
+        return _wrap_transforms(el, body)
     leaf = _leaf_markup(el)
     if leaf is not None:
-        return _wrap_rotate(el, leaf)
+        return _wrap_transforms(el, leaf)
     # Groups (and any unknown leaf) contribute nothing to size: the
     # group's bbox is computed as the union of children in `_assign`,
     # so the per-element measurement record is intentionally empty.
@@ -711,6 +734,8 @@ def _curve_markup(el: Curve) -> str:
     points = el._all_points()
     left = min(p.x for p in points)
     top = max(p.y for p in points)
+    width = max(p.x for p in points) - left
+    height = top - min(p.y for p in points)
 
     def loc(p) -> str:
         return _local_point(p, left, top)
@@ -731,14 +756,16 @@ def _curve_markup(el: Curve) -> str:
         elif isinstance(seg, Close):
             parts.append("curve.close()")
     return (
-        f"#box(width: {el.get_width()}cm, height: {el.get_height()}cm)"
+        f"#box(width: {width}cm, height: {height}cm)"
         f"[#curve({', '.join(parts)})]"
     )
 
 
 def _spacer_markup(el: VSpace | HSpace) -> str:
     """Emit an invisible box matching a spacer's intrinsic size."""
-    return f"#box(width: {el.get_width()}cm, height: {el.get_height()}cm)"
+    if isinstance(el, VSpace):
+        return f"#box(width: 0cm, height: {el.height}cm)"
+    return f"#box(width: {el.width}cm, height: 0cm)"
 
 
 def _escape_typst_string(s: str) -> str:
@@ -1058,7 +1085,7 @@ class TypstRenderer:
             )
         else:
             inner = _leaf_markup(el) or ""
-        inner = _wrap_rotate(el, inner)
+        inner = _wrap_transforms(el, inner)
         if el.hidden or placeholder or id(el) in self._hidden_now:
             inner = f"#hide[{inner}]"
         return inner
@@ -1337,7 +1364,7 @@ class TypstMeasurer:
             inner = self._render_children_with_probes(el)
         else:
             inner = _leaf_markup(el) or ""
-        inner = _wrap_rotate(el, inner)
+        inner = _wrap_transforms(el, inner)
         if el.hidden or placeholder:
             inner = f"#hide[{inner}]"
         return inner

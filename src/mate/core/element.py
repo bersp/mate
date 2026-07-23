@@ -239,6 +239,12 @@ class Element:
         # matching `#rotate` and the measured bbox grows to the rotated
         # extents. Inert on nodes with no body of their own (a `Group`).
         self.angle: float = 0.0
+        # Uniform scale of this element's own body about its centre. Written
+        # by `scale` / `set_scale`; the backend emits the matching `#scale`
+        # and the measured bbox reports the scaled size. A `Group` has no
+        # body of its own: its value records the accumulated rigid factor
+        # read by `set_scale`.
+        self.scale_factor: float = 1.0
         self.align: HAlign | None = align
         self.indent: float = 0.0
         # Layout-relative displacement accumulated by `shift`. `arrange` adds it
@@ -449,6 +455,69 @@ class Element:
             )
         self._invalidate_tree()
         return self
+
+    def scale(self, factor: float, origin: VecLike | None = None) -> Element:
+        """Scale this element and its fixed subtree rigidly by ``factor``.
+
+        ``factor`` multiplies the accumulated :attr:`scale_factor`
+        (repeated calls compound). ``origin`` is the fixed point of the
+        scaling in slide coordinates and defaults to this element's own
+        visual centre. Every rendered piece of the fixed subtree scales
+        its body by ``factor`` about its own centre and maps its centre to
+        ``origin + factor * (centre - origin)``, giving a
+        :class:`~mate.elements.group.Group` a single rigid enlargement.
+        A piece whose centre sits at ``origin`` scales in place: its
+        position, anchor, and placement are untouched, and an inline run
+        keeps flowing in its line. A piece the mapping displaces becomes
+        ``"fixed"`` and is re-anchored to ``"center"`` at its mapped
+        point. :class:`Group` nodes carry no body of their own; their
+        ``scale_factor`` records the accumulated rigid factor for
+        :meth:`set_scale`.
+
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        from ..elements.group import Group
+
+        if factor <= 0:
+            raise ValueError(f"scale factor must be positive, got {factor}")
+
+        # A fragment inside a math run has no independent bbox and cannot be
+        # placed on its own; it only scales within the equation.
+        if self._is_math_fragment():
+            self.scale_factor *= factor
+            self._invalidate_tree()
+            return self
+
+        roots = self._place_roots()
+        measure_all(roots)
+        origin_vec = self.center if origin is None else Vec(origin)
+        for el in roots:
+            el.scale_factor *= factor
+            if isinstance(el, Group):
+                continue
+            rel = el.center - origin_vec
+            if rel.x == 0 and rel.y == 0:
+                # Scales about its own centre: no displacement. Placement
+                # and anchor are left as they are, and an inline run
+                # stays in flow.
+                continue
+            if el.placement == "inline":
+                el.placement = "fixed"
+            el._anchor = "center"
+            el._pos = origin_vec + factor * rel
+        self._invalidate_tree()
+        return self
+
+    def set_scale(self, factor: float, origin: VecLike | None = None) -> Element:
+        """Scale rigidly so the accumulated factor becomes ``factor``.
+
+        Absolute counterpart of :meth:`scale`: applies
+        ``factor / scale_factor`` about ``origin``, leaving the element at
+        ``factor`` times its original size regardless of earlier scaling.
+        """
+        if factor <= 0:
+            raise ValueError(f"scale factor must be positive, got {factor}")
+        return self.scale(factor / self.scale_factor, origin)
 
     def _place_roots(self) -> list[Element]:
         """Return this element plus every fixed descendant (omitted pruned).
