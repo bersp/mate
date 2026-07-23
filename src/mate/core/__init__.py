@@ -2,6 +2,7 @@ from .vec import Vec
 from .element import Anchor, Element, measure_all
 from .drawable import Drawable
 from .gradient import Gradient
+from .figure import Figure
 from .template import PresentationTemplateBase
 from .slide import Slide, Snapshot
 from .directive import Directive
@@ -14,6 +15,7 @@ __all__ = [
     "Element",
     "Drawable",
     "Gradient",
+    "Figure",
     "PresentationTemplateBase",
     "Presentation",
     "Slide",

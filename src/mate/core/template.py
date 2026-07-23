@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import inspect
+import runpy
+import sys
 from collections.abc import Callable
 from functools import cache
 from itertools import cycle
+from pathlib import Path
 
 from ..composition.arrange import arrange
 from ..composition.layout import Layout, Region
@@ -31,11 +34,12 @@ from ..parser.ir import (
     PythonBlock,
 )
 from ..parser.serialize import inlines_to_markdown
+from .figure import Figure
 from .gradient import Gradient
 from .registry import IDKey, id_registry
 from .directive import Directive
-from .vec import Vec
-from .element import Anchor, Element, HAlign, anchor_offsets, measure_all
+from .vec import Vec, VecLike
+from .element import Anchor, Element, HAlign, anchor_offsets, measure_all, union_bbox
 
 # Names exposed to authored Python expressions (blockquote method-call
 # arguments and fenced-block property text).
@@ -63,18 +67,6 @@ def _code_options(code_class: type[Code]) -> frozenset[str]:
         if klass is Code:
             break
     return frozenset(options) - {"self", "source"}
-
-
-def _union_bbox(
-    elements: list[Element],
-) -> tuple[float, float, float, float]:
-    """Return the centre-based ``(x, y, w, h)`` union bbox of ``elements``."""
-    boxes = [el.get_bbox() for el in elements]
-    left = min(cx - w / 2 for cx, _, w, _ in boxes)
-    right = max(cx + w / 2 for cx, _, w, _ in boxes)
-    bottom = min(cy - h / 2 for _, cy, _, h in boxes)
-    top = max(cy + h / 2 for _, cy, _, h in boxes)
-    return ((left + right) / 2, (bottom + top) / 2, right - left, top - bottom)
 
 
 # Built-in bullet-symbol builders. Each takes the target longest-dimension
@@ -458,7 +450,7 @@ class PresentationTemplateBase:
 
             els = [el for el in self._root_elements() if id(el) not in before]
             variant_elements.append(els)
-            heights.append(_union_bbox(els)[3])
+            heights.append(union_bbox(els)[3])
             if i < len(variants) - 1:
                 self.pause()
                 step = len(self.current_slide.steps) - 1
@@ -495,7 +487,7 @@ class PresentationTemplateBase:
         Runs after regions are arranged, so the targets' positions are baked.
         """
         for group, targets, anchor, step in self._overwrites:
-            cx, cy, w, h = _union_bbox(targets)
+            cx, cy, w, h = union_bbox(targets)
             h_mul, v_mul = anchor_offsets(anchor)
             point = Vec(cx + (h_mul - 0.5) * w, cy + (v_mul - 0.5) * h)
             group.set_anchor(anchor)
@@ -515,7 +507,7 @@ class PresentationTemplateBase:
             _, scy, _, sh = vspace.get_bbox()
             slot_top = scy + sh / 2 - gap_above
             for els in variants:
-                _, cy, _, h = _union_bbox(els)
+                _, cy, _, h = union_bbox(els)
                 delta_y = slot_top - (cy + h / 2)
                 for el in els:
                     el.shift((0, delta_y))
@@ -1043,6 +1035,61 @@ class PresentationTemplateBase:
         if not floating:
             target_region.add(el)
         return el
+
+    def add_mate_figure(
+        self,
+        path: str,
+        region: str = "active",
+        *,
+        floating: bool = False,
+        pos: VecLike | None = None,
+        anchor: Anchor = "center",
+        **group_kwargs,
+    ) -> Group:
+        """Execute a figure file and add its content to a region and the slide.
+
+        ``path`` is a Python file, resolved against the working directory
+        like an image path. It must hold exactly one module-level
+        :class:`~mate.core.figure.Figure`. The file runs in this process
+        with a non-main ``__name__`` and with its own directory on
+        ``sys.path``, as under a direct ``python <file>`` run: a ``write()``
+        guarded under ``if __name__ == "__main__":`` does not fire, sibling
+        modules import normally, palette color names resolve against the
+        deck palette, and every id (the ``id`` keyword
+        here, which tags the group, or ids authored inside the file) enters
+        the registry. The instance's elements are wrapped in a
+        :class:`Group` added to the region and the slide; the remaining
+        keyword arguments are forwarded to :class:`Group`.
+
+        With ``floating=True`` the group is not added to the region: given
+        ``pos`` it is moved there with its ``anchor`` point on it, otherwise
+        it keeps the coordinates authored in the file.
+        """
+        target_region = self._resolve_region(region)
+        if not Path(path).is_file():
+            raise ValueError(f"add mate figure: no such file: {path!r}")
+        directory = str(Path(path).resolve().parent)
+        sys.path.insert(0, directory)
+        try:
+            namespace = runpy.run_path(path)
+        finally:
+            sys.path.remove(directory)
+        figures = {id(v): v for v in namespace.values() if isinstance(v, Figure)}
+        if len(figures) != 1:
+            raise ValueError(
+                f"add mate figure: {path!r} must hold exactly one module-level "
+                f"Figure; found {len(figures)}"
+            )
+        (figure,) = figures.values()
+        group = Group(children=figure.elements, anchor=anchor, **group_kwargs)
+        group.indent = self._content_indent
+        self.current_slide.add(group)
+        if floating:
+            if pos is not None:
+                group.move_to(pos)
+        else:
+            target_region.add(group)
+        return group
 
     def crop_image(
         self,

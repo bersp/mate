@@ -88,6 +88,18 @@ def measure_all(elements: Iterable[Element]) -> None:
     TypstMeasurer(list(seen.values())).measure(with_inline_x=needs_inline_x(elements))
 
 
+def union_bbox(
+    elements: list[Element],
+) -> tuple[float, float, float, float]:
+    """Return the centre-based ``(x, y, w, h)`` union bbox of ``elements``."""
+    boxes = [el.get_bbox() for el in elements]
+    left = min(cx - w / 2 for cx, _, w, _ in boxes)
+    right = max(cx + w / 2 for cx, _, w, _ in boxes)
+    bottom = min(cy - h / 2 for _, cy, _, h in boxes)
+    top = max(cy + h / 2 for _, cy, _, h in boxes)
+    return ((left + right) / 2, (bottom + top) / 2, right - left, top - bottom)
+
+
 class Element:
     """Base class of every visual node that can appear on a slide.
 

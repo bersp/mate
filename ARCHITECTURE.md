@@ -27,7 +27,8 @@ mate/
 │   ├── slide.py
 │   ├── directive.py
 │   ├── template.py
-│   └── presentation.py
+│   ├── presentation.py
+│   └── figure.py
 ├── elements/          # concrete visual element types
 │   ├── code.py
 │   ├── group.py
@@ -107,6 +108,8 @@ All `Element` constructor parameters (`pos`, `anchor`, `placement`, `id`) are **
 
 **`measure_all(elements)`** is the batch-measurement helper. It deduplicates the tree roots reached from the input and runs one `TypstMeasurer` over them, filling `_bbox` everywhere in one Typst query. Layout utilities (`arrange`) use it to amortize measurement over N elements.
 
+**`union_bbox(elements)`** returns the centre-based `(x, y, w, h)` union of the elements' bboxes (measuring on cache miss).
+
 **Copy protocol.** `copy()` is the public entry. `Element._copy(mapping)` uses `copy.copy(self)` to duplicate the instance's `__dict__` and then resets identity-bearing fields (`_mid`, `id`, `parent`, `_bbox`) and deep-clones `children`. Intrinsic-data fields (`w`, `h`, `r`, `content`, ...) come along automatically, so `Rectangle` / `Circle` / `Ellipse` need no override. Only subclasses with **cross-references between descendants** override — `Text._copy` calls `super()._copy(mapping)` and then remaps its `subs` list through the shared `mapping`, so the cloned subs point at the cloned descendants.
 
 ### `core/presentation.py` — `Presentation`
@@ -115,6 +118,12 @@ All `Element` constructor parameters (`pos`, `anchor`, `placement`, `id`) are **
 - `pause()` opens a new reveal step on the current slide (see `core/slide.py`): content added after it lands on a later page.
 - `end_slide()` arranges every region of the layout **once over the slide's full content** — so each element's position is baked before any page is rendered — then seals the slide by rendering one `Snapshot` per reveal step (the step's cumulative root elements, via `TypstRenderer.render_snapshot`), and clears the regions for the next slide. Because every root is absolutely placed, a page that draws only a prefix of the roots shows them at their final positions with no reflow.
 - Measurement is **independent of slide membership**. An orphan element can call `get_bbox()` and the measurer runs over its own tree (rooted at the topmost ancestor reachable via `parent`). The slide never appears in the measurement path.
+
+### `core/figure.py` — `Figure`
+
+A standalone drawing: a flat list of root elements compiled to a one-page PDF sized to their content. `add(element)` appends a root; `write(path)` measures everything in one pass, translates the roots in place to centre their union bbox at the origin (idempotent: a repeated `write` translates by zero), and compiles a page of exactly the union's size via `TypstRenderer`. A figure file builds one module-level `Figure` and calls `write` under an `if __name__ == "__main__":` guard: run directly it compiles the PDF; executed under another `__name__` the guard does not fire.
+
+`PresentationTemplateBase.add_mate_figure` (`> add mate figure : "figure.py", ...`) embeds a figure file in a slide. The file path resolves against the working directory, like an image path. The file runs in-process via `runpy` with a non-main `__name__` and with its own directory on `sys.path`, as under a direct `python <file>` run (sibling modules import normally); it must hold exactly one module-level `Figure`, whose elements are wrapped in a `Group` added to the target region and the slide (or left off the region with `floating=True`, keeping authored coordinates unless `pos` is given). The file runs in the deck's process: palette color names resolve against the deck palette and ids (the directive's `id=`, which tags the group, or ids authored inside the file) enter `id_registry`.
 
 ### `core/slide.py` — `Slide`, `Snapshot`
 
