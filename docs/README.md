@@ -18,6 +18,7 @@ The PDF lands next to the source, as `slides.pdf`.
 - [Commands](#commands)
 - [Vertical space](#vertical-space)
 - [Images](#images)
+- [Figures](#figures)
 - [Layout and regions](#layout-and-regions)
 - [Revealing content](#revealing-content)
 - [Fragments, overwrites and alternates](#fragments-overwrites-and-alternates)
@@ -101,6 +102,12 @@ The star [*][shift=(0, 0.12), color="yellow"] floats above the baseline.
 Flip a digit with [6][rotate=180], or tilt a [label][rotate=15].
 ```
 
+`scale` resizes a span in place, as a factor of its drawn size:
+
+```markdown
+Fine print [at half size][scale=0.5] next to an enlarged [term][scale=1.3].
+```
+
 A `[[...]]` anywhere in a block applies its properties to the whole block:
 
 ```markdown
@@ -120,6 +127,7 @@ The most common properties:
 | `letter_spacing` | `letter_spacing=0.2` | extra tracking, in em |
 | `shift` | `shift=(0.1, 0.3)` | displace by `(dx, dy)` cm |
 | `rotate` | `rotate=15` | spin in place, degrees counterclockwise |
+| `scale` | `scale=1.5` | resize in place, times the drawn size |
 | `id` | `id="key"` | tag the span for later targeting |
 
 An `id` tags the span: every element carrying the same id can be addressed later by `> modify`, `markdown overwrite` blocks and `> crop image` (see [Revealing content](#revealing-content)).
@@ -130,7 +138,7 @@ Spans nest, and they also work inside math:
 $$ x(t) = [A e^(-gamma t)][id="envelope", color="red"] [cos(omega_0 t + phi)][opacity=0.4] $$
 ```
 
-The span becomes a piece of the equation: it takes any of the text styling properties, `shift` and `rotate` move and turn it in place within the equation, and its `id` can be targeted by `> modify` later (see [Revealing content](#revealing-content)).
+The span becomes a piece of the equation: it takes any of the text styling properties, `shift`, `rotate` and `scale` move, turn and resize it in place within the equation, and its `id` can be targeted by `> modify` later (see [Revealing content](#revealing-content)).
 
 ## Math
 
@@ -319,6 +327,48 @@ The options of `add image`:
 ```
 
 The crop applies from that reveal step onward, so this reads as a zoom-in. `> uncrop image : "map"` shows the whole image again.
+
+## Figures
+
+A figure is a drawing built with the Python API in a file of its own. The file creates one `Figure`, adds elements to it, and writes a PDF under a main guard:
+
+```python
+from mate import Figure, Rectangle, Circle
+
+fig = Figure()
+fig.add(Rectangle(4, 2, fill_color="blue"))
+fig.add(Circle(1, pos=(3, 0), fill_color="red"))
+
+if __name__ == "__main__":
+    fig.write("scene.pdf")
+```
+
+Run directly (`python scene.py`), the file compiles a PDF sized to the drawing. `> add mate figure` embeds the same file in a deck:
+
+```markdown
+> add mate figure : "scene.py"
+```
+
+The guard keeps `write` out of the embedding: mate runs the file, takes its `Figure`, and places the drawing in the current region as a single unit. The figure embeds as elements, not as a rendered image: palette names resolve against the deck's palette, and ids tagged inside the file work with `> modify` like any other id. Helper modules next to the file import normally.
+
+The options of `add mate figure`:
+
+| option | example | notes |
+|---|---|---|
+| `region` | `region="right"` | target region, instead of the active one |
+| `align` | `align="left"` | horizontal alignment inside the region |
+| `id` | `id="fig"` | tag the whole figure for `modify` |
+| `floating` | `floating=True` | leave the region's stack; the figure keeps its own coordinates, or lands with its `anchor` at `pos` |
+| `pos`, `anchor` | `pos=(2, 1), anchor="center"` | position for a floating figure |
+
+The figure lands at its drawn size; `> modify` with `scale` resizes the whole drawing rigidly:
+
+```markdown
+> add mate figure : "scene.py", id="scene"
+> modify : "scene", scale=0.5
+```
+
+The shapes and their arguments are listed in [Python and shapes](#python-and-shapes).
 
 ## Layout and regions
 
