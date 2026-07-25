@@ -35,6 +35,7 @@ class PresentationTemplate(PresentationTemplateBase):
         self.layout.get("title").set_anchor_default("center")
 
     def add_title(self) -> Group:
+        """Build the current slide's title: uppercase, with wide tracking."""
         slide = self.current_slide
         title_region = self.layout.get("title")
 
@@ -45,8 +46,8 @@ class PresentationTemplate(PresentationTemplateBase):
                 slide.title.upper(),
                 font=config.get("title.font"),
                 fontsize=config.get("title.fontsize"),
-                fill_color=config.get("title.color"),
                 weight=config.get("title.fontweight"),
+                fill_color=config.get("title.color"),
                 letter_spacing=0.15,
             )
             title_region.add(title)
@@ -57,8 +58,8 @@ class PresentationTemplate(PresentationTemplateBase):
                 slide.subtitle,
                 font=config.get("subtitle.font"),
                 fontsize=config.get("subtitle.fontsize"),
-                fill_color=config.get("subtitle.color"),
                 weight=config.get("subtitle.fontweight"),
+                fill_color=config.get("subtitle.color"),
             )
             title_region.add(subtitle)
             members.add(subtitle)

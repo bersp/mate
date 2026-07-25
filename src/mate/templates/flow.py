@@ -13,6 +13,7 @@ import numpy as np
 
 from ..composition.arrange import arrange
 from ..config import config
+from ..core.directive import Directive
 from ..core.template import PresentationTemplateBase
 from ..elements.group import Group
 from ..elements.shapes import Circle, Curve, LineTo, MoveTo, Rectangle
@@ -74,13 +75,15 @@ class PresentationTemplate(PresentationTemplateBase):
 
         self._section: str | None = None
 
-    def on_directive(self, directive):
+    def on_directive(self, directive: Directive) -> None:
+        """Record the running section, then run the base directive handling."""
         section = directive.get("section")
         if section is not None:
             self._section = section
         super().on_directive(directive)
 
     def background(self) -> Group:
+        """Return the slide backdrop: a flow band, full-bleed on a cover."""
         W, H = config.slide_width, config.slide_height
         group = Group(anchor="top-left")
 
@@ -102,7 +105,9 @@ class PresentationTemplate(PresentationTemplateBase):
 
         return group
 
-    def add_cover(self, title, **props):
+    def add_cover(self, title: str, **props: str) -> Group:
+        """Build the cover: an optional tagline, the title, an accent rule, and
+        the author and date on one line."""
         W, H = config.slide_width, config.slide_height
         left_x = -W / 2 + 1.15
         tagline = props.get("tagline")
@@ -151,15 +156,16 @@ class PresentationTemplate(PresentationTemplateBase):
         self.current_slide.add(members)
         return members
 
-    def add_title(self):
+    def add_title(self) -> Group:
+        """Build the current slide's title, under the running section eyebrow."""
         slide = self.current_slide
         title_region = self.layout.get("title")
+
         members = Group()
 
-        section = self._section
-        if section:
+        if self._section:
             eyebrow = Text(
-                section.upper(),
+                self._section.upper(),
                 font="Lato",
                 fontsize=7,
                 weight=600,
@@ -185,6 +191,7 @@ class PresentationTemplate(PresentationTemplateBase):
                 slide.subtitle,
                 font=config.get("subtitle.font"),
                 fontsize=config.get("subtitle.fontsize"),
+                weight=config.get("subtitle.fontweight"),
                 fill_color=config.get("subtitle.color"),
             )
             title_region.add(subtitle)
