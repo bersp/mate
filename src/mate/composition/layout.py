@@ -310,7 +310,7 @@ class Region:
         self.elements.clear()
 
     def arrange(self) -> None:
-        """Stack :attr:`elements` using :attr:`anchor` and :attr:`arrange_gap`."""
+        """Stack :attr:`elements` using this region's anchor, gap, and width."""
         if self.elements:
             logger.debug(
                 rf"[yellow]REGION ARRANGE ::[/yellow] {self!r}",

@@ -70,11 +70,11 @@ def arrange(
 
     Performance
     -----------
-    Intrinsic-size primitives (:class:`Rectangle`, :class:`Circle`,
-    :class:`Ellipse`) report their dimensions without measuring; every
-    other element needs a measured bbox and is collected into a single
-    batched :func:`measure_all` pass, so the whole call spends at most
-    one Typst query regardless of N.
+    The intrinsic-size primitives (the shapes and the spacers, see
+    :data:`_INTRINSIC_SIZE`) report their dimensions without measuring;
+    every other element needs a measured bbox and is collected into a
+    single batched :func:`measure_all` pass, so the whole call spends at
+    most one Typst query regardless of N.
 
     Elements are mutated in place via :meth:`Element.move_to`, which
     forces ``placement="fixed"`` and preserves each element's anchor.
