@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Callable
 import typst
 
 from ..config import config
-from ..core.element import anchor_offsets
+from ..core.element import anchor_offsets, union_bbox
 from ..core.gradient import Gradient
 from ..elements.group import Group
 from ..elements.image import Image
@@ -314,35 +314,6 @@ def _inline_to_typst(nodes: list[Inline]) -> str:
     return "".join(out)
 
 
-def _math_node_attrs(node: Text) -> str:
-    """Typst ``#text`` attributes for a math fragment's explicit style overrides.
-
-    A math fragment inherits font, size and fill from its equation; only the
-    fields it overrides (via markup or ``modify``) are non-``None``, and each
-    becomes one ``#text`` attribute. An empty result means "inherit everything".
-    """
-    attrs: list[str] = []
-    if node.fill_color is not None or node.fill_opacity is not None:
-        attrs.append(
-            f"fill: {_typst_fill(node.fill_color, node.fill_opacity, zero_is_none=False)}"
-        )
-    stroke = _typst_stroke(node)
-    if stroke != "none":
-        attrs.append(f"stroke: {stroke}")
-    if node.weight is not None:
-        weight = f'"{node.weight}"' if isinstance(node.weight, str) else node.weight
-        attrs.append(f"weight: {weight}")
-    if node.style is not None:
-        attrs.append(f'style: "{node.style}"')
-    if node.letter_spacing is not None:
-        attrs.append(f"tracking: {node.letter_spacing}em")
-    if node.font is not None:
-        attrs.append(f'font: "{node.font}"')
-    if node.fontsize is not None:
-        attrs.append(f"size: {node.fontsize}pt")
-    return ", ".join(attrs)
-
-
 def _math_fragment_markup(node: Text, hidden_ids: set[int]) -> str:
     """Render one math fragment as inner equation markup (no outer ``$``).
 
@@ -355,7 +326,7 @@ def _math_fragment_markup(node: Text, hidden_ids: set[int]) -> str:
         inner = "".join(_math_fragment_markup(c, hidden_ids) for c in node.children)
     else:
         inner = node.content
-    attrs = _math_node_attrs(node)
+    attrs = ", ".join(_text_style_attrs(node))
     has_move = node.offset.x != 0 or node.offset.y != 0
     if attrs:
         frag = f"#text({attrs})[$ {inner} $]"
@@ -563,21 +534,23 @@ def _typst_stroke(el: Drawable) -> str:
     return f"stroke({', '.join(parts)})"
 
 
-def _wrap_text_attrs(el: Text, inner: str, *, with_paint: bool = True) -> str:
-    """Wrap ``inner`` in a ``#text(...)`` call with the element's font and
-    size, plus ``weight``/``style``/``tracking`` when set and ``fill``/``stroke``
-    when present.
+def _text_style_attrs(el: Text, *, with_paint: bool = True) -> list[str]:
+    """Return the ``#text`` attributes carrying a :class:`Text`'s style.
 
-    ``font`` and ``size`` are always emitted — every :class:`Text` carries
-    them explicitly so the rendered output never relies on Typst's
-    implicit fallback. ``fill:`` and ``stroke:`` are added only when the
-    element has explicit fill/stroke state, otherwise the body inherits
-    Typst's lexical defaults (black fill, no stroke, matching
-    :class:`~mate.core.drawable.Drawable`'s visual defaults).
-    ``with_paint=False`` drops both: neither affects glyph metrics, so the
+    Each field it holds becomes one attribute; a field left at ``None``
+    is omitted and inherits from the surrounding context. A standalone
+    :class:`Text` carries an explicit font and size, so the rendered
+    output never relies on Typst's implicit fallback; a math fragment
+    holds only the fields it overrides, and an empty result means
+    "inherit everything from the equation". ``with_paint=False`` drops
+    ``fill``/``stroke``: neither affects glyph metrics, so the
     measurement form omits them to keep the aux document small.
     """
-    attrs = [f'font: "{el.font}"', f"size: {el.fontsize}pt"]
+    attrs: list[str] = []
+    if el.font is not None:
+        attrs.append(f'font: "{el.font}"')
+    if el.fontsize is not None:
+        attrs.append(f"size: {el.fontsize}pt")
     if el.weight is not None:
         weight = f'"{el.weight}"' if isinstance(el.weight, str) else el.weight
         attrs.append(f"weight: {weight}")
@@ -591,6 +564,12 @@ def _wrap_text_attrs(el: Text, inner: str, *, with_paint: bool = True) -> str:
         )
     if with_paint and not (el.stroke_color is None and el.stroke_width is None):
         attrs.append(f"stroke: {_typst_stroke(el)}")
+    return attrs
+
+
+def _wrap_text_attrs(el: Text, inner: str, *, with_paint: bool = True) -> str:
+    """Wrap ``inner`` in a ``#text(...)`` call carrying ``el``'s style."""
+    attrs = _text_style_attrs(el, with_paint=with_paint)
     return f'#text({", ".join(attrs)})[{inner}]'
 
 
@@ -1063,11 +1042,7 @@ class TypstRenderer:
             if el.is_math_run:
                 inner = _math_run_markup(el, self._hidden_now)
             elif el.children:
-                inner = "".join(
-                    self._render_node(c, placeholder=c.placement == "fixed")
-                    for c in el.children
-                    if c.placement != "omitted"
-                )
+                inner = self._render_children(el)
             else:
                 inner = _leaf_text_markup(el)
             inner = _wrap_text_attrs(el, inner)
@@ -1078,17 +1053,25 @@ class TypstRenderer:
                     el.max_width,
                 )
         elif isinstance(el, Group):
-            inner = "".join(
-                self._render_node(c, placeholder=c.placement == "fixed")
-                for c in el.children
-                if c.placement != "omitted"
-            )
+            inner = self._render_children(el)
         else:
             inner = _leaf_markup(el) or ""
         inner = _wrap_transforms(el, inner)
         if el.hidden or placeholder or id(el) in self._hidden_now:
             inner = f"#hide[{inner}]"
         return inner
+
+    def _render_children(self, el: Element) -> str:
+        """Render ``el.children``: omitted ones pruned, fixed ones as placeholders.
+
+        A fixed child's visible copy lives in its own top-level ``#place``,
+        so the one rendered here only holds its space.
+        """
+        return "".join(
+            self._render_node(c, placeholder=c.placement == "fixed")
+            for c in el.children
+            if c.placement != "omitted"
+        )
 
 
 class TypstMeasurer:
@@ -1451,18 +1434,8 @@ class TypstMeasurer:
             if not members:
                 el._bbox = (cx, cy, 0.0, 0.0)
             elif all(c._bbox is not None for c in members):
-                boxes = [c._bbox for c in members]
-                lefts = [b[0] - b[2] / 2 for b in boxes]
-                rights = [b[0] + b[2] / 2 for b in boxes]
-                bottoms = [b[1] - b[3] / 2 for b in boxes]
-                tops = [b[1] + b[3] / 2 for b in boxes]
-                left, right = min(lefts), max(rights)
-                bottom, top = min(bottoms), max(tops)
-                el._bbox = (
-                    (left + right) / 2,
-                    (bottom + top) / 2,
-                    right - left,
-                    top - bottom,
-                )
+                # Every member is assigned, so the union reads the caches
+                # and never re-enters measurement.
+                el._bbox = union_bbox(members)
         elif el.placement == "fixed" or el._mid in self.xs:
             el._bbox = (cx, cy, w, h)
