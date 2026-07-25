@@ -404,7 +404,7 @@ def _apply_markup_props(element: Element, props: str) -> None:
     by ``id`` but has no box to position, so a layout property on it raises.
     """
     parsed = _parse_markup_props(props)
-    if _under_math_run(element):
+    if element._is_math_fragment():
         bad = sorted(k for k in parsed if k in _MATH_DISALLOWED_PROPS)
         if bad:
             names = ", ".join(repr(k) for k in bad)
@@ -498,16 +498,6 @@ _MATH_INHERITED_STYLES = (
     "font",
     "fontsize",
 )
-
-
-def _under_math_run(element: Element) -> bool:
-    """Return whether ``element`` is a fragment of a math run."""
-    node = element.parent
-    while node is not None:
-        if isinstance(node, Text) and node.is_math_run:
-            return True
-        node = node.parent
-    return False
 
 
 def _has_math_span(body: str) -> bool:
