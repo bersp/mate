@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..config import config
-from ..core.element import Anchor, Element, anchor_offsets
+from ..core.element import Anchor, Element, bbox_anchor_point
 from ..core.vec import Vec, VecLike
 from ..log import logger
 from .arrange import arrange as _arrange_elements
@@ -152,10 +152,9 @@ class Region:
 
     def get_anchor_point(self, anchor: Anchor) -> Vec:
         """Return the position of the given anchor on this region."""
-        h_mul, v_mul = anchor_offsets(anchor)
-        left_x = self._center.x - self._width / 2
-        bottom_y = self._center.y - self._height / 2
-        return Vec(left_x + h_mul * self._width, bottom_y + v_mul * self._height)
+        return bbox_anchor_point(
+            (self._center.x, self._center.y, self._width, self._height), anchor
+        )
 
     def set_width(self, value: float) -> Region:
         self._width = float(value)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from ..core.element import Anchor, Element, HAlign, Placement, anchor_offsets
+from ..core.element import Anchor, Element, HAlign, Placement
 from ..core.registry import IDKey
 from ..core.drawable import Drawable
 from ..core.vec import Vec, VecLike
@@ -141,6 +141,4 @@ class Group(Drawable):
         not stay in sync when descendants are moved independently, so
         the only reliable read is via the union bbox.
         """
-        cx, cy, w, h = self.get_bbox()
-        h_mul, v_mul = anchor_offsets(self._anchor)
-        return Vec(cx + (h_mul - 0.5) * w, cy + (v_mul - 0.5) * h)
+        return self.get_anchor_point(self._anchor)

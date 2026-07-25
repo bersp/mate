@@ -39,7 +39,14 @@ from .figure import Figure
 from .registry import IDKey, id_registry
 from .directive import Directive
 from .vec import Vec, VecLike
-from .element import Anchor, Element, HAlign, anchor_offsets, measure_all, union_bbox
+from .element import (
+    Anchor,
+    Element,
+    HAlign,
+    bbox_anchor_point,
+    measure_all,
+    union_bbox,
+)
 
 
 @cache
@@ -481,11 +488,8 @@ class PresentationTemplateBase:
         Runs after regions are arranged, so the targets' positions are baked.
         """
         for group, targets, anchor, step in self._overwrites:
-            cx, cy, w, h = union_bbox(targets)
-            h_mul, v_mul = anchor_offsets(anchor)
-            point = Vec(cx + (h_mul - 0.5) * w, cy + (v_mul - 0.5) * h)
             group.set_anchor(anchor)
-            group.move_to(point)
+            group.move_to(bbox_anchor_point(union_bbox(targets), anchor))
             for target in targets:
                 self.current_slide.replaced.append((step, target))
         self._overwrites = []

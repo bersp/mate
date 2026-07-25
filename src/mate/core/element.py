@@ -58,6 +58,13 @@ def anchor_offsets(anchor: Anchor) -> tuple[float, float]:
     return _ANCHOR_OFFSETS[anchor]
 
 
+def bbox_anchor_point(bbox: tuple[float, float, float, float], anchor: Anchor) -> Vec:
+    """Return the position of ``anchor`` on a centre-based ``(x, y, w, h)`` box."""
+    cx, cy, w, h = bbox
+    h_mul, v_mul = _ANCHOR_OFFSETS[anchor]
+    return Vec(cx + (h_mul - 0.5) * w, cy + (v_mul - 0.5) * h)
+
+
 def measure_all(elements: Iterable[Element]) -> None:
     """Fill ``_bbox`` for the given elements in a single Typst measurement pass.
 
@@ -311,9 +318,7 @@ class Element:
         Measures the bbox on cache miss (one Typst query), then offsets
         from its centre by the anchor's multipliers.
         """
-        cx, cy, w, h = self.get_bbox()
-        h_mul, v_mul = _ANCHOR_OFFSETS[anchor]
-        return Vec(cx + (h_mul - 0.5) * w, cy + (v_mul - 0.5) * h)
+        return bbox_anchor_point(self.get_bbox(), anchor)
 
     def _current_anchor_point(self) -> Vec:
         """Return the current visual position of this element's anchor.
@@ -327,9 +332,7 @@ class Element:
         are moved independently.
         """
         if self.placement == "inline":
-            cx, cy, w, h = self.get_bbox()
-            h_mul, v_mul = _ANCHOR_OFFSETS[self._anchor]
-            return Vec(cx + (h_mul - 0.5) * w, cy + (v_mul - 0.5) * h)
+            return self.get_anchor_point(self._anchor)
         return self._pos
 
     def move_to(self, p: VecLike) -> Element:
