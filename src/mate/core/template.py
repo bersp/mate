@@ -34,20 +34,12 @@ from ..parser.ir import (
     PythonBlock,
 )
 from ..parser.serialize import inlines_to_markdown
+from .authoring import author_globals, eval_call, eval_props
 from .figure import Figure
 from .registry import IDKey, id_registry
 from .directive import Directive
 from .vec import Vec, VecLike
 from .element import Anchor, Element, HAlign, anchor_offsets, measure_all, union_bbox
-
-
-@cache
-def _author_globals() -> dict:
-    """Return the namespace an authored Python expression evaluates in: the
-    public ``mate`` API."""
-    import mate
-
-    return {name: getattr(mate, name) for name in mate.__all__}
 
 
 @cache
@@ -335,7 +327,7 @@ class PresentationTemplateBase:
         ``anchor`` point at ``pos`` (the region's ``anchor`` point when ``pos`` is
         omitted), with ``region`` supplying the wrap width for the body.
         """
-        props = eval(f"dict({args})", {"dict": dict, **_author_globals()})
+        props = eval_props(args)
         region = props.pop("region", None)
         floating = props.pop("floating", False)
         pos = props.pop("pos", None)
@@ -385,9 +377,7 @@ class PresentationTemplateBase:
         onward without moving the surrounding content. ``anchor`` defaults to the
         original region's anchor and sets both the body's stacking and placement.
         """
-        target_id, anchor = eval(
-            f"_f({args})", {"_f": lambda id, anchor=None: (id, anchor)}
-        )
+        target_id, anchor = eval_call(args, lambda id, anchor=None: (id, anchor))
         try:
             targets = id_registry.get(target_id)
         except KeyError:
@@ -429,7 +419,7 @@ class PresentationTemplateBase:
         ``args`` may carry ``region=<name>`` to target a region other than the
         active one.
         """
-        props = eval(f"dict({args})", {"dict": dict, **_author_globals()})
+        props = eval_props(args)
         target = self._resolve_region(props.pop("region", "active"))
 
         variants: list[list[Block]] = [[]]
@@ -548,7 +538,7 @@ class PresentationTemplateBase:
     def _python_ns(self) -> dict:
         """Return the shared ``python mate`` namespace, built once."""
         if self._python_namespace is None:
-            self._python_namespace = {**_author_globals(), "self": self}
+            self._python_namespace = {**author_globals(), "self": self}
         return self._python_namespace
 
     def run_method_call(self, name: str, args: str) -> None:
@@ -570,7 +560,7 @@ class PresentationTemplateBase:
         method = getattr(self, name, None)
         if method is None:
             raise ValueError(f"unknown blockquote method '> {name.replace('_', ' ')}'")
-        eval(f"_method({args})", {"_method": method, **_author_globals()})
+        eval_call(args, method)
 
     # --- Content ------------------------------------------------------------
     def add_paragraph(self, text: str) -> Text:
@@ -944,7 +934,7 @@ class PresentationTemplateBase:
         span the region's width minus the ambient indent unless ``width`` is
         among them.
         """
-        props = eval(f"dict({options})", {"dict": dict, **_author_globals()})
+        props = eval_props(options)
         region = props.pop("region", region)
         code_kwargs = {**code_kwargs, **props}
         valid_options = _code_options(code_class)

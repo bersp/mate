@@ -3,10 +3,10 @@ from __future__ import annotations
 import re
 
 from ..config import config
+from ..core.authoring import eval_props
 from ..core.element import Anchor, Element, HAlign, Placement
 from ..core.registry import IDKey
 from ..core.drawable import Drawable
-from ..core.gradient import Gradient
 from ..core.vec import VecLike
 
 _BLOCK_RE = re.compile(r"\[\[([^\[\]]+)\]\]")
@@ -388,12 +388,11 @@ def _leaf(content: str) -> Text:
 def _parse_markup_props(props: str) -> dict:
     """Parse the keyword text of a ``[...][<props>]`` / ``[[<props>]]`` markup.
 
-    ``props`` is evaluated as ``dict(<props>)`` after stripping backslash
-    escapes, with :class:`~mate.core.gradient.Gradient` in scope so
-    ``fill=Gradient.linear(...)`` works. Returns the ``name -> value`` mapping.
+    The markup escapes are stripped and the text is evaluated as an authored
+    property mapping. Returns the ``name -> value`` mapping.
     """
     props = re.sub(r"\\([\\*_`$])", r"\1", props)
-    return eval(f"dict({props})", {"dict": dict, "Gradient": Gradient})
+    return eval_props(props)
 
 
 def _apply_markup_props(element: Element, props: str) -> None:
