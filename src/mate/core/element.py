@@ -95,6 +95,13 @@ def measure_all(elements: Iterable[Element]) -> None:
     TypstMeasurer(list(seen.values())).measure(with_inline_x=needs_inline_x(elements))
 
 
+def _clear_bbox_subtree(el: Element) -> None:
+    """Drop the bbox cache on ``el`` and every descendant."""
+    el._bbox = None
+    for c in el.children:
+        _clear_bbox_subtree(c)
+
+
 def union_bbox(
     elements: list[Element],
 ) -> tuple[float, float, float, float]:
@@ -813,13 +820,7 @@ class Element:
         subtree must be re-measured. Ancestors depend on the subtree and
         are dropped too.
         """
-
-        def clear(el: Element) -> None:
-            el._bbox = None
-            for c in el.children:
-                clear(c)
-
-        clear(self)
+        _clear_bbox_subtree(self)
         self._invalidate_ancestors()
 
     def _invalidate_ancestors(self) -> None:
@@ -838,11 +839,4 @@ class Element:
         the remaining inline siblings shifts, so the whole tree's cache
         must be re-measured on the next :meth:`get_bbox` call.
         """
-        root = self._tree_root()
-
-        def clear(el: Element) -> None:
-            el._bbox = None
-            for c in el.children:
-                clear(c)
-
-        clear(root)
+        _clear_bbox_subtree(self._tree_root())
