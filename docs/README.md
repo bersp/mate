@@ -254,7 +254,7 @@ A blockquote line calls a method of the presentation. The syntax is `> name : ar
 > pause
 ```
 
-Each line is one call, and one blockquote can carry several. Any public method of the presentation can be called this way, including the ones a template defines.
+Each line is one call, and one blockquote can carry several. Any public method of the presentation can be called this way, including the ones a template defines. The `mate` API is in scope in the arguments; a call can take a whole element (see [Python and shapes](#python-and-shapes)).
 
 Commands follow Markdown's blockquote conventions; in particular, a paragraph starting on the line right below a blockquote is folded *into* the blockquote. This works:
 
@@ -751,7 +751,20 @@ Passing the subclass to `resolve_code_options` makes its own parameters availabl
 
 ## Python and shapes
 
-A `python mate` fence runs inside the deck with the `mate` API in scope and the presentation available as `self`. The namespace persists across blocks, so imports and definitions carry over:
+`> add` puts one element on the slide, written as the Python expression that builds it:
+
+```markdown
+> add : Rectangle(3, 1.8, pos=(-4, -2), fill_color="blue")
+> add : Circle(0.9, pos=(0, -2), fill_color=Gradient.radial("yellow", "orange"))
+```
+
+The element lands where its own `pos` and `anchor` put it, with no region stacking it (see [Floating elements](#floating-elements)). Coordinates are in centimetres, with the origin at the slide centre and the y axis pointing up. To stack it in a region instead, name one:
+
+```markdown
+> add : Rectangle(6, 0.05, fill_color="gray"), region="content"
+```
+
+A longer construction belongs in a `python mate` fence, which runs inside the deck with the `mate` API in scope and the presentation available as `self`. The namespace persists across blocks, so imports and definitions carry over:
 
 ````markdown
 ```python mate
@@ -764,9 +777,7 @@ slide.add(Line((3, -2.8), (5.5, -1.2), stroke_color="red", stroke_width=0.06))
 ```
 ````
 
-Coordinates are in centimetres, with the origin at the slide centre and the y axis pointing up.
-
-Elements added with `slide.add(...)`, like the shapes above, are floating (see [Floating elements](#floating-elements)). The content methods on `self` (`add_text`, `add_image`, `add_bullet_item`, `add_vspace`, `pause`, `modify`, `grid`, `region`, ...) go through the region system as usual.
+Elements added with `slide.add(...)`, like the shapes above, are floating just as with `> add`. The content methods on `self` (`add_text`, `add_image`, `add_bullet_item`, `add_vspace`, `pause`, `modify`, `grid`, `region`, ...) go through the region system as usual.
 
 The available shapes:
 

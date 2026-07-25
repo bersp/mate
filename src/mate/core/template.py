@@ -35,15 +35,19 @@ from ..parser.ir import (
 )
 from ..parser.serialize import inlines_to_markdown
 from .figure import Figure
-from .gradient import Gradient
 from .registry import IDKey, id_registry
 from .directive import Directive
 from .vec import Vec, VecLike
 from .element import Anchor, Element, HAlign, anchor_offsets, measure_all, union_bbox
 
-# Names exposed to authored Python expressions (blockquote method-call
-# arguments and fenced-block property text).
-_AUTHOR_GLOBALS = {"Gradient": Gradient}
+
+@cache
+def _author_globals() -> dict:
+    """Return the namespace an authored Python expression evaluates in: the
+    public ``mate`` API."""
+    import mate
+
+    return {name: getattr(mate, name) for name in mate.__all__}
 
 
 @cache
@@ -331,7 +335,7 @@ class PresentationTemplateBase:
         ``anchor`` point at ``pos`` (the region's ``anchor`` point when ``pos`` is
         omitted), with ``region`` supplying the wrap width for the body.
         """
-        props = eval(f"dict({args})", {"dict": dict, **_AUTHOR_GLOBALS})
+        props = eval(f"dict({args})", {"dict": dict, **_author_globals()})
         region = props.pop("region", None)
         floating = props.pop("floating", False)
         pos = props.pop("pos", None)
@@ -425,7 +429,7 @@ class PresentationTemplateBase:
         ``args`` may carry ``region=<name>`` to target a region other than the
         active one.
         """
-        props = eval(f"dict({args})", {"dict": dict, **_AUTHOR_GLOBALS})
+        props = eval(f"dict({args})", {"dict": dict, **_author_globals()})
         target = self._resolve_region(props.pop("region", "active"))
 
         variants: list[list[Block]] = [[]]
@@ -544,10 +548,7 @@ class PresentationTemplateBase:
     def _python_ns(self) -> dict:
         """Return the shared ``python mate`` namespace, built once."""
         if self._python_namespace is None:
-            import mate
-
-            self._python_namespace = {name: getattr(mate, name) for name in mate.__all__}
-            self._python_namespace["self"] = self
+            self._python_namespace = {**_author_globals(), "self": self}
         return self._python_namespace
 
     def run_method_call(self, name: str, args: str) -> None:
@@ -569,7 +570,7 @@ class PresentationTemplateBase:
         method = getattr(self, name, None)
         if method is None:
             raise ValueError(f"unknown blockquote method '> {name.replace('_', ' ')}'")
-        eval(f"_method({args})", {"_method": method, **_AUTHOR_GLOBALS})
+        eval(f"_method({args})", {"_method": method, **_author_globals()})
 
     # --- Content ------------------------------------------------------------
     def add_paragraph(self, text: str) -> Text:
@@ -943,7 +944,7 @@ class PresentationTemplateBase:
         span the region's width minus the ambient indent unless ``width`` is
         among them.
         """
-        props = eval(f"dict({options})", {"dict": dict, **_AUTHOR_GLOBALS})
+        props = eval(f"dict({options})", {"dict": dict, **_author_globals()})
         region = props.pop("region", region)
         code_kwargs = {**code_kwargs, **props}
         valid_options = _code_options(code_class)
@@ -977,6 +978,20 @@ class PresentationTemplateBase:
         self.current_slide.add(el)
         target_region.add(el)
         return el
+
+    def add_element(self, element: Element, region: str | None = None) -> Element:
+        """Add a ready-made ``element`` to the current slide.
+
+        The element floats: it keeps the ``pos`` and ``anchor`` it was built
+        with and no region stacks it. Naming a ``region`` appends it to that
+        region's stack, where
+        :meth:`~mate.composition.layout.Region.arrange` sets its position.
+        """
+        element.indent = self._content_indent
+        self.current_slide.add(element)
+        if region is not None:
+            self._resolve_region(region).add(element)
+        return element
 
     def add_vspace(self, height: float, region: str = "active") -> VSpace:
         """Add a vertical spacer of ``height`` cm to a region's stack.
@@ -1205,6 +1220,7 @@ class PresentationTemplateBase:
         return value
 
     # --- Aliases ------------------------------------------------------------
+    add = add_element
     vspace = add_vspace
     grid = create_grid
     region = set_active_region
