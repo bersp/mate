@@ -2,23 +2,31 @@ from .code import Code
 from .group import Group
 from .image import Image
 from .shapes import (
+    Arrow,
+    ArrowTip,
+    BarTip,
     Circle,
     Close,
     CubicTo,
     Curve,
     CurveSegment,
     Ellipse,
+    HookTip,
     Line,
     LineTo,
     MoveTo,
     Polygon,
     QuadTo,
     Rectangle,
+    TriangleTip,
 )
 from .spacing import HSpace, VSpace
 from .text import Text
 
 __all__ = [
+    "Arrow",
+    "ArrowTip",
+    "BarTip",
     "Circle",
     "Code",
     "Close",
@@ -28,6 +36,7 @@ __all__ = [
     "Ellipse",
     "Group",
     "HSpace",
+    "HookTip",
     "Image",
     "Line",
     "LineTo",
@@ -36,5 +45,6 @@ __all__ = [
     "QuadTo",
     "Rectangle",
     "Text",
+    "TriangleTip",
     "VSpace",
 ]

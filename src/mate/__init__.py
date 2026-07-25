@@ -15,6 +15,9 @@ from .core import (
     measure_all,
 )
 from .elements import (
+    Arrow,
+    ArrowTip,
+    BarTip,
     Circle,
     Code,
     Close,
@@ -23,6 +26,7 @@ from .elements import (
     CurveSegment,
     Ellipse,
     Group,
+    HookTip,
     HSpace,
     Image,
     Line,
@@ -32,6 +36,7 @@ from .elements import (
     QuadTo,
     Rectangle,
     Text,
+    TriangleTip,
     VSpace,
 )
 from .composition import arrange, Layout, Region, layout_to_group
@@ -47,6 +52,9 @@ __all__ = [
     "Presentation",
     "Slide",
     "Snapshot",
+    "Arrow",
+    "ArrowTip",
+    "BarTip",
     "Circle",
     "Close",
     "Code",
@@ -55,6 +63,7 @@ __all__ = [
     "CurveSegment",
     "Ellipse",
     "Group",
+    "HookTip",
     "HSpace",
     "Image",
     "Line",
@@ -64,6 +73,7 @@ __all__ = [
     "QuadTo",
     "Rectangle",
     "Text",
+    "TriangleTip",
     "VSpace",
     "IDRegistry",
     "id_registry",

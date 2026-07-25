@@ -37,6 +37,15 @@ _MISSING = object()
 # a key of a template's ``bullet_symbols`` catalog. ``circle_outline`` and
 # ``square_outline`` are hollow, stroked with ``list.bullet.outline_width``;
 # ``dash`` is a bar ``list.bullet.dash_thickness`` tall.
+#
+# ``arrow.tip`` names an ``Arrow``'s default end marker: ``triangle``,
+# ``hook`` or ``bar``.
+#
+# Each arrow end marker carries its own dimensions. The solid triangle takes
+# ``arrow.triangle.length`` and ``arrow.triangle.width``, cm along and across
+# the shaft; the open V takes ``arrow.hook.length``, the cm of one wing, and
+# ``arrow.hook.opening_angle``, the degrees between a wing and the shaft; the
+# bar takes ``arrow.bar.width``, cm across the shaft.
 _DEFAULTS: dict[str, object] = {
     "slide.width": 16.0,
     "slide.height": 9.0,
@@ -45,7 +54,13 @@ _DEFAULTS: dict[str, object] = {
     "region.content.anchor": "top-left",
     "region.content.arrange_gap": 0.25,
     "arrange.gap": 0.2,
-    "line.stroke_width": 0.03,
+    "line.stroke_width": 0.05,
+    "arrow.tip": "hook",
+    "arrow.triangle.length": 0.25,
+    "arrow.triangle.width": 0.2,
+    "arrow.hook.length": 0.3,
+    "arrow.hook.opening_angle": 45.0,
+    "arrow.bar.width": 0.2,
     "image.align": "center",
     "typst.preamble": "",
     "text.font": "libertinus serif",

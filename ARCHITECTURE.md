@@ -165,6 +165,8 @@ Intermediate class for elements with fill/stroke styling. Adds four optional fie
 
 The backend resolves `None` to the default values locally at render time — every `Drawable` element renders from its own concrete values. To restyle a subtree, the bulk setters (`set_fill_color`, `set_stroke_color`, `set_fill_opacity`, `set_stroke_width`) walk the tree and overwrite the chosen field on every `Drawable` descendant. Plain `Element` descendants (e.g. an `Image` that does not carry fill/stroke) are skipped during the walk.
 
+A node whose look depends on holding its own value for a field lists it in `Element._pinned_fields`: the walk leaves that field alone on that node and carries on into its children. A pin blocks the cascade from an ancestor; setting the field on the node itself writes.
+
 `Rectangle`, `Circle`, `Ellipse`, `Text`, and `Group` all inherit from `Drawable`. `Element` remains the base for nodes that don't carry these fields.
 
 ## Elements
@@ -195,7 +197,7 @@ The source is verbatim. Two constructs are parsed out of it: `[body][props]` spa
 
 Pygments tokenizes the plain source; each token maps to a `code.theme` role whose property dict styles it, the `words` option overlays the theme on whole-word matches, and explicit spans win over both. Each run of uniform style becomes one verbatim leaf `Text`, so the backend renders a `Code` like any other Group.
 
-### `elements/shapes.py` — `Rectangle`, `Circle`, `Ellipse`, `Line`, `Polygon`, `Curve`
+### `elements/shapes.py` — `Rectangle`, `Circle`, `Ellipse`, `Line`, `Polygon`, `Curve`, `Arrow`
 
 Geometric primitives extending `Drawable` with intrinsic dimensions and no children. The three filled shapes render as solid black with no stroke under the `Drawable` defaults; pass `fill_opacity=0` to make a layout placeholder, and `stroke_width > 0` to draw an outline.
 
@@ -210,6 +212,14 @@ The three filled shapes dispatch through a single `_shape_markup(el)` helper tha
 - `Polygon(points, ...)` is a filled, auto-closed polygon through a list of vertices (cm) in the element's local frame (at least three). Like `Line`, `_pos` is the centre of the box bounding the vertices and the stored `points` are relative to it (`get_points()` returns them in slide coords); the bbox is that vertex box. Fill/stroke follow the `Drawable` defaults. The backend's `_polygon_markup(el)` normalizes vertices to the bbox's top-left in Typst's y-down frame and emits `#polygon(fill:, stroke:, ...)`; Typst's `measure()` of a polygon is exactly the vertex box.
 
 - `Curve(segments, ...)` is a filled/stroked Bézier path. `segments` is a list of `CurveSegment` instances drawn in order; the first must be a `MoveTo`. The segment types — `MoveTo(point)`, `LineTo(point)`, `CubicTo(control_start, control_end, point)`, `QuadTo(control, point)`, `Close()` — carry points (cm) in the curve's local frame and are pure geometry (a segment never references Typst; the backend dispatches on its type). `_pos` is the centre of the box bounding **every** referenced point (endpoints and control points), and the bbox is that control-point box — a conservative bound that always contains the drawn path (a Bézier lies within the convex hull of its control points). The backend's `_curve_markup(el)` normalizes all points to the bbox's top-left in Typst's y-down frame, emits the matching `curve.move`/`curve.line`/`curve.cubic`/`curve.quad`/`curve.close` calls, and wraps the `#curve` in a `#box` sized to the bbox, which fixes `measure()` to that size for placement and anchoring. (Typst's native `measure()` of a curve pins the box to the curve's origin and drops extents on the negative side.)
+
+- `Arrow(start, end, ...)` is a `Group` of the shapes it draws with: a `Line` shaft plus one `ArrowTip` per marked endpoint, `tip` at `end` and `tail` at `start`. `tail` defaults to none, `tip` to the `ARROW_TIPS` entry the `arrow.tip` config value names, validated at construction. `_pos` is the midpoint of the endpoints, the bbox is the union of the pieces, and the backend renders each piece as the shape it is.
+
+  An `ArrowTip` is built in a canonical frame, its point at the origin aiming along `+x`, and planted on an endpoint by `_place_at(point, direction)`. `shaft_inset()` is the room it claims from the shaft: `TriangleTip` returns its `length` and the shaft ends flush with the triangle's base; `BarTip` and `HookTip` return `0` and the shaft runs to the endpoint. `_reseat` places the pieces and collapses the shaft to zero length when the markers leave it no room.
+
+  Each tip is the shape it draws as, paired with the `ArrowTip` interface. `TriangleTip` is a `Polygon` carrying `stroke_color` and `stroke_opacity` as properties over `fill_color` / `fill_opacity` (a filled tip draws no stroke; its stroke colour is what fills it) and pins `stroke_width`: restyling an arrow recolours the head and leaves it unoutlined. `BarTip` and `HookTip` are `Curve`s with `fill_opacity=0` that pin `fill_opacity` and `stroke_dash`, follow the arrow's stroke colour and width, and keep a solid head under a dashed arrow. `Arrow._restyle_pieces` pushes the group's own stroke fields down after construction and after a marker changes.
+
+  Each tip carries the dimensions its own shape needs, in the config namespace `arrow.tip` selects it by: `arrow.triangle.length` and `arrow.triangle.width` are extents along and across the shaft, `arrow.hook.length` and `arrow.hook.opening_angle` are one wing and its angle off the shaft, `arrow.bar.width` is the extent across the shaft. The shaft takes its thickness from `line.stroke_width`. A tip's `width` is pinned as well: `Rectangle` and `Ellipse` carry a field of that name and `set_width` cascades. `HookTip` names its angle `opening_angle`; `angle` belongs to `Element`, which holds the rotation there.
 
 ### `elements/spacing.py` — `VSpace`, `HSpace`
 

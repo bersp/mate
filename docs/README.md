@@ -634,6 +634,10 @@ The keys and their defaults:
 | `code.numbers`, `code.numbers_start`, `code.numbers_color` | `False`, `1`, `"gray"` |
 | `code.theme` | syntax role to properties mapping (see [Code blocks](#code-blocks)) |
 | `line.stroke_width` | `0.03` |
+| `arrow.tip` | `"hook"` |
+| `arrow.triangle.length`, `arrow.triangle.width` | `0.25`, `0.2` |
+| `arrow.hook.length`, `arrow.hook.opening_angle` | `0.3`, `45.0` |
+| `arrow.bar.width` | `0.2` |
 | `arrange.gap` | `0.2` |
 | `typst.preamble` | `""` (markup prepended to every generated document) |
 
@@ -789,8 +793,23 @@ The available shapes:
 | `Line` | `start`, `end` |
 | `Polygon` | `points` (three or more vertices) |
 | `Curve` | `segments` (`MoveTo`, `LineTo`, `QuadTo`, `CubicTo`, `Close`) |
+| `Arrow` | `start`, `end` |
 
 All of them share the same keyword arguments: `pos`, `anchor`, `id`, `fill_color`, `stroke_color`, `fill_opacity`, `stroke_width`, `stroke_dash`, `stroke_cap`, `stroke_join` and `stroke_opacity`. The defaults are a solid black fill with no stroke; `fill_opacity=0` gives a stroke-only shape, and a `Line` draws only its stroke.
+
+An `Arrow` is a segment with a marker on one or both ends, and takes the same stroke arguments as a `Line`. `tip` is the marker at `end`, `tail` the one at `start`. There are three:
+
+- `TriangleTip(length, width)` is a solid head. The shaft stops at its base.
+- `HookTip(length, opening_angle)` is an open V. Its wings run `length` back from the point, `opening_angle` degrees off the shaft.
+- `BarTip(width)` is a bar across the shaft.
+
+`tail` defaults to nothing. `tip` defaults to `arrow.tip`: `"triangle"`, `"hook"` or `"bar"`, starting at `"hook"`. Every size defaults to an `arrow.*` config value. Setting a color on the arrow sets it on the markers too.
+
+```python
+Arrow((-3, 0), (3, 0))
+Arrow((-3, -1), (3, -1), tip=HookTip(), tail=BarTip(), stroke_color="red")
+Arrow((-3, -2), (3, -2), tip=TriangleTip(length=0.5, width=0.4), stroke_dash="dashed")
+```
 
 ## As a library
 

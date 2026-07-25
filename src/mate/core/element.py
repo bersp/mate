@@ -237,6 +237,14 @@ class Element:
         Cached ``(x, y, w, h)`` in cm; ``None`` means not yet measured.
     """
 
+    _pinned_fields: frozenset[str] = frozenset()
+    """Fields a bulk set cascading from an ancestor leaves alone.
+
+    A subclass whose look depends on holding its own value for a field lists
+    it here: :meth:`_set_field` walks past that field on this node and carries
+    on into its children. Setting the field on the node itself writes.
+    """
+
     def __init__(
         self,
         *,
@@ -679,14 +687,16 @@ class Element:
         :class:`Drawable`-only field (``fill_color`` etc.) skips plain
         :class:`Element` descendants automatically, and a class-specific
         intrinsic (``width``, ``radius``) only touches nodes that have it.
-        With ``propagate=False`` only the receiver is written.
+        A descendant listing the field in :attr:`_pinned_fields` keeps its own
+        value and the walk carries on into its children. With
+        ``propagate=False`` only the receiver is written.
         """
         if not propagate:
             setattr(self, field, value)
             return
 
         def walk(el: Element) -> None:
-            if hasattr(el, field):
+            if hasattr(el, field) and (el is self or field not in el._pinned_fields):
                 setattr(el, field, value)
             for c in el.children:
                 walk(c)

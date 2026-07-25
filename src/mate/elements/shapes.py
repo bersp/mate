@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import math
+
 from ..config import config
-from ..core.element import Anchor, HAlign, Placement
+from ..core.element import Anchor, Element, HAlign, Placement
 from ..core.registry import IDKey
 from ..core.drawable import Drawable
 from ..core.vec import Vec, VecLike
+from .group import Group
 
 CORNERS = ("top-left", "top-right", "bottom-left", "bottom-right")
 
@@ -417,6 +420,13 @@ def _points_bounding_center(points: list[Vec]) -> Vec:
     return Vec(((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2))
 
 
+def _points_spans(points: list[Vec]) -> tuple[float, float]:
+    """Return the width and height of the axis-aligned box bounding ``points``."""
+    xs = [p.x for p in points]
+    ys = [p.y for p in points]
+    return max(xs) - min(xs), max(ys) - min(ys)
+
+
 class Polygon(Drawable):
     """Filled polygon through a list of vertices.
 
@@ -497,16 +507,10 @@ class Polygon(Drawable):
         return self
 
     def get_width(self) -> float:
-        return self._transformed_extents(*self._point_spans())[0]
+        return self._transformed_extents(*_points_spans(self.points))[0]
 
     def get_height(self) -> float:
-        return self._transformed_extents(*self._point_spans())[1]
-
-    def _point_spans(self) -> tuple[float, float]:
-        """Return the width and height of the vertex bounding box."""
-        xs = [p.x for p in self.points]
-        ys = [p.y for p in self.points]
-        return max(xs) - min(xs), max(ys) - min(ys)
+        return self._transformed_extents(*_points_spans(self.points))[1]
 
     def _repr_fields(self) -> str:
         return f"points={len(self.points)}"
@@ -725,17 +729,419 @@ class Curve(Drawable):
         return [p for s in self.segments for p in s._points()]
 
     def get_width(self) -> float:
-        return self._transformed_extents(*self._point_spans())[0]
+        return self._transformed_extents(*_points_spans(self._all_points()))[0]
 
     def get_height(self) -> float:
-        return self._transformed_extents(*self._point_spans())[1]
-
-    def _point_spans(self) -> tuple[float, float]:
-        """Return the width and height of the control-point bounding box."""
-        points = self._all_points()
-        xs = [p.x for p in points]
-        ys = [p.y for p in points]
-        return max(xs) - min(xs), max(ys) - min(ys)
+        return self._transformed_extents(*_points_spans(self._all_points()))[1]
 
     def _repr_fields(self) -> str:
         return f"segments={len(self.segments)}"
+
+
+def _unit(delta: Vec) -> Vec:
+    """Return ``delta`` scaled to unit length."""
+    return Vec(delta / math.hypot(delta.x, delta.y))
+
+
+def _perpendicular(direction: Vec) -> Vec:
+    """Return the vector ``direction`` rotated a quarter turn counterclockwise."""
+    return Vec(-direction.y, direction.x)
+
+
+def _aimed(points: list[Vec], point: Vec, direction: Vec) -> list[Vec]:
+    """Map tip points from the canonical frame onto ``point``.
+
+    The canonical frame has the tip's point at the origin aiming along ``+x``.
+    ``direction`` is its x axis and the perpendicular its y axis.
+    """
+    across = _perpendicular(direction)
+    return [Vec(point + direction * p.x + across * p.y) for p in points]
+
+
+def _open_path(points: list[Vec]) -> list[CurveSegment]:
+    """Return the segments drawing an open polyline through ``points``."""
+    return [MoveTo(points[0]), *(LineTo(p) for p in points[1:])]
+
+
+class ArrowTip:
+    """Base class for the end markers of an :class:`Arrow`.
+
+    A tip is a shape like any other. Each concrete tip pairs this class with
+    the shape it draws as, and is built in a canonical frame: its point at the
+    origin, aiming along ``+x``. :meth:`_place_at` plants it on an endpoint.
+
+    A tip pins the style fields its look depends on (see
+    :attr:`~mate.core.element.Element._pinned_fields`). Restyling an arrow then
+    reaches the pieces that follow the arrow's stroke and leaves the rest.
+    """
+
+    def _place_at(self, point: Vec, direction: Vec) -> None:
+        """Move the tip onto ``point``, aimed along the unit ``direction``."""
+        raise NotImplementedError
+
+    def shaft_inset(self) -> float:
+        """Return how far the shaft stops short of the tip's point."""
+        raise NotImplementedError
+
+
+class TriangleTip(ArrowTip, Polygon):
+    """Solid triangle with its apex on the endpoint.
+
+    The base sits ``length`` back along the shaft and spans ``width`` across
+    it. The shaft pulls back the full ``length`` and ends flush with the base.
+    The triangle carries no stroke; its stroke color is what fills it.
+
+    Parameters
+    ----------
+    length : float or None, optional
+        Extent along the shaft in cm. ``None`` (default) reads
+        ``arrow.triangle.length`` from the config.
+    width : float or None, optional
+        Extent across the shaft in cm. ``None`` (default) reads
+        ``arrow.triangle.width`` from the config.
+    """
+
+    _pinned_fields = frozenset({"stroke_width", "width"})
+
+    def __init__(
+        self, length: float | None = None, width: float | None = None
+    ) -> None:
+        self.length: float = (
+            config.get("arrow.triangle.length") if length is None else length
+        )
+        self.width: float = (
+            config.get("arrow.triangle.width") if width is None else width
+        )
+        super().__init__(self._canonical_points())
+
+    @property
+    def stroke_color(self) -> str | None:
+        """The fill. A filled tip draws no stroke; the two are one color."""
+        return self.fill_color
+
+    @stroke_color.setter
+    def stroke_color(self, color: str | None) -> None:
+        self.fill_color = color
+
+    @property
+    def stroke_opacity(self) -> float | None:
+        """The fill opacity, on the same footing as :attr:`stroke_color`."""
+        return self.fill_opacity
+
+    @stroke_opacity.setter
+    def stroke_opacity(self, opacity: float | None) -> None:
+        self.fill_opacity = opacity
+
+    def _canonical_points(self) -> list[Vec]:
+        return [
+            Vec(0.0, 0.0),
+            Vec(-self.length, self.width / 2),
+            Vec(-self.length, -self.width / 2),
+        ]
+
+    def _place_at(self, point: Vec, direction: Vec) -> None:
+        self.set_points(_aimed(self._canonical_points(), point, direction))
+
+    def shaft_inset(self) -> float:
+        return self.length
+
+    def _repr_fields(self) -> str:
+        return f"length={self.length:.4g}, width={self.width:.4g}"
+
+
+class BarTip(ArrowTip, Curve):
+    """Open bar across the shaft, centred on the endpoint.
+
+    The bar spans ``width`` across the shaft, and the shaft runs all the way to
+    the endpoint, meeting the bar at its middle. The bar is drawn in the
+    arrow's stroke and follows its ``stroke_color`` and ``stroke_width``.
+
+    Parameters
+    ----------
+    width : float or None, optional
+        Extent across the shaft in cm. ``None`` (default) reads
+        ``arrow.bar.width`` from the config.
+    """
+
+    _pinned_fields = frozenset({"fill_opacity", "stroke_dash", "width"})
+
+    def __init__(self, width: float | None = None) -> None:
+        self.width: float = config.get("arrow.bar.width") if width is None else width
+        super().__init__(_open_path(self._canonical_points()), fill_opacity=0)
+
+    def _canonical_points(self) -> list[Vec]:
+        return [Vec(0.0, self.width / 2), Vec(0.0, -self.width / 2)]
+
+    def _place_at(self, point: Vec, direction: Vec) -> None:
+        placed = _aimed(self._canonical_points(), point, direction)
+        self.set_segments(_open_path(placed))
+
+    def shaft_inset(self) -> float:
+        return 0.0
+
+    def _repr_fields(self) -> str:
+        return f"width={self.width:.4g}"
+
+
+class HookTip(ArrowTip, Curve):
+    """Open V: two strokes meeting on the endpoint.
+
+    Each wing runs ``length`` back from the endpoint, ``opening_angle`` degrees
+    off the shaft. The shaft runs all the way to the endpoint, where the wings
+    meet it. The V is drawn in the arrow's stroke and follows its
+    ``stroke_color`` and ``stroke_width``. It keeps its own dash, and a dashed
+    arrow lands on a solid head.
+
+    Parameters
+    ----------
+    length : float or None, optional
+        Wing length in cm. ``None`` (default) reads ``arrow.hook.length``
+        from the config.
+    opening_angle : float or None, optional
+        Angle between a wing and the shaft, in degrees. ``None`` (default)
+        reads ``arrow.hook.opening_angle`` from the config.
+    """
+
+    _pinned_fields = frozenset({"fill_opacity", "stroke_dash"})
+
+    def __init__(
+        self, length: float | None = None, opening_angle: float | None = None
+    ) -> None:
+        self.length: float = (
+            config.get("arrow.hook.length") if length is None else length
+        )
+        self.opening_angle: float = (
+            config.get("arrow.hook.opening_angle")
+            if opening_angle is None
+            else opening_angle
+        )
+        super().__init__(_open_path(self._canonical_points()), fill_opacity=0)
+
+    def _canonical_points(self) -> list[Vec]:
+        theta = math.radians(self.opening_angle)
+        back = -self.length * math.cos(theta)
+        across = self.length * math.sin(theta)
+        return [Vec(back, across), Vec(0.0, 0.0), Vec(back, -across)]
+
+    def _place_at(self, point: Vec, direction: Vec) -> None:
+        placed = _aimed(self._canonical_points(), point, direction)
+        self.set_segments(_open_path(placed))
+
+    def shaft_inset(self) -> float:
+        return 0.0
+
+    def _repr_fields(self) -> str:
+        return f"length={self.length:.4g}, opening_angle={self.opening_angle:.4g}"
+
+
+ARROW_TIPS: dict[str, type[ArrowTip]] = {
+    "triangle": TriangleTip,
+    "hook": HookTip,
+    "bar": BarTip,
+}
+"""The :class:`ArrowTip` subclass each ``arrow.tip`` config name builds."""
+
+
+def _named_tip(name: str) -> ArrowTip:
+    """Build the tip ``name`` stands for, at its config dimensions."""
+    if name not in ARROW_TIPS:
+        raise ValueError(
+            f"unknown arrow tip {name!r}; valid: {', '.join(ARROW_TIPS)}"
+        )
+    return ARROW_TIPS[name]()
+
+
+class Arrow(Group):
+    """Segment carrying an end marker on one or both endpoints.
+
+    An arrow is the group of the shapes it is drawn from: a :class:`Line`
+    shaft and one :class:`ArrowTip` per marked endpoint. The shaft stops short
+    of a marker that claims the room. The bbox is the union of the pieces and
+    covers the markers. ``_pos`` is the midpoint of the endpoints, and the
+    whole thing moves rigidly under
+    :meth:`~mate.core.element.Element.move_to`,
+    :meth:`~mate.core.element.Element.shift`, and region arrangement.
+
+    The stroke fields reach the pieces that follow them: ``set_stroke_color``
+    recolors the shaft and both markers, and ``set_stroke_width`` thickens the
+    shaft and the open markers, leaving a filled one unoutlined.
+
+    Parameters
+    ----------
+    start, end : VecLike
+        Two distinct endpoints in cm. Positional.
+    tip : ArrowTip or None, optional
+        Marker at ``end``. ``None`` (default) builds the one ``arrow.tip``
+        names in the config; an arrow always carries a head, a plain segment
+        is a :class:`Line`.
+    tail : ArrowTip or None, optional
+        Marker at ``start``. ``None`` (default) leaves that end bare.
+    stroke_width : float or None, optional
+        Stroke thickness in cm. ``None`` (default) reads
+        ``line.stroke_width`` from the config.
+    placement, id, stroke_color, stroke_dash, stroke_cap, stroke_join, stroke_opacity
+        Keyword-only. See :class:`~mate.core.drawable.Drawable`.
+
+    Attributes
+    ----------
+    start, end : Vec
+        The endpoints relative to ``_pos``; :meth:`get_start` / :meth:`get_end`
+        return the endpoints themselves.
+    shaft : Line
+        The segment drawn between the markers.
+    tip, tail : ArrowTip or None
+        The markers drawn at ``end`` and at ``start``.
+    """
+
+    def __init__(
+        self,
+        start: VecLike,
+        end: VecLike,
+        *,
+        tip: ArrowTip | None = None,
+        tail: ArrowTip | None = None,
+        placement: Placement = "fixed",
+        id: IDKey | list[IDKey] | None = None,
+        stroke_color: str | None = None,
+        stroke_width: float | None = None,
+        stroke_dash: str | list[float] | None = None,
+        stroke_cap: str | None = None,
+        stroke_join: str | None = None,
+        stroke_opacity: float | None = None,
+    ) -> None:
+        start, end = Vec(start), Vec(end)
+        self.shaft: Line = Line(start, end)
+        self.tip: ArrowTip = _named_tip(config.get("arrow.tip")) if tip is None else tip
+        self.tail: ArrowTip | None = tail
+        pieces = [self.shaft, self.tip]
+        if self.tail is not None:
+            pieces.append(self.tail)
+        super().__init__(
+            pieces,
+            pos=(start + end) / 2,
+            placement=placement,
+            id=id,
+            stroke_color=stroke_color,
+            stroke_width=(
+                config.get("line.stroke_width")
+                if stroke_width is None
+                else stroke_width
+            ),
+            stroke_dash=stroke_dash,
+            stroke_cap=stroke_cap,
+            stroke_join=stroke_join,
+            stroke_opacity=stroke_opacity,
+        )
+        self.start: Vec = Vec(start - self._pos)
+        self.end: Vec = Vec(end - self._pos)
+        self._reseat(start, end)
+        self._restyle_pieces()
+
+    def get_start(self) -> Vec:
+        """Return the start endpoint."""
+        return Vec(self._pos + self.start)
+
+    def get_end(self) -> Vec:
+        """Return the end endpoint."""
+        return Vec(self._pos + self.end)
+
+    def set_start(self, start: VecLike) -> Arrow:
+        """Set the start endpoint, keeping ``end`` fixed.
+
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        self._reseat(Vec(start), self.get_end())
+        return self
+
+    def set_end(self, end: VecLike) -> Arrow:
+        """Set the end endpoint, keeping ``start`` fixed.
+
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        self._reseat(self.get_start(), Vec(end))
+        return self
+
+    def set_tip(self, tip: ArrowTip) -> Arrow:
+        """Set the marker drawn at the end endpoint.
+
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        self.remove(self.tip)
+        self.tip = tip
+        self.add(tip)
+        self._reseat(self.get_start(), self.get_end())
+        self._restyle_pieces()
+        return self
+
+    def set_tail(self, tail: ArrowTip | None) -> Arrow:
+        """Set the marker drawn at the start endpoint; ``None`` leaves it bare.
+
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        if self.tail is not None:
+            self.remove(self.tail)
+        self.tail = tail
+        if tail is not None:
+            self.add(tail)
+        self._reseat(self.get_start(), self.get_end())
+        self._restyle_pieces()
+        return self
+
+    def _repr_fields(self) -> str:
+        s, e = self.get_start(), self.get_end()
+        fields = (
+            f"start=({s.x:.4g}, {s.y:.4g}), end=({e.x:.4g}, {e.y:.4g}), "
+            f"tip={self.tip!r}"
+        )
+        if self.tail is not None:
+            fields += f", tail={self.tail!r}"
+        return fields
+
+    def _copy(self, mapping: dict[int, Element]) -> Arrow:
+        # `shaft`, `tip` and `tail` are children: the superclass walk has
+        # already cloned them, and only these references need repointing.
+        new = super()._copy(mapping)
+        new.shaft = mapping[id(self.shaft)]
+        new.tip = mapping[id(self.tip)]
+        if self.tail is not None:
+            new.tail = mapping[id(self.tail)]
+        return new
+
+    def _reseat(self, start: Vec, end: Vec) -> None:
+        """Re-anchor on the new endpoints: place every piece, recenter ``_pos``."""
+        if start.x == end.x and start.y == end.y:
+            raise ValueError(
+                "Arrow needs distinct endpoints, got both at "
+                f"({start.x:.4g}, {start.y:.4g})."
+            )
+        direction = _unit(Vec(end - start))
+        self.tip._place_at(end, direction)
+        if self.tail is not None:
+            self.tail._place_at(start, Vec(-direction))
+        self.shaft.set_start(start + direction * self._tail_inset())
+        self.shaft.set_end(end - direction * self.tip.shaft_inset())
+        if not self._shaft_runs_forward(direction):
+            self.shaft.set_start(self.shaft.get_end())
+        center = Vec((start + end) / 2)
+        self._pos = center
+        self.start = Vec(start - center)
+        self.end = Vec(end - center)
+        self._invalidate_tree()
+
+    def _tail_inset(self) -> float:
+        """Return how far the shaft starts past the start endpoint."""
+        return 0.0 if self.tail is None else self.tail.shaft_inset()
+
+    def _shaft_runs_forward(self, direction: Vec) -> bool:
+        """Whether the markers left the shaft any room to draw."""
+        span = self.shaft.get_end() - self.shaft.get_start()
+        return span.x * direction.x + span.y * direction.y > 0
+
+    def _restyle_pieces(self) -> None:
+        """Push the arrow's stroke fields onto the pieces it is drawn from."""
+        self.set_stroke_color(self.stroke_color)
+        self.set_stroke_width(self.stroke_width)
+        self.set_stroke_dash(self.stroke_dash)
+        self.set_stroke_cap(self.stroke_cap)
+        self.set_stroke_join(self.stroke_join)
+        self.set_stroke_opacity(self.stroke_opacity)
