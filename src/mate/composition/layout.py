@@ -44,12 +44,8 @@ class Region:
         self.elements: list[Element] = []
 
     @classmethod
-    def from_vertices(
-        cls,
-        top_left: VecLike,
-        bottom_right: VecLike,
-        **kw,
-    ) -> Region:
+    def from_vertices(cls, top_left: VecLike, bottom_right: VecLike, **kw) -> Region:
+        """Region spanning the box between two opposite corners."""
         tl = Vec(top_left)
         br = Vec(bottom_right)
         return cls(
@@ -187,17 +183,6 @@ class Region:
         self._arrange_gap = float(value)
         return self
 
-    @staticmethod
-    def merge_regions(regions: list[Region]) -> Region:
-        """Return a region whose bbox encloses every region in ``regions``."""
-        lefts = [r.left.x for r in regions]
-        rights = [r.right.x for r in regions]
-        tops = [r.top.y for r in regions]
-        bottoms = [r.bottom.y for r in regions]
-        left, r = min(lefts), max(rights)
-        b, t = min(bottoms), max(tops)
-        return Region(((left + r) / 2, (t + b) / 2), r - left, t - b)
-
     def adjust_borders(
         self,
         *,
@@ -287,10 +272,9 @@ class Region:
             r = left_edges[cmax] + cell_w[cmax]
             t = top_edges[rmin]
             b = top_edges[rmax] - cell_h[rmax]
-            out[str(label)] = Region(
-                ((left + r) / 2, (t + b) / 2),
-                r - left,
-                t - b,
+            out[str(label)] = Region.from_vertices(
+                (left, t),
+                (r, b),
                 anchor=self._anchor,
                 arrange_gap=self._arrange_gap,
             )
