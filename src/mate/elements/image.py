@@ -125,7 +125,7 @@ class Image(Element):
             if (x, y, width, height) == (0.0, 0.0, 1.0, 1.0):
                 window = None
         self.crop_window = window
-        self._invalidate_subtree_and_ancestors()
+        self._invalidate_tree()
 
     def _repr_fields(self) -> str:
         return f"path={self.path!r}"
