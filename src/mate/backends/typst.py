@@ -762,9 +762,10 @@ def _image_markup(el: Image) -> str:
     aspect ratio for any left free.
 
     A crop window measures the rendered image and shows only its
-    ``(x, y, width, height)`` fraction inside a ``#box(clip: true)``,
-    placing the full image at a negative offset that lands the window's
-    top-left at the box origin.
+    ``(x, y, width, height)`` fraction inside a ``#box(clip: true)``. The
+    image sits in a block of its own full height, which holds it against
+    the top of the box, moved by the negative offset that lands the
+    window's top-left at the box origin.
     """
     path = _escape_typst_string(str(Path(el.path).resolve()))
     attrs = [f'"{path}"']
@@ -779,7 +780,8 @@ def _image_markup(el: Image) -> str:
     return (
         f"#context {{ let im = {image}; let m = measure(im); "
         f"box(clip: true, width: m.width * {w}, height: m.height * {h}, "
-        f"place(dx: -m.width * {x}, dy: -m.height * {y}, im)) }}"
+        f"block(height: m.height, "
+        f"move(dx: -m.width * {x}, dy: -m.height * {y}, im))) }}"
     )
 
 
