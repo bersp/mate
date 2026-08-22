@@ -1001,13 +1001,19 @@ class TypstRenderer:
         return "\n".join(lines)
 
     def compile_document(
-        self, fragments: list[str], canvas: tuple[float, float], path: str | Path
+        self,
+        fragments: list[str],
+        canvas: tuple[float, float],
+        path: str | Path,
+        ppi: float | None = None,
     ) -> None:
-        """Assemble per-slide ``fragments`` and compile them to a PDF at ``path``.
+        """Assemble per-slide ``fragments`` and compile them to a file at ``path``.
 
         The document source is built in memory and handed to the bundled
         Typst compiler; no intermediate ``.typ`` is written. Consecutive
-        fragments are separated by ``#pagebreak()``.
+        fragments are separated by ``#pagebreak()``. The suffix of ``path``
+        picks the output format (``.pdf``, ``.png``, ``.svg``) and ``ppi``
+        sets the resolution of a raster one, defaulting to the compiler's.
         """
         width, height = canvas
         preamble = (
@@ -1023,6 +1029,7 @@ class TypstRenderer:
                 root="/",
                 font_paths=_font_paths(),
                 ignore_system_fonts=True,
+                ppi=ppi,
             )
         except RuntimeError as exc:
             culprit = _isolate_compile_culprit(fragments, preamble)

@@ -110,12 +110,15 @@ class Presentation(PresentationTemplateBase):
             extra={"markup": True, "highlighter": None},
         )
 
-    def write(self) -> None:
-        """Compile the closed slides into ``<name>.pdf`` in the working directory.
+    def write(self, path: str | Path | None = None, ppi: float | None = None) -> None:
+        """Compile the closed slides into a file at ``path``.
 
-        Raises if any slide is still open — call :meth:`Presentation.end_slide`
-        first — or, when ``total_slides`` was declared, if the number of content
-        slides built (covers excluded) differs from it.
+        ``path`` defaults to ``<name>.pdf`` in the working directory; its
+        suffix picks the output format and ``ppi`` the resolution of a raster
+        one. Raises if any slide is still open (call
+        :meth:`Presentation.end_slide` first) or, when ``total_slides`` was
+        declared, if the number of content slides built (covers excluded)
+        differs from it.
         """
         open_count = sum(not s.is_sealed for s in self.slides)
         if open_count:
@@ -127,15 +130,16 @@ class Presentation(PresentationTemplateBase):
             raise RuntimeError(
                 f"declared {self.total_slides} slide(s) but built {content_count}."
             )
-        path = Path(f"{self.name}.pdf")
+        path = Path(path) if path is not None else Path(f"{self.name}.pdf")
         logger.info(
-            rf"[yellow b]Compiling[/yellow b] [magenta]{self.name}.pdf[/magenta]",
+            rf"[yellow b]Compiling[/yellow b] [magenta]{path}[/magenta]",
             extra={"markup": True, "highlighter": None},
         )
         self._renderer.compile_document(
             [snap.markup for s in self.slides for snap in s.snapshots],
             (self.width, self.height),
             path,
+            ppi,
         )
         logger.info(
             "[green b]Ready[/green b]",

@@ -30,13 +30,14 @@ class Figure:
         self.elements.append(element)
         return element
 
-    def write(self, path: str | Path) -> None:
-        """Compile the elements into a PDF at ``path`` sized to their union bbox.
+    def write(self, path: str | Path, ppi: float | None = None) -> None:
+        """Compile the elements into a file at ``path`` sized to their union bbox.
 
         Measures every element in one pass and translates them in place to
         centre the union bbox at the origin; the page matches the union's
-        size exactly. A repeated ``write`` translates by zero. Raises if no
-        element has been added.
+        size exactly. A repeated ``write`` translates by zero. The suffix of
+        ``path`` picks the output format and ``ppi`` the resolution of a
+        raster one. Raises if no element has been added.
         """
         if not self.elements:
             raise RuntimeError("the figure has no elements; call .add() before write().")
@@ -50,5 +51,8 @@ class Figure:
             extra={"markup": True, "highlighter": None},
         )
         self._renderer.compile_document(
-            [self._renderer.render_snapshot(self.elements, canvas)], canvas, Path(path)
+            [self._renderer.render_snapshot(self.elements, canvas)],
+            canvas,
+            Path(path),
+            ppi,
         )

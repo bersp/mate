@@ -343,7 +343,7 @@ if __name__ == "__main__":
     fig.write("scene.pdf")
 ```
 
-Run directly (`python scene.py`), the file compiles a PDF sized to the drawing. `> add mate figure` embeds the same file in a deck:
+Run directly (`python scene.py`), the file compiles a PDF sized to the drawing. The suffix of the path picks the format (`.pdf`, `.png` or `.svg`) and `ppi=` sets the resolution of a raster one. `> add mate figure` embeds the same file in a deck:
 
 ```markdown
 > add mate figure : "scene.py"
@@ -827,3 +827,5 @@ pres.add_bullet_item("a bullet item")
 pres.end_slide()
 pres.write()  # deck.pdf
 ```
+
+`write` also takes an output path, `pres.write("talk.png", ppi=200)`, with the same formats as a figure.
