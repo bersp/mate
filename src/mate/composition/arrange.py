@@ -7,7 +7,7 @@ from ..elements.spacing import HSpace, VSpace
 
 # Fraction of the region's horizontal extent at which an element's
 # matching bbox edge sits: left edge at 0, center at 0.5, right at 1.
-_ALIGN_FRACTION = {"left": 0.0, "center": 0.5, "right": 1.0}
+ALIGN_FRACTION = {"left": 0.0, "center": 0.5, "right": 1.0}
 
 
 def arrange(
@@ -112,7 +112,7 @@ def arrange(
 
     for i, (el, h, w) in enumerate(zip(elements, heights, widths)):
         h_mul, v_mul = anchor_offsets(el.anchor)
-        a = stack_h_mul if el.align is None else _ALIGN_FRACTION[el.align]
+        a = stack_h_mul if el.align is None else ALIGN_FRACTION[el.align]
         # Place the element so its left edge sits at `a` of the way
         # through the free space `extent - w`; `move_to` then honors the
         # element's own anchor to land that left edge.

@@ -759,24 +759,30 @@ def _image_markup(el: Image) -> str:
     identically from the measurer's aux ``.typ`` and the renderer's
     in-memory source — both compile with the Typst root at ``/``. Only
     the dimensions that are set are emitted, so Typst keeps the file's
-    aspect ratio for any left free.
+    aspect ratio for any left free. A crop divides them by its own
+    fractions: they size the piece it names, not the whole file.
 
-    A crop window measures the rendered image and shows only its
-    ``(x, y, width, height)`` fraction inside a ``#box(clip: true)``. The
+    Crop and mask compose into one visible rectangle of the file, shown
+    inside a ``#box(clip: true)`` that measures the rendered image. The
     image sits in a block of its own full height, which holds it against
     the top of the box, moved by the negative offset that lands the
-    window's top-left at the box origin.
+    rectangle's top-left at the box origin.
     """
     path = _escape_typst_string(str(Path(el.path).resolve()))
+    crop_x, crop_y, crop_w, crop_h = el.crop_window or (0.0, 0.0, 1.0, 1.0)
     attrs = [f'"{path}"']
     if el.width is not None:
-        attrs.append(f"width: {el.width}cm")
+        attrs.append(f"width: {el.width / crop_w}cm")
     if el.height is not None:
-        attrs.append(f"height: {el.height}cm")
+        attrs.append(f"height: {el.height / crop_h}cm")
     image = f"image({', '.join(attrs)})"
-    if el.crop_window is None:
+    if el.crop_window is None and el.mask_window is None:
         return f"#{image}"
-    x, y, w, h = el.crop_window
+    mask_x, mask_y, mask_w, mask_h = el.mask_window or (0.0, 0.0, 1.0, 1.0)
+    x = crop_x + mask_x * crop_w
+    y = crop_y + mask_y * crop_h
+    w = mask_w * crop_w
+    h = mask_h * crop_h
     return (
         f"#context {{ let im = {image}; let m = measure(im); "
         f"box(clip: true, width: m.width * {w}, height: m.height * {h}, "

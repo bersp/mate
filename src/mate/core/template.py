@@ -8,7 +8,7 @@ from functools import cache
 from itertools import cycle
 from pathlib import Path
 
-from ..composition.arrange import arrange
+from ..composition.arrange import ALIGN_FRACTION, arrange
 from ..composition.layout import Layout, Region
 from ..composition.utils import layout_to_group
 from ..config import config
@@ -43,6 +43,7 @@ from .element import (
     Anchor,
     Element,
     HAlign,
+    anchor_offsets,
     bbox_anchor_point,
     measure_all,
     union_bbox,
@@ -1011,12 +1012,14 @@ class PresentationTemplateBase:
     ) -> Image:
         """Create an :class:`Image` and add it to a region and the slide.
 
-        ``region`` is the target region name. ``width`` and ``height`` are
-        each either a length in cm or a ``"<n>%"`` string read as that
-        percentage of the region's width/height. Setting one alone lets the
-        other follow the file's aspect ratio; setting neither scales the image
-        as large as it fits inside the region, binding whichever extent the
-        image's aspect ratio reaches first. ``align``
+        ``region`` is the target region name. A ``crop`` keyword names the
+        sub-rectangle of the file to draw, and every dimension below is then
+        the piece's. ``width`` and ``height`` are each either a length in cm
+        or a ``"<n>%"`` string read as that percentage of the region's
+        width/height. Setting one alone lets the other follow the file's
+        aspect ratio; setting neither scales the image as large as it fits
+        inside the region, binding whichever extent the image's aspect ratio
+        reaches first. ``align``
         defaults to the ``image.align`` config value; the remaining keyword
         arguments are forwarded to :class:`Image`.
 
@@ -1030,7 +1033,7 @@ class PresentationTemplateBase:
         width_cm = self._resolve_image_extent(width, available_width)
         height_cm = self._resolve_image_extent(height, target_region.height)
         if width_cm is None and height_cm is None:
-            natural = Image(path)
+            natural = Image(path, crop=image_kwargs.get("crop"))
             image_aspect = natural.get_width() / natural.get_height()
             region_aspect = available_width / target_region.height
             if image_aspect >= region_aspect:
@@ -1100,7 +1103,7 @@ class PresentationTemplateBase:
             target_region.add(group)
         return group
 
-    def crop_image(
+    def mask_image(
         self,
         id: IDKey,
         x: float = 0.0,
@@ -1108,20 +1111,21 @@ class PresentationTemplateBase:
         width: float = 1.0,
         height: float = 1.0,
     ) -> None:
-        """Crop every image registered under ``id`` to a sub-rectangle.
+        """Mask every image registered under ``id`` down to a window of itself.
 
-        ``(x, y, width, height)`` are fractions of the image; see
-        :meth:`~mate.elements.image.Image.crop`. The crop applies from the
-        reveal step of this call onward.
+        ``(x, y, width, height)`` are fractions of the picture the image
+        draws; see :meth:`~mate.elements.image.Image.mask`. The mask applies
+        from the reveal step of this call onward, and the picture stays where
+        it is.
         """
-        self.modify(id, crop=(x, y, width, height))
+        self.modify(id, mask=(x, y, width, height))
 
-    def uncrop_image(self, id: IDKey) -> None:
-        """Drop the crop from every image registered under ``id``.
+    def unmask_image(self, id: IDKey) -> None:
+        """Drop the mask from every image registered under ``id``.
 
-        The whole image shows again from the reveal step of this call onward.
+        The whole picture shows again from the reveal step of this call onward.
         """
-        self.modify(id, crop=None)
+        self.modify(id, mask=None)
 
     def modify(self, id: IDKey, **props) -> None:
         """Apply ``props`` to every element registered under ``id``.
@@ -1153,7 +1157,8 @@ class PresentationTemplateBase:
         containing each target. For each reveal step that carries an edit, the
         root is cloned with every edit up to and including that step applied, the
         previous version is hidden from that step onward, and the clone is shown
-        from it.
+        from it. A clone whose root a region stacks is held on the point its
+        edit fixes (see :meth:`_hold_clone_edges`).
         """
         slide = self.current_slide
 
@@ -1171,8 +1176,10 @@ class PresentationTemplateBase:
             for root_id, members in members_by_root.items():
                 buckets[root_id][1].append((step, members, props))
 
+        held: list[tuple[Element, Element, float]] = []
         for root, edits in buckets.values():
             steps = sorted({edit[0] for edit in edits})
+            align_fraction = self._stack_align_fraction(root)
             previous = root
             clones: dict[int, Element] = {}
             for step in steps:
@@ -1189,6 +1196,8 @@ class PresentationTemplateBase:
                 slide.steps[step].append(clone)
                 clones[step] = clone
                 previous = clone
+                if align_fraction is not None:
+                    held.append((root, clone, align_fraction))
             # A removal scheduled for the original (by an alternate or
             # overwrite) also drops the clone standing in for it at that step.
             for s, el in list(slide.replaced):
@@ -1196,7 +1205,82 @@ class PresentationTemplateBase:
                     active = [st for st in steps if st <= s]
                     if active:
                         slide.replaced.append((s, clones[active[-1]]))
+        self._hold_clone_edges(held)
         self._modifies = []
+
+    def _stack_align_fraction(self, el: Element) -> float | None:
+        """Return the fraction of ``el``'s width that its region's stack pins.
+
+        Mirrors the horizontal placement of
+        :func:`~mate.composition.arrange.arrange`: the element's own ``align``,
+        falling back to the horizontal half of the region's anchor. ``None``
+        for an element no region stacks, whose ``pos`` and ``anchor`` place it
+        on their own.
+        """
+        try:
+            region = self._region_of(el)
+        except ValueError:
+            return None
+        if el.align is not None:
+            return ALIGN_FRACTION[el.align]
+        return anchor_offsets(region.anchor)[0]
+
+    @classmethod
+    def _hold_clone_edges(cls, held: list[tuple[Element, Element, float]]) -> None:
+        """Translate each clone back onto the point its edit holds fixed.
+
+        The default hold is the pair of box edges the stack gave the root:
+        ``arrange`` places a stacked element by its top edge and by the
+        horizontal edge ``align_fraction`` names, and an edit that changes the
+        element's size moves both. An edit carrying a fixed point of its own
+        holds that one instead (see :meth:`_hold_mask_window`). A displacement
+        the edit asks for shows up as a change of the stored position and is
+        added back on top, so a ``shift`` still lands where it wanted. Every
+        element is measured in one batch, and the translation carries into the
+        bbox cache the measurement filled.
+        """
+        if not held:
+            return
+        measure_all([el for root, clone, _ in held for el in (root, clone)])
+        for root, clone, align_fraction in held:
+            hold = cls._hold_mask_window(root, clone)
+            if hold is None:
+                root_x, root_y, root_w, root_h = root.get_bbox()
+                clone_x, clone_y, clone_w, clone_h = clone.get_bbox()
+                root_edge = root_x + (align_fraction - 0.5) * root_w
+                clone_edge = clone_x + (align_fraction - 0.5) * clone_w
+                hold = Vec(
+                    root_edge - clone_edge,
+                    (root_y + root_h / 2) - (clone_y + clone_h / 2),
+                )
+            delta = hold + (clone._pos - root._pos)
+            clone._translate(delta)
+            clone._apply_translation_to_bbox_cache(delta)
+
+    @staticmethod
+    def _hold_mask_window(root: Element, clone: Element) -> Vec | None:
+        """Return the translation that leaves ``clone``'s mask window in place.
+
+        A mask covers a picture that stays where it is: the fixed point of the
+        edit is the whole picture, and the window lands on the part of it that
+        was already there. Dividing the root's bbox by its own window gives the
+        picture's size, which locates its top-left corner; the clone's window
+        sits at its own fractions of that. ``None`` when the edit leaves the
+        mask of an image root alone, in which case the stack owns the hold.
+        """
+        if not isinstance(root, Image) or root.mask_window == clone.mask_window:
+            return None
+        rx, ry, rw, rh = root.mask_window or (0.0, 0.0, 1.0, 1.0)
+        cx, cy, _, _ = clone.mask_window or (0.0, 0.0, 1.0, 1.0)
+        root_x, root_y, root_w, root_h = root.get_bbox()
+        clone_x, clone_y, clone_w, clone_h = clone.get_bbox()
+        full_w, full_h = root_w / rw, root_h / rh
+        image_left = (root_x - root_w / 2) - rx * full_w
+        image_top = (root_y + root_h / 2) + ry * full_h
+        return Vec(
+            (image_left + cx * full_w) - (clone_x - clone_w / 2),
+            (image_top - cy * full_h) - (clone_y + clone_h / 2),
+        )
 
     @staticmethod
     def _resolve_image_extent(

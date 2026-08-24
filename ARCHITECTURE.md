@@ -107,7 +107,7 @@ All `Element` constructor parameters (`pos`, `anchor`, `placement`, `id`) are **
 
 - `_apply_translation_to_bbox_cache(delta)`: a pure translation (`move_to` / `shift` on an already-fixed element) moves every descendant's cached bbox by `delta` and drops the ancestors'; the subtree keeps its cache.
 - `_invalidate_subtree_and_ancestors()`: a content-dependent change that leaves sibling flow untouched (`set_anchor`) re-measures the subtree and its ancestors.
-- `_invalidate_tree()`: a size change or an inline→fixed transition shifts the flowed `x` of inline siblings, dropping the whole tree. The intrinsic-size setters (`set_width`, `set_height`, `set_radius`, `Image.set_crop`), `rotate`, `scale`, and the freeze inside `shift` take this path.
+- `_invalidate_tree()`: a size change or an inline→fixed transition shifts the flowed `x` of inline siblings, dropping the whole tree. The intrinsic-size setters (`set_width`, `set_height`, `set_radius`, `Image.set_crop`, `Image.set_mask`), `rotate`, `scale`, and the freeze inside `shift` take this path.
 
 Visual-only mutators (color, opacity, stroke, hidden) leave the cache alone, since they do not affect typesetting size.
 
