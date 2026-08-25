@@ -618,6 +618,7 @@ The keys and their defaults:
 | `text.font`, `text.fontweight`, `text.fontsize`, `text.color` | `"libertinus serif"`, `"regular"`, `12.0`, `"black"` |
 | `text.line_gap` | `0.25` |
 | `title.*`, `subtitle.*`, `math.*` | same four dimensions per role |
+| `math.align` | `"center"` (horizontal placement of a display equation) |
 | `h3.*` .. `h6.*` | same four dimensions, one role per in-body heading level |
 | `cover.title.*`, `cover.tagline.*`, `cover.author.*` | same four dimensions per role |
 | `list.bullet.symbols` | `["circle", "dash", "circle_outline"]` (symbol per nesting level; a level past the list reuses the last). Built-in symbols: `"square"`, `"square_outline"`, `"circle"`, `"circle_outline"`, `"dash"` |
@@ -633,7 +634,7 @@ The keys and their defaults:
 | `code.line_height` | `1.25` (line step, in multiples of the font size) |
 | `code.numbers`, `code.numbers_start`, `code.numbers_color` | `False`, `1`, `"gray"` |
 | `code.theme` | syntax role to properties mapping (see [Code blocks](#code-blocks)) |
-| `line.stroke_width` | `0.03` |
+| `line.stroke_width` | `0.05` |
 | `arrow.tip` | `"hook"` |
 | `arrow.triangle.length`, `arrow.triangle.width` | `0.25`, `0.2` |
 | `arrow.hook.length`, `arrow.hook.opening_angle` | `0.3`, `45.0` |

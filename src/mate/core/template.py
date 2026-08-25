@@ -576,9 +576,10 @@ class PresentationTemplateBase:
         """Render a display equation from its Markdown math body ``raw``."""
         return self.add_text(
             f"$$ {raw} $$",
-            align="center",
+            align=config.get("math.align"),
             font=config.get("math.font"),
             fontsize=config.get("math.fontsize"),
+            weight=config.get("math.fontweight"),
             fill_color=config.get("math.color"),
         )
 

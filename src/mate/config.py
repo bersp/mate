@@ -108,6 +108,7 @@ _DEFAULTS: dict[str, object] = {
     "math.fontweight": "regular",
     "math.fontsize": 12.0,
     "math.color": "black",
+    "math.align": "center",
     "code.font": "DejaVu Sans Mono",
     "code.fontsize": 10.0,
     "code.color": "black",
