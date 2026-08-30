@@ -26,6 +26,12 @@ class Text(Drawable):
     Markup ``[[<props>]]`` anywhere in the source applies its properties to
     the whole text block (this node), with the same ``set_<name>`` rule.
 
+    A ``**bold**`` or ``*italic*`` pair around a span (``**a [b][id=1] c**``)
+    puts the emphasized run in a node of its own carrying ``weight="bold"`` or
+    ``style="italic"``, with the span among its children; the span keeps its
+    place in :attr:`subs` and its own properties win over the emphasized run's.
+    Emphasis with no span inside it stays inline markup on the leaf.
+
     A ``||`` marker splits the text into reveal segments: the part before the
     first ``||`` shows immediately, and each following segment appears on a
     later reveal step while reserving its space from the start. ``\||``
@@ -651,6 +657,49 @@ def _match_bracket(raw: str, start: int) -> int | None:
     return None
 
 
+# Property text an emphasis pair applies to the node wrapping its content.
+_EMPHASIS_PROPS = {
+    "**": 'weight="bold"',
+    "*": 'style="italic"',
+    "_": 'style="italic"',
+}
+
+
+def _find_emphasis_close(raw: str, i: int, delim: str) -> int:
+    """Index of the ``delim`` closing an emphasis opened before ``i``, or ``-1``.
+
+    Steps over backslash escapes, code spans, math spans and bracket pairs: a
+    delimiter inside one of those belongs to it, not to the emphasis. When
+    looking for a single ``*``/``_``, a doubled run is stepped over, staying
+    available to close an enclosing bold pair.
+    """
+    n = len(raw)
+    while i < n:
+        c = raw[i]
+        if c == "\\":
+            i += 2
+        elif c == "`":
+            j = i
+            while j < n and raw[j] == "`":
+                j += 1
+            close = raw.find(raw[i:j], j)
+            i = n if close == -1 else close + (j - i)
+        elif c == "$":
+            fence = "$$" if raw.startswith("$$", i) else "$"
+            close = raw.find(fence, i + len(fence))
+            i = n if close == -1 else close + len(fence)
+        elif c == "[":
+            j = _match_bracket(raw, i)
+            i = i + 1 if j is None else j + 1
+        elif len(delim) == 1 and raw.startswith(delim * 2, i):
+            i += 2
+        elif raw.startswith(delim, i):
+            return i
+        else:
+            i += 1
+    return -1
+
+
 def _parse_segment(
     raw: str, subs: list[Text], pending: list[tuple[Text, str]]
 ) -> list[Text]:
@@ -669,6 +718,12 @@ def _parse_segment(
     (``[a][id=1][b][id=1]``) are allowed: both spans end up in ``subs`` and
     share a registry bucket.
 
+    An emphasis pair holding a span (``**bold [tagged][id=1] more**``) becomes
+    a :class:`Text` of its own carrying the weight or style, with the span among
+    its children; the spans inside it belong to ``subs`` at this level, the
+    emphasis being no bracket level of its own. An emphasis pair with no span
+    inside is left in the buffer verbatim, for the markup scanner to read.
+
     Parameters
     ----------
     raw : str
@@ -686,6 +741,10 @@ def _parse_segment(
     result: list[Text] = []
     buf: list[str] = []
     i, n = 0, len(raw)
+    # Emphasis is the markup scanner's business until it holds a span, and
+    # ``][`` is the shape every span has. A fragment without one keeps its
+    # delimiters in the buffer and never looks for a closer.
+    holds_span = "][" in raw
 
     def flush() -> None:
         if buf:
@@ -726,6 +785,28 @@ def _parse_segment(
                 buf.append(raw[i:end])
             i = end
             continue
+        # An emphasis pair holding a span becomes a node carrying the weight
+        # or style, with the span among its children. One with no span inside
+        # stays in ``buf``, source for the markup scanner.
+        if holds_span and c in "*_":
+            delim = "**" if raw.startswith("**", i) else c
+            close = _find_emphasis_close(raw, i + len(delim), delim)
+            if close != -1:
+                body = raw[i + len(delim) : close]
+                mark = len(pending)
+                children = _parse_segment(body, subs, pending) if "][" in body else []
+                # Every span queues its properties: a queue that grew holds
+                # the span this pair wraps.
+                if len(pending) > mark:
+                    flush()
+                    node = Text(placement="inline")
+                    node._take_children(children)
+                    pending.append((node, _EMPHASIS_PROPS[delim]))
+                    result.append(node)
+                else:
+                    buf.append(raw[i : close + len(delim)])
+                i = close + len(delim)
+                continue
         if c == "[":
             j = _match_bracket(raw, i)
             if j is not None and j + 1 < n and raw[j + 1] == "[":
