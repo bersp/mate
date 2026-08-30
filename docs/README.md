@@ -427,7 +427,7 @@ While building a layout, `> draw layout` overlays every region as a labelled out
 
 ### Floating elements
 
-`floating=True` detaches content from the region system: nothing stacks it, and it sits with its `anchor` point at `pos`, in cm from the slide center with the y axis pointing up. `> add image` takes it directly:
+`floating=True` detaches content from the region system: nothing stacks it, and it sits with its `anchor` point at `pos`, in cm from the slide center with the y axis pointing up. `pos` and `anchor` belong to that mode, and setting either without `floating=True` is an error. `> add image` takes it directly:
 
 ```markdown
 > add image : "stamp.png", width=2, floating=True, pos=(6, 3.5), anchor="top-right"

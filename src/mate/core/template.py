@@ -50,6 +50,23 @@ from .element import (
 )
 
 
+def _check_placement_options(operation: str, floating: bool, options: dict) -> None:
+    """Raise when ``pos`` or ``anchor`` is set on content a region stacks.
+
+    ``operation`` opens the message with the directive's spelling. Only a
+    floating element carries its own placement; a region's
+    :meth:`~mate.composition.layout.Region.arrange` writes the position of
+    everything it stacks.
+    """
+    if floating:
+        return
+    names = [f"{name!r}" for name in ("pos", "anchor") if options.get(name) is not None]
+    if names:
+        raise ValueError(
+            f"{operation}: pass floating=True to set {' and '.join(names)}."
+        )
+
+
 @cache
 def _code_options(code_class: type[Code]) -> frozenset[str]:
     """Return the keyword parameters a code fence's options may set.
@@ -359,13 +376,15 @@ class PresentationTemplateBase:
         body renders. With ``floating=True`` the produced roots are not added to
         the region: they keep their own reveal steps and are stacked with their
         ``anchor`` point at ``pos`` (the region's ``anchor`` point when ``pos`` is
-        omitted), with ``region`` supplying the wrap width for the body.
+        omitted), with ``region`` supplying the wrap width for the body. Setting
+        ``pos`` or ``anchor`` without it raises :class:`ValueError`.
         """
         props = eval_props(args)
         region = props.pop("region", None)
         floating = props.pop("floating", False)
         pos = props.pop("pos", None)
         anchor = props.pop("anchor", None)
+        _check_placement_options("fragment", floating, {"pos": pos, "anchor": anchor})
 
         before = {id(el) for el in self._root_elements()}
         if floating:
@@ -936,8 +955,10 @@ class PresentationTemplateBase:
 
         With ``floating=True`` the text is not added to the region: the region's
         :meth:`~mate.composition.layout.Region.arrange` does not stack it and it
-        keeps the ``pos``/``anchor`` passed in ``text_kwargs``.
+        keeps the ``pos``/``anchor`` passed in ``text_kwargs``. Setting either of
+        those without it raises :class:`ValueError`.
         """
+        _check_placement_options("add text", floating, text_kwargs)
         target_region = self._resolve_region(region)
         indent = self._content_indent
         text_kwargs.setdefault("max_width", target_region.width - indent)
@@ -1052,8 +1073,10 @@ class PresentationTemplateBase:
 
         With ``floating=True`` the image is not added to the region: the region's
         :meth:`~mate.composition.layout.Region.arrange` does not stack it and it
-        keeps the ``pos``/``anchor`` passed in ``image_kwargs``.
+        keeps the ``pos``/``anchor`` passed in ``image_kwargs``. Setting either of
+        those without it raises :class:`ValueError`.
         """
+        _check_placement_options("add image", floating, image_kwargs)
         target_region = self._resolve_region(region)
         indent = self._content_indent
         available_width = target_region.width - indent
@@ -1082,7 +1105,7 @@ class PresentationTemplateBase:
         *,
         floating: bool = False,
         pos: VecLike | None = None,
-        anchor: Anchor = "center",
+        anchor: Anchor | None = None,
         **group_kwargs,
     ) -> Group:
         """Execute a figure file and add its content to a region and the slide.
@@ -1102,8 +1125,12 @@ class PresentationTemplateBase:
 
         With ``floating=True`` the group is not added to the region: given
         ``pos`` it is moved there with its ``anchor`` point on it, otherwise
-        it keeps the coordinates authored in the file.
+        it keeps the coordinates authored in the file. Setting ``pos`` or
+        ``anchor`` without it raises :class:`ValueError`.
         """
+        _check_placement_options(
+            "add mate figure", floating, {"pos": pos, "anchor": anchor}
+        )
         target_region = self._resolve_region(region)
         if not Path(path).is_file():
             raise ValueError(f"add mate figure: no such file: {path!r}")
@@ -1120,7 +1147,9 @@ class PresentationTemplateBase:
                 f"Figure; found {len(figures)}"
             )
         (figure,) = figures.values()
-        group = Group(children=figure.elements, anchor=anchor, **group_kwargs)
+        group = Group(
+            children=figure.elements, anchor=anchor or "center", **group_kwargs
+        )
         group.indent = self._content_indent
         self.current_slide.add(group)
         if floating:
