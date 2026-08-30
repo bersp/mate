@@ -170,13 +170,32 @@ except PackageNotFoundError:
     _TYPST_VERSION = "unknown"
 
 
-def _size_cache_key(body: str, font_signature: str, preamble: str) -> str:
+def _image_signature(el: Element) -> str:
+    """Signature of the image file ``el`` draws, empty for an element with none.
+
+    An :class:`Image` body names its file by path, and the size it measures to
+    follows the file's aspect ratio. The file's size and mtime tie that
+    measurement to the bytes on disk, the way :func:`_font_signature` ties a
+    text measurement to the face it resolves against.
+    """
+    if not isinstance(el, Image):
+        return ""
+    file = Path(el.path)
+    if not file.is_file():
+        raise ValueError(f"Image: no such file: {el.path!r}")
+    stat = file.stat()
+    return f"{stat.st_size}\0{stat.st_mtime_ns}"
+
+
+def _size_cache_key(
+    body: str, font_signature: str, preamble: str, image_signature: str
+) -> str:
     """Content key for the isolated size of an element measured as ``body``.
 
     The isolated ``(w, h)`` is a pure function of the Typst ``body`` handed to
     ``measure(...)``, the ``preamble`` its markup is typeset under, the fonts it
-    resolves against, and the compiler version; the format version guards
-    against a change in how the record is emitted.
+    resolves against, the image file it draws, and the compiler version; the
+    format version guards against a change in how the record is emitted.
     """
     h = hashlib.sha256()
     h.update(_CACHE_FORMAT_VERSION.encode())
@@ -186,6 +205,8 @@ def _size_cache_key(body: str, font_signature: str, preamble: str) -> str:
     h.update(font_signature.encode())
     h.update(b"\0")
     h.update(preamble.encode("utf-8"))
+    h.update(b"\0")
+    h.update(image_signature.encode("utf-8"))
     h.update(b"\0")
     h.update(body.encode("utf-8"))
     return h.hexdigest()
@@ -1210,7 +1231,9 @@ class TypstMeasurer:
             if not body:
                 self.sizes[mid] = (0.0, 0.0)
                 continue
-            key = _size_cache_key(body, font_signature, preamble)
+            key = _size_cache_key(
+                body, font_signature, preamble, _image_signature(el)
+            )
             keys[mid] = key
             cached = cache.get(key)
             if cached is not None:
