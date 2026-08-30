@@ -170,12 +170,13 @@ except PackageNotFoundError:
     _TYPST_VERSION = "unknown"
 
 
-def _size_cache_key(body: str, font_signature: str) -> str:
+def _size_cache_key(body: str, font_signature: str, preamble: str) -> str:
     """Content key for the isolated size of an element measured as ``body``.
 
     The isolated ``(w, h)`` is a pure function of the Typst ``body`` handed to
-    ``measure(...)``, the fonts it resolves against, and the compiler version;
-    the format version guards against a change in how the record is emitted.
+    ``measure(...)``, the ``preamble`` its markup is typeset under, the fonts it
+    resolves against, and the compiler version; the format version guards
+    against a change in how the record is emitted.
     """
     h = hashlib.sha256()
     h.update(_CACHE_FORMAT_VERSION.encode())
@@ -183,6 +184,8 @@ def _size_cache_key(body: str, font_signature: str) -> str:
     h.update(_TYPST_VERSION.encode())
     h.update(b"\0")
     h.update(font_signature.encode())
+    h.update(b"\0")
+    h.update(preamble.encode("utf-8"))
     h.update(b"\0")
     h.update(body.encode("utf-8"))
     return h.hexdigest()
@@ -1198,6 +1201,7 @@ class TypstMeasurer:
         # without a query and is not cached.
         cache = _measure_cache()
         font_signature = _font_signature()
+        preamble = _user_preamble()
         bodies: dict[int, str] = {}
         keys: dict[int, str] = {}
         pending: list[int] = []
@@ -1206,7 +1210,7 @@ class TypstMeasurer:
             if not body:
                 self.sizes[mid] = (0.0, 0.0)
                 continue
-            key = _size_cache_key(body, font_signature)
+            key = _size_cache_key(body, font_signature, preamble)
             keys[mid] = key
             cached = cache.get(key)
             if cached is not None:
@@ -1215,7 +1219,7 @@ class TypstMeasurer:
                 bodies[mid] = body
                 pending.append(mid)
 
-        lines = [_user_preamble() + "#set page(margin: 0cm)", ""]
+        lines = [preamble + "#set page(margin: 0cm)", ""]
         if pending:
             # One metadata record per cache-miss element, asking Typst for its
             # isolated (w, h) via `measure(...)`. Wrapped once in `#context
