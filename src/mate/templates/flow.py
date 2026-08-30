@@ -23,7 +23,7 @@ from ..elements.text import Text
 class PresentationTemplate(PresentationTemplateBase):
     band_height = 2.6  # depth of the content-slide flow band
 
-    def __init__(self) -> None:
+    def setup(self) -> None:
         config.colors.set_multiple(
             {
                 "black": "#1f1828",
@@ -70,8 +70,6 @@ class PresentationTemplate(PresentationTemplateBase):
                 "footer.show": False,
             }
         )
-
-        super().__init__()
 
         self._section: str | None = None
 

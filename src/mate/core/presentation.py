@@ -70,8 +70,8 @@ class Presentation(PresentationTemplateBase):
         background = self.background()
         if background is not None:
             slide.add(background)
-        if self.auto_add_footer and not is_cover:
-            self.add_footer(show_total=self.footer_show_total)
+        if config.get("footer.show") and not is_cover:
+            self.add_footer(show_total=config.get("footer.show_total"))
         return slide
 
     def pause(self) -> None:

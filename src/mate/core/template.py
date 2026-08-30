@@ -131,16 +131,9 @@ class PresentationTemplateBase:
 
     # --- Internals ----------------------------------------------------------
     def __init__(self) -> None:
-        frontmatter = getattr(self, "_frontmatter", None)
-        if frontmatter is not None:
-            config.apply_overrides(frontmatter.config)
-            config.colors.set_multiple(frontmatter.colors)
-        self.auto_add_footer: bool = config.get("footer.show")
-        self.footer_show_total: bool = config.get("footer.show_total")
         self.bullet_symbols: dict[str, BulletSymbolBuilder] = dict(
             _BUILTIN_BULLET_SYMBOLS
         )
-        self.layout: Layout = self.build_layout()
         self._cap_height_cache: dict[tuple, float] = {}
         self._content_indent: float = 0.0
         self._list_level: int = 0
@@ -150,6 +143,39 @@ class PresentationTemplateBase:
         self._alternates: list[tuple[VSpace, list[list[Element]], float]] = []
         self._modifies: list[tuple[list[Element], dict, int]] = []
         self._python_namespace: dict | None = None
+
+        self._run_template_hook("setup")
+        frontmatter = getattr(self, "_frontmatter", None)
+        if frontmatter is not None:
+            config.apply_overrides(frontmatter.config)
+            config.colors.set_multiple(frontmatter.colors)
+        self.layout: Layout = self.build_layout()
+        self._run_template_hook("setup_layout")
+
+    def _run_template_hook(self, name: str) -> None:
+        """Call the ``name`` hook of every class in the MRO, base-ward first.
+
+        Each class contributes the definition in its own ``__dict__``, so a
+        template listed earlier in ``config.templates`` runs last and the
+        values it writes are the ones that stand.
+        """
+        for klass in reversed(type(self).__mro__):
+            hook = klass.__dict__.get(name)
+            if hook is not None:
+                hook(self)
+
+    def setup(self) -> None:
+        """Declare this template's colors, config knobs and bullet symbols.
+
+        Runs before the deck's front matter, which overrides any key it also
+        sets.
+        """
+
+    def setup_layout(self) -> None:
+        """Add regions to the layout, or adjust the ones :meth:`build_layout` made.
+
+        Runs on the layout built from the resolved configuration.
+        """
 
     def build_layout(self) -> Layout:
         """Return the presentation's region layout."""

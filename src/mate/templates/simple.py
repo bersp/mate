@@ -13,7 +13,7 @@ from ..elements.text import Text
 
 
 class PresentationTemplate(PresentationTemplateBase):
-    def __init__(self) -> None:
+    def setup(self) -> None:
         font = "Lato"
         config.set_multiple(
             {
@@ -30,8 +30,7 @@ class PresentationTemplate(PresentationTemplateBase):
             }
         )
 
-        super().__init__()
-
+    def setup_layout(self) -> None:
         self.layout.get("title").set_anchor_default("center")
 
     def add_title(self) -> Group:
