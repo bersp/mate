@@ -174,23 +174,31 @@ class PresentationTemplate(PresentationTemplateBase):
             members.add(eyebrow)
 
         if slide.title is not None:
+            title_width = config.get("title.max_width")
+            if title_width is None:
+                title_width = title_region.width
             title = Text(
                 slide.title,
                 font=config.get("title.font"),
                 fontsize=config.get("title.fontsize"),
                 weight=config.get("title.fontweight"),
                 fill_color=config.get("title.color"),
+                max_width=title_width,
             )
             title_region.add(title)
             members.add(title)
 
         if slide.subtitle is not None:
+            subtitle_width = config.get("subtitle.max_width")
+            if subtitle_width is None:
+                subtitle_width = title_region.width
             subtitle = Text(
                 slide.subtitle,
                 font=config.get("subtitle.font"),
                 fontsize=config.get("subtitle.fontsize"),
                 weight=config.get("subtitle.fontweight"),
                 fill_color=config.get("subtitle.color"),
+                max_width=subtitle_width,
             )
             title_region.add(subtitle)
             members.add(subtitle)

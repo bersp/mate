@@ -151,7 +151,7 @@ Base class of `Presentation`: the theme a presentation overrides. Holds the pres
 
 `build_layout` reads slide-relative geometry from `config` and per-theme knobs from the `config` defaults store (`box.full_with_margins.margins`, `box.content.anchor`), producing named regions: `title`, `footer`, `left_margin`, `right_margin`, `content` (the inner region left after subtracting the four sides), `full`, and `full_with_margins`; `active` starts on `content`.
 
-`add_title()` builds the current slide's `title` and `subtitle` strings into `Text` elements in the template `font` and adds them to both the current slide and the `title` region.
+`add_title()` builds the current slide's `title` and `subtitle` strings into `Text` elements in the template `font` and adds them to both the current slide and the `title` region. Each wraps at the `title` region's width, or at the `title.max_width` / `subtitle.max_width` config value when one is set.
 
 ### `core/drawable.py` — `Drawable`
 

@@ -18,6 +18,8 @@ _MISSING = object()
 # (``font``, ``fontweight``, ``fontsize``, ``color``). In-body ``###``..
 # ``######`` headings map to the ``h3``..``h6`` roles by their markdown level;
 # a level past 6 uses ``h6``.
+# ``title.max_width`` and ``subtitle.max_width`` cap the line width in cm of the
+# two blocks the title region holds; ``None`` wraps each to that region's width.
 # The cover splits into ``cover.title``, ``cover.tagline`` (a lead line a
 # template may place with the cover title) and ``cover.author`` roles, each
 # carrying the same dimensions. The font/size literals are kept in sync
@@ -72,10 +74,12 @@ _DEFAULTS: dict[str, object] = {
     "title.fontweight": "bold",
     "title.fontsize": 14.0,
     "title.color": "black",
+    "title.max_width": None,
     "subtitle.font": "libertinus serif",
     "subtitle.fontweight": "regular",
     "subtitle.fontsize": 12.0,
     "subtitle.color": "darker_gray",
+    "subtitle.max_width": None,
     "h3.font": "libertinus serif",
     "h3.fontweight": "bold",
     "h3.fontsize": 13.0,
