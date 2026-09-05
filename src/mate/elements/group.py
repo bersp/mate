@@ -30,7 +30,7 @@ class Group(Drawable):
     children : iterable of :class:`Element`, optional
         Initial members. Each one's ``parent`` is set to this group.
         More can be appended later via :meth:`add`. Positional.
-    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
+    pos, anchor, align, placement, z_order, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
     """
 
@@ -42,6 +42,7 @@ class Group(Drawable):
         anchor: Anchor = "center",
         align: HAlign | None = None,
         placement: Placement = "fixed",
+        z_order: float | None = None,
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
         stroke_color: str | None = None,
@@ -57,6 +58,7 @@ class Group(Drawable):
             anchor=anchor,
             align=align,
             placement=placement,
+            z_order=z_order,
             id=id,
             fill_color=fill_color,
             stroke_color=stroke_color,

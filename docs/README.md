@@ -315,6 +315,7 @@ The options of `add image`:
 | `id` | `id="fig"` | tag for `modify` and `crop image` |
 | `floating` | `floating=True` | leave the region's stack; place with `pos`/`anchor` |
 | `pos`, `anchor` | `pos=(2, 1), anchor="center"` | position for a floating image |
+| `z_order` | `z_order=-1` | draw order; a higher value covers a lower one |
 
 ### Cropping
 
@@ -360,6 +361,7 @@ The options of `add mate figure`:
 | `id` | `id="fig"` | tag the whole figure for `modify` |
 | `floating` | `floating=True` | leave the region's stack; the figure keeps its own coordinates, or lands with its `anchor` at `pos` |
 | `pos`, `anchor` | `pos=(2, 1), anchor="center"` | position for a floating figure |
+| `z_order` | `z_order=-1` | draw order of the whole drawing |
 
 The figure lands at its drawn size; `> modify` with `scale` resizes the whole drawing rigidly:
 
@@ -441,6 +443,16 @@ A remark pinned near the bottom edge of the slide, outside the content
 region's stack.
 ```
 ````
+
+### Draw order
+
+Elements are drawn in the order they were added, and a later one covers an earlier one. `z_order` sets that order explicitly. A higher value goes over a lower one, ties keep the order they were added in, and everything starts at `0`:
+
+```markdown
+> add : Rectangle(12, 2, pos=(0, -1), fill_color="lightest_gray", z_order=-1)
+```
+
+Shapes, images, figures and code blocks take it as an option, a `markdown fragment` fence pushes it onto its whole body, and `> modify` changes it from a reveal step onward.
 
 ## Revealing content
 
@@ -796,7 +808,7 @@ The available shapes:
 | `Curve` | `segments` (`MoveTo`, `LineTo`, `QuadTo`, `CubicTo`, `Close`) |
 | `Arrow` | `start`, `end` |
 
-All of them share the same keyword arguments: `pos`, `anchor`, `id`, `fill_color`, `stroke_color`, `fill_opacity`, `stroke_width`, `stroke_dash`, `stroke_cap`, `stroke_join` and `stroke_opacity`. The defaults are a solid black fill with no stroke; `fill_opacity=0` gives a stroke-only shape, and a `Line` draws only its stroke.
+All of them share the same keyword arguments: `pos`, `anchor`, `id`, `z_order` (see [Draw order](#draw-order)), `fill_color`, `stroke_color`, `fill_opacity`, `stroke_width`, `stroke_dash`, `stroke_cap`, `stroke_join` and `stroke_opacity`. The defaults are a solid black fill with no stroke; `fill_opacity=0` gives a stroke-only shape, and a `Line` draws only its stroke.
 
 An `Arrow` is a segment with a marker on one or both ends, and takes the same stroke arguments as a `Line`. `tip` is the marker at `end`, `tail` the one at `start`. There are three:
 

@@ -197,6 +197,11 @@ class Element:
         free element until it is arranged.
     placement : Placement, optional
         Initial placement state. Defaults to ``"fixed"``.
+    z_order : float or None, optional
+        Draw order among the elements placed on a slide: a higher value
+        covers a lower one, and equal values keep the order in which the
+        elements were added. ``None`` (default) takes the value of the
+        nearest ancestor that carries one, and ``0`` when none does.
     id : IDKey or list[IDKey] or None, optional
         User-facing id(s). Accepts a single ``int``/``float``/``str`` or
         a list of them; stored normalized to a list. Each entry registers
@@ -221,6 +226,9 @@ class Element:
         :class:`~mate.core.presentation.Slide`) keep ``parent = None``.
     hidden : bool
         If ``True`` the element takes space but is not drawn.
+    z_order : float or None
+        Own draw order, or ``None`` when it is inherited. See the ``z_order``
+        parameter; :meth:`get_effective_z_order` resolves the chain.
     children : list[Element]
         Sub-elements forming the tree.
     id : list[IDKey]
@@ -252,6 +260,7 @@ class Element:
         anchor: Anchor = "center",
         align: HAlign | None = None,
         placement: Placement = "fixed",
+        z_order: float | None = None,
         id: IDKey | list[IDKey] | None = None,
     ) -> None:
         self._pos: Vec = Vec(pos) if pos is not None else Vec(0, 0)
@@ -276,6 +285,10 @@ class Element:
         self.placement: Placement = placement
         self.parent: Element | None = None
         self.hidden: bool = False
+        # Draw order among placed elements; the renderer emits a higher `z_order`
+        # later, over a lower one. Ties keep the order the elements were
+        # added in. `None` takes the nearest ancestor's value.
+        self.z_order: float | None = None if z_order is None else float(z_order)
         self.children: list[Element] = []
         self.id: list[IDKey] = []
         self._mid: int = _next_mid()
@@ -654,6 +667,31 @@ class Element:
         :class:`Element` field (not gated by :class:`Drawable`).
         """
         self._set_field("hidden", hidden, propagate)
+        return self
+
+    def get_z_order(self) -> float | None:
+        """Return this element's own draw order, ``None`` when inherited."""
+        return self.z_order
+
+    def get_effective_z_order(self) -> float:
+        """Return the draw order in force: own ``z_order``, else the nearest ancestor's.
+
+        ``0`` when neither this element nor any ancestor carries one.
+        """
+        el: Element | None = self
+        while el is not None:
+            if el.z_order is not None:
+                return el.z_order
+            el = el.parent
+        return 0.0
+
+    def set_z_order(self, z_order: float | None) -> Element:
+        """Set this element's own draw order; ``None`` restores inheritance.
+
+        Visual-only: does not invalidate the bbox cache. Every descendant
+        without a value of its own follows.
+        """
+        self.z_order = None if z_order is None else float(z_order)
         return self
 
     def resolve_prop(self, name: str):

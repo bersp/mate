@@ -97,7 +97,7 @@ class Text(Drawable):
     fill_color : str or None, optional
         Palette name or literal hex for the glyph fill. ``None`` (default)
         reads ``text.color`` from the config.
-    pos, anchor, align, placement, id, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
+    pos, anchor, align, placement, z_order, id, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -143,6 +143,7 @@ class Text(Drawable):
         anchor: Anchor = "center",
         align: HAlign | None = None,
         placement: Placement = "fixed",
+        z_order: float | None = None,
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
         stroke_color: str | None = None,
@@ -158,6 +159,7 @@ class Text(Drawable):
             anchor=anchor,
             align=align,
             placement=placement,
+            z_order=z_order,
             id=id,
             fill_color=config.get("text.color") if fill_color is None else fill_color,
             stroke_color=stroke_color,

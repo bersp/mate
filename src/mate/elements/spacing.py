@@ -16,7 +16,7 @@ class VSpace(Element):
     ----------
     height : float
         Spacer height in cm. Positional.
-    pos, anchor, align, placement, id
+    pos, anchor, align, placement, z_order, id
         Keyword-only. See :class:`~mate.core.element.Element`.
 
     Attributes
@@ -33,9 +33,17 @@ class VSpace(Element):
         anchor: Anchor = "center",
         align: HAlign | None = None,
         placement: Placement = "fixed",
+        z_order: float | None = None,
         id: IDKey | list[IDKey] | None = None,
     ) -> None:
-        super().__init__(pos=pos, anchor=anchor, align=align, placement=placement, id=id)
+        super().__init__(
+            pos=pos,
+            anchor=anchor,
+            align=align,
+            placement=placement,
+            z_order=z_order,
+            id=id,
+        )
         self.height: float = height
 
     def get_width(self) -> float:
@@ -67,7 +75,7 @@ class HSpace(Element):
     ----------
     width : float
         Spacer width in cm. Positional.
-    pos, anchor, align, placement, id
+    pos, anchor, align, placement, z_order, id
         Keyword-only. See :class:`~mate.core.element.Element`.
 
     Attributes
@@ -84,9 +92,17 @@ class HSpace(Element):
         anchor: Anchor = "center",
         align: HAlign | None = None,
         placement: Placement = "fixed",
+        z_order: float | None = None,
         id: IDKey | list[IDKey] | None = None,
     ) -> None:
-        super().__init__(pos=pos, anchor=anchor, align=align, placement=placement, id=id)
+        super().__init__(
+            pos=pos,
+            anchor=anchor,
+            align=align,
+            placement=placement,
+            z_order=z_order,
+            id=id,
+        )
         self.width: float = width
 
     def get_width(self) -> float:

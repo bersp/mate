@@ -46,7 +46,7 @@ class Rectangle(Drawable):
         with the corners left out staying sharp. ``0`` (default) keeps every
         corner sharp. The rounding is visual-only: the bbox stays
         ``(width, height)``.
-    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
+    pos, anchor, align, placement, z_order, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -67,6 +67,7 @@ class Rectangle(Drawable):
         anchor: Anchor = "center",
         align: HAlign | None = None,
         placement: Placement = "fixed",
+        z_order: float | None = None,
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
         stroke_color: str | None = None,
@@ -82,6 +83,7 @@ class Rectangle(Drawable):
             anchor=anchor,
             align=align,
             placement=placement,
+            z_order=z_order,
             id=id,
             fill_color=fill_color,
             stroke_color=stroke_color,
@@ -148,7 +150,7 @@ class Circle(Drawable):
     ----------
     radius : float
         Radius in cm. Positional.
-    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
+    pos, anchor, align, placement, z_order, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -165,6 +167,7 @@ class Circle(Drawable):
         anchor: Anchor = "center",
         align: HAlign | None = None,
         placement: Placement = "fixed",
+        z_order: float | None = None,
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
         stroke_color: str | None = None,
@@ -180,6 +183,7 @@ class Circle(Drawable):
             anchor=anchor,
             align=align,
             placement=placement,
+            z_order=z_order,
             id=id,
             fill_color=fill_color,
             stroke_color=stroke_color,
@@ -227,7 +231,7 @@ class Ellipse(Drawable):
     ----------
     width, height : float
         Bounding box width and height in cm. Positional.
-    pos, anchor, align, placement, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
+    pos, anchor, align, placement, z_order, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -245,6 +249,7 @@ class Ellipse(Drawable):
         anchor: Anchor = "center",
         align: HAlign | None = None,
         placement: Placement = "fixed",
+        z_order: float | None = None,
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
         stroke_color: str | None = None,
@@ -260,6 +265,7 @@ class Ellipse(Drawable):
             anchor=anchor,
             align=align,
             placement=placement,
+            z_order=z_order,
             id=id,
             fill_color=fill_color,
             stroke_color=stroke_color,
@@ -320,7 +326,7 @@ class Line(Drawable):
     stroke_width : float or None, optional
         Stroke thickness in cm. ``None`` (default) reads
         ``line.stroke_width`` from the config.
-    placement, id, stroke_color, stroke_dash, stroke_cap, stroke_join, stroke_opacity
+    placement, z_order, id, stroke_color, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -336,6 +342,7 @@ class Line(Drawable):
         end: VecLike,
         *,
         placement: Placement = "fixed",
+        z_order: float | None = None,
         id: IDKey | list[IDKey] | None = None,
         stroke_color: str | None = None,
         stroke_width: float | None = None,
@@ -351,6 +358,7 @@ class Line(Drawable):
             pos=center,
             anchor="center",
             placement=placement,
+            z_order=z_order,
             id=id,
             stroke_color=stroke_color,
             stroke_width=(
@@ -444,7 +452,7 @@ class Polygon(Drawable):
     ----------
     points : list of VecLike
         Vertices in cm. Positional. At least three are required.
-    placement, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
+    placement, z_order, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -459,6 +467,7 @@ class Polygon(Drawable):
         points: list[VecLike],
         *,
         placement: Placement = "fixed",
+        z_order: float | None = None,
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
         stroke_color: str | None = None,
@@ -473,6 +482,7 @@ class Polygon(Drawable):
             pos=None,
             anchor="center",
             placement=placement,
+            z_order=z_order,
             id=id,
             fill_color=fill_color,
             stroke_color=stroke_color,
@@ -652,7 +662,7 @@ class Curve(Drawable):
     segments : list of CurveSegment
         Path segments in draw order. Positional. The first must be a
         :class:`MoveTo`.
-    placement, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
+    placement, z_order, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -666,6 +676,7 @@ class Curve(Drawable):
         segments: list[CurveSegment],
         *,
         placement: Placement = "fixed",
+        z_order: float | None = None,
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | None = None,
         stroke_color: str | None = None,
@@ -680,6 +691,7 @@ class Curve(Drawable):
             pos=None,
             anchor="center",
             placement=placement,
+            z_order=z_order,
             id=id,
             fill_color=fill_color,
             stroke_color=stroke_color,
@@ -979,7 +991,7 @@ class Arrow(Group):
     stroke_width : float or None, optional
         Stroke thickness in cm. ``None`` (default) reads
         ``line.stroke_width`` from the config.
-    placement, id, stroke_color, stroke_dash, stroke_cap, stroke_join, stroke_opacity
+    placement, z_order, id, stroke_color, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
 
     Attributes
@@ -1001,6 +1013,7 @@ class Arrow(Group):
         tip: ArrowTip | None = None,
         tail: ArrowTip | None = None,
         placement: Placement = "fixed",
+        z_order: float | None = None,
         id: IDKey | list[IDKey] | None = None,
         stroke_color: str | None = None,
         stroke_width: float | None = None,
@@ -1020,6 +1033,7 @@ class Arrow(Group):
             pieces,
             pos=(start + end) / 2,
             placement=placement,
+            z_order=z_order,
             id=id,
             stroke_color=stroke_color,
             stroke_width=(

@@ -118,7 +118,7 @@ class Drawable(Element):
         ``"miter"``, ``"round"``, or ``"bevel"``. Default ``None``.
     stroke_opacity : float or None, optional
         Default ``None`` → ``1``.
-    pos, anchor, align, placement, id
+    pos, anchor, align, placement, z_order, id
         See :class:`Element`.
     """
 
@@ -129,6 +129,7 @@ class Drawable(Element):
         anchor: Anchor = "center",
         align: HAlign | None = None,
         placement: Placement = "fixed",
+        z_order: float | None = None,
         id: IDKey | list[IDKey] | None = None,
         fill_color: str | Gradient | None = None,
         stroke_color: str | Gradient | None = None,
@@ -139,7 +140,14 @@ class Drawable(Element):
         stroke_join: str | None = None,
         stroke_opacity: float | None = None,
     ) -> None:
-        super().__init__(pos=pos, anchor=anchor, align=align, placement=placement, id=id)
+        super().__init__(
+            pos=pos,
+            anchor=anchor,
+            align=align,
+            placement=placement,
+            z_order=z_order,
+            id=id,
+        )
         _validate_stroke_cap(stroke_cap)
         _validate_stroke_join(stroke_join)
         _validate_stroke_dash(stroke_dash)

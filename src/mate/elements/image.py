@@ -59,7 +59,7 @@ class Image(Element):
     crop : tuple of float or None, optional
         ``(x, y, width, height)`` in file fractions naming the sub-rectangle
         to draw, or ``None`` (default) for the whole file.
-    pos, anchor, align, placement, id
+    pos, anchor, align, placement, z_order, id
         Keyword-only. See :class:`~mate.core.element.Element`.
 
     Attributes
@@ -89,9 +89,17 @@ class Image(Element):
         anchor: Anchor = "center",
         align: HAlign | None = None,
         placement: Placement = "fixed",
+        z_order: float | None = None,
         id: IDKey | list[IDKey] | None = None,
     ) -> None:
-        super().__init__(pos=pos, anchor=anchor, align=align, placement=placement, id=id)
+        super().__init__(
+            pos=pos,
+            anchor=anchor,
+            align=align,
+            placement=placement,
+            z_order=z_order,
+            id=id,
+        )
         self.path: str = path
         self.width: float | None = width
         self.height: float | None = height

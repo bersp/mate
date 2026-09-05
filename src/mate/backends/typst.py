@@ -860,7 +860,7 @@ def _render_placed(
     el: Element,
     render_node: RenderNode,
     canvas: tuple[float, float] | None = None,
-) -> list[str]:
+) -> list[tuple[float, str]]:
     """Emit ``#place`` blocks for ``el`` and every fixed descendant.
 
     Slide coordinates are y-up with origin at the slide centre; Typst's
@@ -904,8 +904,8 @@ def _render_placed(
 
     Returns
     -------
-    list[str]
-        Lines to append to the output buffer.
+    list[tuple[float, str]]
+        One ``(z_order, line)`` pair per placed node, in tree order.
     """
     body = render_node(el, False)
     # A fixed descendant sits in its own `#place` block, outside any
@@ -949,7 +949,7 @@ def _render_placed(
             f"place(top + left, dx: {dx_expr}, dy: {dy_expr}, __b) "
             "}"
         )
-    out = [line]
+    out = [(el.get_effective_z_order(), line)]
     for sub in _collect_fixed(el):
         out.extend(_render_placed(sub, render_node, canvas))
     return out
@@ -1021,16 +1021,19 @@ class TypstRenderer:
         Top-level elements with ``placement != "fixed"`` are skipped (their
         semantics is "do not draw at the slide root"). Nodes whose ``id()`` is
         in ``hidden_ids`` are drawn with ``#hide``, which keeps their layout
-        space without drawing them. The fragment carries no page preamble or
-        pagebreak — those belong to the document.
+        space without drawing them. Placements are emitted in order of their
+        element's ``z_order``, ties keeping the order the elements were added in.
+        The fragment carries no page preamble or pagebreak — those belong to
+        the document.
         """
         self._hidden_now = hidden_ids
-        lines: list[str] = []
+        placed: list[tuple[float, str]] = []
         for el in elements:
             if el.placement != "fixed":
                 continue
-            lines.extend(_render_placed(el, self._render_node, canvas))
-        return "\n".join(lines)
+            placed.extend(_render_placed(el, self._render_node, canvas))
+        placed.sort(key=lambda item: item[0])
+        return "\n".join(line for _, line in placed)
 
     def compile_document(
         self,
@@ -1262,7 +1265,7 @@ class TypstMeasurer:
             for el in self.roots:
                 if el.placement != "fixed":
                     continue
-                lines.extend(_render_placed(el, self._render_node))
+                lines.extend(line for _, line in _render_placed(el, self._render_node))
 
         # The query is needed only for missed sizes or for the inline-x probes;
         # a fully cached size-only pass spawns no Typst process.
