@@ -6,6 +6,7 @@ from ..backends.typst import TypstRenderer as _Renderer
 from ..config import config
 from ..log import logger
 from ..parser.ir import FrontMatter
+from .element import union_bbox
 from .registry import id_registry
 from .slide import Slide, Snapshot
 from .template import PresentationTemplateBase
@@ -95,6 +96,8 @@ class Presentation(PresentationTemplateBase):
         number = self.slides.index(slide) + 1
         for region in self.layout.regions.values():
             region.arrange()
+        if config.get("region.warn_overflow"):
+            self._warn_overflow(number)
         self._resolve_overwrites()
         self._resolve_alternates()
         self._resolve_modifies()
@@ -109,6 +112,29 @@ class Presentation(PresentationTemplateBase):
             rf"[yellow b]Generating[/yellow b] Slide {number}{suffix}",
             extra={"markup": True, "highlighter": None},
         )
+
+    def _warn_overflow(self, number: int) -> None:
+        """Log a warning for each region holding more than it can fit.
+
+        Runs on the arranged regions and reads the bboxes the arrange pass
+        measured, without a query of its own.
+        """
+        tolerance = 0.01  # cm
+        for name, region in self.layout.regions.items():
+            if not region.elements:
+                continue
+            _, _, width, height = union_bbox(region.elements)
+            excess = []
+            if width - region.width > tolerance:
+                excess.append(f"{width - region.width:.2f} cm wider")
+            if height - region.height > tolerance:
+                excess.append(f"{height - region.height:.2f} cm taller")
+            if excess:
+                logger.warning(
+                    rf"[yellow b]Slide {number}[/yellow b] content is "
+                    rf"{' and '.join(excess)} than region [magenta]{name}[/magenta]",
+                    extra={"markup": True, "highlighter": None},
+                )
 
     def write(self, path: str | Path | None = None, ppi: float | None = None) -> None:
         """Compile the closed slides into a file at ``path``.
