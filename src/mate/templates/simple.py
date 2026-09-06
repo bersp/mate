@@ -45,7 +45,8 @@ class PresentationTemplate(PresentationTemplateBase):
             if title_width is None:
                 title_width = title_region.width
             title = Text(
-                slide.title.upper(),
+                slide.title,
+                case="upper",
                 font=config.get("title.font"),
                 fontsize=config.get("title.fontsize"),
                 weight=config.get("title.fontweight"),

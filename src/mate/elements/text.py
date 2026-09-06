@@ -8,8 +8,43 @@ from ..core.element import Anchor, Element, HAlign, Placement
 from ..core.registry import IDKey
 from ..core.drawable import Drawable
 from ..core.vec import VecLike
+from ..parser.ir import Bold, Inline, Italic, TextRun
+from ..parser.markup import parse_markup
+from ..parser.serialize import inlines_to_markdown
 
 _BLOCK_RE = re.compile(r"\[\[([^\[\]]+)\]\]")
+
+_CASES = {"upper": str.upper, "lower": str.lower}
+
+
+def _cased_inlines(nodes: list[Inline], transform) -> list[Inline]:
+    """Return ``nodes`` with the text of every literal run transformed."""
+    out: list[Inline] = []
+    for node in nodes:
+        match node:
+            case TextRun(text):
+                out.append(TextRun(transform(text)))
+            case Bold(children):
+                out.append(Bold(_cased_inlines(children, transform)))
+            case Italic(children):
+                out.append(Italic(_cased_inlines(children, transform)))
+            case _:
+                out.append(node)
+    return out
+
+
+def _apply_case(node: Text, transform) -> None:
+    """Transform the literal text of ``node`` and its descendants.
+
+    The markup around it is untouched: a code span, an equation and the
+    delimiters of an emphasis keep the characters they were written with.
+    """
+    if node.content:
+        node.content = inlines_to_markdown(
+            _cased_inlines(parse_markup(node.content), transform)
+        )
+    for child in node.children:
+        _apply_case(child, transform)
 
 
 class Text(Drawable):
@@ -75,6 +110,11 @@ class Text(Drawable):
     letter_spacing : float or None, optional
         Extra spacing between letters, in em (relative to ``fontsize``).
         ``None`` (default) adds none.
+    case : str or None, optional
+        ``"upper"`` or ``"lower"`` transforms the literal text of the block
+        and of every span inside it, leaving the markup alone: a code span,
+        an equation and the emphasis delimiters keep the characters they were
+        written with. ``None`` (default) leaves the text as authored.
     max_width : float or None, optional
         Maximum line width in cm. When set, the text wraps to stay
         within it and the bbox width shrinks to fit the content
@@ -136,6 +176,7 @@ class Text(Drawable):
         weight: str | int | None = None,
         style: str | None = None,
         letter_spacing: float | None = None,
+        case: str | None = None,
         max_width: float | None = None,
         text_align: HAlign | None = None,
         line_gap: float | None = None,
@@ -247,6 +288,14 @@ class Text(Drawable):
                 _apply_markup_props(self, props)
             for sub, props in reversed(pending):
                 _apply_markup_props(sub, props)
+
+        if case is not None:
+            transform = _CASES.get(case)
+            if transform is None:
+                names = ", ".join(map(repr, _CASES))
+                raise ValueError(f"{case!r} is not a text case. Use one of {names}.")
+            if not self.is_math_run:
+                _apply_case(self, transform)
 
     def get_content(self) -> str:
         """Return this node's own raw text (empty when the node has children)."""
