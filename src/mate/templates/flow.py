@@ -2,6 +2,7 @@
 
 Colours: full palette + ``flow.*`` (backdrop, cover_title, cover_accent,
 cover_author, streamline, streamline_dot).
+Config: ``flow.tagline.*`` styles the cover's lead line.
 Fonts: Lato and Playfair Display.
 Footer: disabled by default.
 Defines: ``background``, ``add_cover``, ``add_title``.
@@ -60,9 +61,10 @@ class PresentationTemplate(PresentationTemplateBase):
                 "cover.title.fontweight": 600,
                 "cover.title.fontsize": 20.0,
                 "cover.title.color": "flow.cover_title",
-                "cover.tagline.font": "Lato",
-                "cover.tagline.fontsize": 14.0,
-                "cover.tagline.color": "flow.cover_accent",
+                "flow.tagline.font": "Lato",
+                "flow.tagline.fontweight": "regular",
+                "flow.tagline.fontsize": 14.0,
+                "flow.tagline.color": "flow.cover_accent",
                 "cover.author.font": "Lato",
                 "cover.author.fontsize": 10.0,
                 "cover.author.color": "flow.cover_author",
@@ -115,10 +117,10 @@ class PresentationTemplate(PresentationTemplateBase):
             stack.append(
                 Text(
                     tagline,
-                    font=config.get("cover.tagline.font"),
-                    fontsize=config.get("cover.tagline.fontsize"),
-                    weight=config.get("cover.tagline.fontweight"),
-                    fill_color=config.get("cover.tagline.color"),
+                    font=config.get("flow.tagline.font"),
+                    fontsize=config.get("flow.tagline.fontsize"),
+                    weight=config.get("flow.tagline.fontweight"),
+                    fill_color=config.get("flow.tagline.color"),
                 )
             )
         stack.append(

@@ -20,9 +20,8 @@ _MISSING = object()
 # a level past 6 uses ``h6``.
 # ``title.max_width`` and ``subtitle.max_width`` cap the line width in cm of the
 # two blocks the title region holds; ``None`` wraps each to that region's width.
-# The cover splits into ``cover.title``, ``cover.tagline`` (a lead line a
-# template may place with the cover title) and ``cover.author`` roles, each
-# carrying the same dimensions. The font/size literals are kept in sync
+# The cover splits into ``cover.title`` and ``cover.author`` roles, each carrying
+# the same dimensions. The font/size literals are kept in sync
 # with ``typst query`` on a blank doc so the rendered output never relies on
 # Typst's implicit fallback; ``color`` is a palette name resolved via
 # ``config.colors``.
@@ -100,10 +99,6 @@ _DEFAULTS: dict[str, object] = {
     "cover.title.fontweight": "bold",
     "cover.title.fontsize": 14.0,
     "cover.title.color": "black",
-    "cover.tagline.font": "libertinus serif",
-    "cover.tagline.fontweight": "regular",
-    "cover.tagline.fontsize": 12.0,
-    "cover.tagline.color": "darker_gray",
     "cover.author.font": "libertinus serif",
     "cover.author.fontweight": "regular",
     "cover.author.fontsize": 12.0,
