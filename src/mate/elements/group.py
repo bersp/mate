@@ -30,8 +30,13 @@ class Group(Drawable):
     children : iterable of :class:`Element`, optional
         Initial members. Each one's ``parent`` is set to this group.
         More can be appended later via :meth:`add`. Positional.
-    pos, anchor, align, placement, z_order, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
+    anchor, align, placement, z_order, id, fill_color, stroke_color, fill_opacity, stroke_width, stroke_dash, stroke_cap, stroke_join, stroke_opacity
         Keyword-only. See :class:`~mate.core.drawable.Drawable`.
+
+    A group has no position of its own: it sits where its children sit.
+    :meth:`~mate.core.element.Element.move_to` places the whole unit with
+    the group's ``anchor`` point on the target, and ``pos`` at construction
+    raises.
     """
 
     def __init__(
@@ -69,6 +74,11 @@ class Group(Drawable):
             stroke_join=stroke_join,
             stroke_opacity=stroke_opacity,
         )
+        if pos is not None:
+            raise ValueError(
+                "Group takes no 'pos': a group sits where its children sit. "
+                "Build it and call move_to(pos) to place the whole unit."
+            )
         if children:
             self._take_children(list(children))
 

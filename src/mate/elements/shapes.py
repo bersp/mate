@@ -1031,7 +1031,6 @@ class Arrow(Group):
             pieces.append(self.tail)
         super().__init__(
             pieces,
-            pos=(start + end) / 2,
             placement=placement,
             z_order=z_order,
             id=id,
@@ -1046,6 +1045,8 @@ class Arrow(Group):
             stroke_join=stroke_join,
             stroke_opacity=stroke_opacity,
         )
+        # The midpoint of the endpoints is the arrow's own reference point.
+        self._pos = Vec((start + end) / 2)
         self.start: Vec = Vec(start - self._pos)
         self.end: Vec = Vec(end - self._pos)
         self._reseat(start, end)
