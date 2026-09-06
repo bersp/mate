@@ -51,6 +51,9 @@ _TOKEN_ROLES = (
 )
 
 
+_THEME_ROLES = frozenset(role for _, role in _TOKEN_ROLES)
+
+
 def _token_role(ttype) -> str | None:
     """Return the ``code.theme`` role of a Pygments token type, or ``None``."""
     for token_type, role in _TOKEN_ROLES:
@@ -341,6 +344,11 @@ class Code(Group):
         self.numbers_color = (
             config.get("code.numbers_color") if numbers_color is None else numbers_color
         )
+        unknown = sorted(set(theme or ()) - _THEME_ROLES)
+        if unknown:
+            names = ", ".join(repr(role) for role in unknown)
+            valid = ", ".join(sorted(_THEME_ROLES))
+            raise ValueError(f"unknown code theme role(s) {names}; valid: {valid}")
         theme = {**config.get("code.theme"), **(theme or {})}
 
         source = source.expandtabs(4)
