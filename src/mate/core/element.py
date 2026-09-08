@@ -508,7 +508,8 @@ class Element:
         if gap is None:
             gap = config.get("arrange.gap")
         if isinstance(target, Element):
-            measure_all([self, target])
+            if self._bbox is None or target._bbox is None:
+                measure_all([self, target])
             point = target.get_anchor_point(target_anchor)
         else:
             point = Vec(target)
