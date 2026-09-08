@@ -477,28 +477,132 @@ written after the fence lands in the last variant's step.
 
 ## 8. Drawings and Python
 
-Shapes: `Rectangle(w, h)`, `Circle(r)` and `Ellipse(w, h)` sit at a `pos` with
-an `anchor`. `Line(start, end)`, `Polygon(points)`, `Curve(segments)` and
-`Arrow(start, end)` carry their geometry as points and take neither: the points
-are the position, and `move_to` is what relocates one.
-
-Every shape takes `id`, `z_order`, `stroke_color`, `stroke_width`,
-`stroke_dash`, `stroke_cap`, `stroke_join` and `stroke_opacity`. The ones that
-fill (`Rectangle`, `Circle`, `Ellipse`, `Polygon`, `Curve`) also take
-`fill_color` and `fill_opacity`; `Line` and `Arrow` are stroke-only. The default
-is a solid black fill with no stroke; an outline needs `fill_opacity=0,
-stroke_width=0.05`. A `Gradient.linear(...)` or `Gradient.radial(...)` works
-anywhere a color does.
-
-A `Text` carries the same stroke fields and Typst paints the stroke over the
-glyph. A label with a white outline behind it is two copies of the text at the
-same position, the back one filled and stroked in the outline colour; the stroke
-leaves glyph metrics alone, so both copies measure the same.
+Python owns every coordinate here: a shape is an object placed by hand, in
+centimetres from the slide centre. One element goes in a `> add` command, a
+longer construction in a `python mate` fence, and a reusable drawing in a figure
+file of its own.
 
 ```markdown
 > add : Rectangle(1.7, 1.1, pos=(-1.4, -1.6), corner_radius=0.15, fill_color="accent")
 > add : Arrow((3.6, -1.6), (5.6, -1.6), stroke_color="dark_gray")
 ```
+
+### The elements
+
+| element | positional arguments | notes |
+|---|---|---|
+| `Rectangle(w, h)` | width, height in cm | `corner_radius=` is one float or a dict keyed `"top-left"`, `"top-right"`, `"bottom-left"`, `"bottom-right"` |
+| `Circle(r)` | radius | the box is `(2r, 2r)` |
+| `Ellipse(w, h)` | width, height | the semi-axes are `w / 2` and `h / 2` |
+| `Line(start, end)` | two points | stroke only; `stroke_width` defaults to `line.stroke_width` |
+| `Polygon(points)` | three points or more | filled and closed |
+| `Curve(segments)` | segments, the first a `MoveTo` | `MoveTo(p)`, `LineTo(p)`, `CubicTo(c1, c2, p)`, `QuadTo(c, p)`, `Close()` |
+| `Arrow(start, end)` | two points | `tip=` and `tail=` take `TriangleTip()`, `HookTip()` or `BarTip()`; with none given the tip is the marker `arrow.tip` names |
+| `Text("words")` | the source string | the markup of section 5 works here |
+| `Image("f.png")` | the path | `width=` / `height=` in cm, `crop=(x, y, w, h)` in fractions of the file |
+| `Group([...])` | the children | takes `anchor=`, never `pos=` |
+| `VSpace(h)`, `HSpace(w)` | the size in cm | draws nothing and holds a box |
+
+`Rectangle`, `Circle`, `Ellipse`, `Text` and `Image` sit at a `pos=` with an
+`anchor=`, one of the nine names in section 6. `Line`, `Polygon`, `Curve` and
+`Arrow` carry their geometry as points in the frame they are added to and take
+neither: the points are the position, and `move_to` relocates one. Every element
+takes `id=` and `z_order=`.
+
+### Style
+
+| field | values | default |
+|---|---|---|
+| `fill_color` | palette name, hex, or a `Gradient` | black |
+| `fill_opacity` | 0 to 1 | 1 |
+| `stroke_color` | palette name, hex, or a `Gradient` | black |
+| `stroke_width` | cm | 0, which draws no stroke |
+| `stroke_opacity` | 0 to 1 | 1 |
+| `stroke_dash` | `"solid"`, `"dotted"`, `"dashed"`, `"dash-dotted"`, each with a `densely-` and a `loosely-` variant, or a list of lengths in cm | solid |
+| `stroke_cap` | `"butt"`, `"round"`, `"square"` | Typst's |
+| `stroke_join` | `"miter"`, `"round"`, `"bevel"` | Typst's |
+
+The default is a solid black fill with no stroke; an outline is
+`fill_opacity=0, stroke_width=0.05`. `Line` and `Arrow` fill nothing and take
+the stroke fields alone.
+
+A `Text` carries them too, and Typst paints the stroke over the glyph. A label
+with a white outline behind it is two copies of the text at the same position,
+the back one filled and stroked in the outline colour; the stroke leaves glyph
+metrics alone and both copies measure the same.
+
+Each field has a setter (`set_fill_color("red")`, `set_stroke_width(0.04)`) that
+writes every descendant carrying the field; `propagate=False` writes the node
+alone. `set_color` writes fill and stroke together, and `set_opacity` writes
+`fill_opacity` by itself.
+
+A gradient goes anywhere a colour does. Stops are palette names or hex, each
+optionally paired with a position:
+
+```python
+Gradient.linear("accent", "white", angle=45)
+Gradient.radial(("white", 0), ("black", "80%"), center=(0.5, 0.5), radius=0.6)
+```
+
+### Placing
+
+| call | what it does |
+|---|---|
+| `move_to(p)` | puts the element's anchor point at `p`, the subtree following |
+| `shift(d)` | translates by `d`, accumulating over calls and surviving a region's `arrange` |
+| `next_to(target, side, align=, gap=)` | puts this box against another element's box, or against a point |
+| `set_anchor(a)` | changes which point of the box sits at `pos` |
+| `rotate(angle, pivot=None)` | degrees counterclockwise, rigid over the subtree |
+| `scale(factor, origin=None)` | rigid and compounding; `set_scale(factor)` is the absolute form |
+
+`next_to` is what places a label without hand-tuned coordinates. The two
+bounding boxes meet, `align` slides the element along the shared side
+(`"left"`, `"center"`, `"right"` on `"top"` and `"bottom"`; `"top"`,
+`"center"`, `"bottom"` on `"left"` and `"right"`), and `gap` defaults to
+`arrange.gap`. The element's own anchor plays no part and is left alone.
+
+```python
+fig.add(Text("inflow").next_to(box, "left", align="top", gap=0.2))
+```
+
+### Measuring
+
+| call | returns | cost |
+|---|---|---|
+| `get_bbox()` | `(centre_x, centre_y, width, height)` in cm | one Typst query on a cache miss |
+| `get_anchor_point(anchor)` | that point of the box | the same |
+| `get_width()`, `get_height()` | the extents | free on a shape, which knows its size; measured for text, images and groups |
+| `center` | the box centre | free for a fixed element anchored `"center"` |
+| `measure_all([...])` | nothing, and fills the caches | one pass for the whole list |
+
+The edges come from the box: `left = x - w / 2`, `top = y + h / 2`. Measurement
+is the slow half of a build and sizes are cached on disk between runs; ask for a
+box when the drawing needs one, and call `measure_all` ahead of a loop that would
+otherwise ask element by element.
+
+### Ids, hiding and draw order
+
+`id="key"` on any element registers it, and `> modify : "key", <props>` restyles
+or moves everything carrying that key from its reveal step onward.
+`set_hidden(True)` holds the box and draws nothing, which is how a layer waits
+for its step. `z_order` sorts the whole slide and cascades from a group to the
+descendants that carry none.
+
+### Grouping and stacking
+
+A `Group` is a tree node whose box is the union of its children's. It has no
+body of its own, which makes its fill and stroke fields bulk setters over the
+subtree, and it moves as a unit.
+
+`arrange(elements, pos, anchor, gap=0.0, width=None)` stacks a list from top to
+bottom and anchors the stack as a whole. It is what a region runs internally,
+and it is available for a column built inside a drawing.
+
+A region is reachable from a fence when a drawing is placed against the layout:
+`self.layout.get("content")` carries `center`, `left`, `right`, `top`, `bottom`
+and `get_anchor_point(anchor)`.
+
+### Running Python in a deck
 
 A longer construction goes in a `python mate` fence, which runs with the `mate`
 API in scope and the presentation as `self`. The namespace persists across
@@ -533,6 +637,8 @@ The two lines above differ in reach:
   included, and it resets when the next slide opens. `set_anchor_default` makes
   it the deck's default instead.
 
+### Figure files
+
 A reusable drawing belongs in a file of its own, holding exactly one
 module-level `Figure`:
 
@@ -540,8 +646,10 @@ module-level `Figure`:
 from mate import Figure, Rectangle, Text
 
 fig = Figure()
-fig.add(Rectangle(3.4, 1.2, fill_opacity=0, stroke_color="gray", stroke_width=0.035))
-fig.add(Text("label", anchor="center"))
+box = fig.add(
+    Rectangle(3.4, 1.2, fill_opacity=0, stroke_color="gray", stroke_width=0.035)
+)
+fig.add(Text("label").next_to(box, "top"))
 
 if __name__ == "__main__":
     fig.write("scene.pdf")
@@ -553,17 +661,14 @@ picture: palette names resolve against the deck and ids inside the file answer t
 
 ### Composing a drawing
 
-- **A `Group` is not a shape.** It takes no `pos` (passing one raises): the
-  children keep the coordinates they were built with. Place a root group with
-  `move_to(p)`, which honours the group's own `anchor`, and a nested one with
-  `shift(delta)`. Leaf elements do take `pos` and `anchor`.
 - A group stacked in a region is placed by the region, and `set_align("center")`
-  decides where it sits across the region's width. `get_bbox()` returns
-  `(centre_x, centre_y, width, height)`, the union of the children.
+  decides where it sits across the region's width.
 - Derive positions from a few named constants and stack with
   `arrange(elements, pos, anchor, gap=...)`. Shared baselines and even gaps are
   most of what makes a drawing read as deliberate; eyeballed offsets read as
   noise.
+- Attach the labels with `next_to` and keep written coordinates for the few
+  things whose position is the point.
 - Label the arrows. `writes`, `every 30 s`, `x 3` carries information; a bare
   arrow means "related somehow".
 - Keep a label to a word or three and leave the explanation to the caption.
