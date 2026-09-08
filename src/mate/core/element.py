@@ -4,6 +4,7 @@ import copy as _copy
 import math
 from typing import Iterable, Literal
 
+from ..config import config
 from .registry import IDKey, id_registry
 from .vec import Vec, VecLike
 
@@ -34,6 +35,49 @@ Anchor = Literal[
 # Horizontal alignment of an element within its region, resolved by
 # ``arrange``. ``None`` inherits the region's horizontal half.
 HAlign = Literal["left", "center", "right"]
+
+# Side of a box, as read by ``next_to``.
+Side = Literal["top", "bottom", "left", "right"]
+
+# Per side: the unit direction an element is pushed along, and the
+# ``(target anchor, own anchor)`` pair each ``align`` value brings into
+# contact.
+_SIDE_CONTACTS: dict[
+    Side, tuple[tuple[float, float], dict[str, tuple[Anchor, Anchor]]]
+] = {
+    "top": (
+        (0.0, 1.0),
+        {
+            "left": ("top-left", "bottom-left"),
+            "center": ("top-center", "bottom-center"),
+            "right": ("top-right", "bottom-right"),
+        },
+    ),
+    "bottom": (
+        (0.0, -1.0),
+        {
+            "left": ("bottom-left", "top-left"),
+            "center": ("bottom-center", "top-center"),
+            "right": ("bottom-right", "top-right"),
+        },
+    ),
+    "left": (
+        (-1.0, 0.0),
+        {
+            "top": ("top-left", "top-right"),
+            "center": ("center-left", "center-right"),
+            "bottom": ("bottom-left", "bottom-right"),
+        },
+    ),
+    "right": (
+        (1.0, 0.0),
+        {
+            "top": ("top-right", "top-left"),
+            "center": ("center-right", "center-left"),
+            "bottom": ("bottom-right", "bottom-left"),
+        },
+    ),
+}
 
 # (h_mul, v_mul) such that the bbox centre is offset from ``_pos`` by
 # ``((0.5 - h_mul) * w, (0.5 - v_mul) * h)``. Equivalently the anchor
@@ -422,6 +466,55 @@ class Element:
         else:
             self._apply_translation_to_bbox_cache(delta)
         return self
+
+    def next_to(
+        self,
+        target: Element | VecLike,
+        side: Side = "top",
+        *,
+        align: str = "center",
+        gap: float | None = None,
+    ) -> Element:
+        """Place this element against one side of ``target``.
+
+        ``target`` is another element or a point, a point being a box of zero
+        size. ``side`` picks the side of the target box the element sits on and
+        ``align`` where it sits along that side: ``"left"``, ``"center"`` or
+        ``"right"`` on ``"top"`` and ``"bottom"``; ``"top"``, ``"center"`` or
+        ``"bottom"`` on ``"left"`` and ``"right"``. ``gap`` is the distance in
+        cm left between the two boxes, reading ``arrange.gap`` from the config
+        when omitted.
+
+        The two bounding boxes are what meet: the element lands in the same
+        place whatever its own ``anchor`` is, and the anchor is left as it was.
+        Both boxes are measured in one pass on a cache miss.
+
+        Placement is absolute, like :meth:`move_to`: :attr:`offset` is left
+        alone and a region's ``arrange`` does not re-add the displacement.
+        """
+        contacts = _SIDE_CONTACTS.get(side)
+        if contacts is None:
+            names = ", ".join(map(repr, _SIDE_CONTACTS))
+            raise ValueError(f"{side!r} is not a side. Use one of {names}.")
+        direction, anchors_by_align = contacts
+        pair = anchors_by_align.get(align)
+        if pair is None:
+            names = ", ".join(map(repr, anchors_by_align))
+            raise ValueError(
+                f"{align!r} does not align an element on the {side!r} side of "
+                f"another. Use one of {names}."
+            )
+        target_anchor, own_anchor = pair
+        if gap is None:
+            gap = config.get("arrange.gap")
+        if isinstance(target, Element):
+            measure_all([self, target])
+            point = target.get_anchor_point(target_anchor)
+        else:
+            point = Vec(target)
+        contact = point + Vec(direction) * gap
+        delta = contact - self.get_anchor_point(own_anchor)
+        return self.move_to(self._current_anchor_point() + delta)
 
     def set_anchor(self, anchor: Anchor) -> Element:
         """Change the anchor mode in place.
