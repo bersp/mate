@@ -777,13 +777,13 @@ away from the emphasis its author wants; a colored one has to be undone first.
 as a hex literal inside a slide. A hex belongs in the front matter `colors:`
 block, under a name.
 
-**Turn the overflow warning on while building the deck.** `region.warn_overflow`
+**Turn the overflow warning on while building the deck.** `warn.overflow`
 is off by default; set it in the front matter and every slide whose content
 outgrows its region is named as the deck builds:
 
 ```yaml
 config:
-  region.warn_overflow: true
+  warn.overflow: true
 ```
 
 **Look at the pages before handing the deck over.** The warning catches content

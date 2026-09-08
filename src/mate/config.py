@@ -21,8 +21,9 @@ _MISSING = object()
 # ``title.max_width`` and ``subtitle.max_width`` cap the line width in cm of the
 # two blocks the title region holds; ``None`` wraps each to that region's width.
 #
-# ``region.warn_overflow`` logs a warning naming every region whose arranged
-# content is larger than the region itself.
+# The ``warn.*`` keys are the build-time checks, each off by default and each
+# reporting through the logger. ``warn.overflow`` names every region whose
+# arranged content is larger than the region itself.
 # The cover splits into ``cover.title`` and ``cover.author`` roles, each carrying
 # the same dimensions. The font/size literals are kept in sync
 # with ``typst query`` on a blank doc so the rendered output never relies on
@@ -57,8 +58,8 @@ _DEFAULTS: dict[str, object] = {
     "region.default": "content",
     "region.content.anchor": "top-left",
     "region.content.arrange_gap": 0.25,
-    "region.warn_overflow": False,
     "arrange.gap": 0.2,
+    "warn.overflow": False,
     "line.stroke_width": 0.05,
     "arrow.tip": "hook",
     "arrow.triangle.length": 0.25,

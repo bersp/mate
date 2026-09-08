@@ -96,7 +96,7 @@ class Presentation(PresentationTemplateBase):
         number = self.slides.index(slide) + 1
         for region in self.layout.regions.values():
             region.arrange()
-        if config.get("region.warn_overflow"):
+        if config.get("warn.overflow"):
             self._warn_overflow(number)
         self._resolve_overwrites()
         self._resolve_alternates()
