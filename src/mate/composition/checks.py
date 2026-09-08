@@ -1,15 +1,21 @@
-"""Overlap report over the elements drawn on a page."""
+"""Build-time checks over the arranged content, one per ``warn.*`` config key.
+
+Each check is a ``find_*`` returning what it found and a ``log_*`` writing one
+warning per entry, opening with the subject the caller names (a slide number, a
+figure file).
+"""
 
 from __future__ import annotations
 
 from typing import Iterable
 
-from ..core.element import Element, measure_all
+from ..core.element import Element, measure_all, union_bbox
 from ..elements.group import Group
 from ..elements.shapes import Arrow
 from ..elements.spacing import HSpace, VSpace
 from ..elements.text import Text
 from ..log import logger
+from .layout import Layout
 
 # An overlap thinner than this in either axis is two boxes touching.
 _TOLERANCE = 0.01  # cm
@@ -21,6 +27,39 @@ _MIN_AREA = 0.01  # cm2
 _DESCRIPTION_LENGTH = 30
 
 Collision = tuple[Element, Element, float]
+Overflow = tuple[str, float, float]
+
+
+def find_overflows(layout: Layout) -> list[Overflow]:
+    """Return the regions holding more than they fit, with the excess in cm.
+
+    Reads the boxes the arrange pass measured, without a query of its own.
+    """
+    overflows: list[Overflow] = []
+    for name, region in layout.regions.items():
+        if not region.elements:
+            continue
+        _, _, width, height = union_bbox(region.elements)
+        extra_width = width - region.width
+        extra_height = height - region.height
+        if extra_width > _TOLERANCE or extra_height > _TOLERANCE:
+            overflows.append((name, extra_width, extra_height))
+    return overflows
+
+
+def log_overflows(overflows: list[Overflow], subject: str) -> None:
+    """Log one warning per overflowing region, each line opening with ``subject``."""
+    for name, extra_width, extra_height in overflows:
+        excess = []
+        if extra_width > _TOLERANCE:
+            excess.append(f"{extra_width:.2f} cm wider")
+        if extra_height > _TOLERANCE:
+            excess.append(f"{extra_height:.2f} cm taller")
+        logger.warning(
+            rf"[yellow b]{subject}[/yellow b] content is "
+            rf"{' and '.join(excess)} than region [magenta]{name}[/magenta]",
+            extra={"markup": True, "highlighter": None},
+        )
 
 
 def _collect(

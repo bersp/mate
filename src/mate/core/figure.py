@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..backends.typst import TypstRenderer as _Renderer
-from ..composition.collisions import find_collisions, log_collisions
+from ..composition.checks import find_collisions, log_collisions
 from ..config import config
 from ..log import logger
 from .element import Element, measure_all, union_bbox
