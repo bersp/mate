@@ -240,6 +240,11 @@ class Config:
         """Override the default for each ``key``/``value`` entry process-wide."""
         self._defaults.update(values)
 
+    def keys_under(self, namespace: str) -> list[str]:
+        """Return the defined keys of ``namespace``, sorted."""
+        prefix = f"{namespace}."
+        return sorted(key for key in self._defaults if key.startswith(prefix))
+
     def template_names(self) -> set[str]:
         """Return the namespace name of every template in :attr:`templates`.
 
