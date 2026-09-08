@@ -421,8 +421,12 @@ An element added with `> add` floats at its own `pos` unless a region is named.
 
 ### Draw order
 
-Elements draw in the order they are added. `z_order` overrides it: higher covers
-lower, ties keep insertion order, everything starts at 0.
+Every element of a slide is placed on its own and the whole set is sorted
+together by `z_order`: higher covers lower, ties keep insertion order, and
+everything starts at 0. A value set on a group cascades to every descendant that
+carries none, so a `z_order` on a nested group wins over a sibling added after
+it. A label coming out under an arrow drawn later is fixed by a `z_order` on the
+label or on the group holding it.
 
 ## 7. Revealing content
 
@@ -437,6 +441,12 @@ revealing never moves what is already visible.
 - `> modify : "id", <props>` restyles or moves every element carrying that id,
   from its step onward. Ids are per slide; the same key is free again in the
   next slide.
+- `set_hidden(True)` reserves the element's box and draws nothing. It is how a
+  layer built in Python inside a figure waits for its step:
+  `> modify : "id", hidden=False` brings it in with the room held from the first
+  step and the rest of the drawing still. `opacity` is a different knob,
+  writing `fill_opacity` alone: it leaves a stroke visible and, set back to 1,
+  fills a shape that was drawn as an outline.
 - `> mask image : "id", x=0.2, y=0.3, width=0.4, height=0.5` shows a window of a tagged
   image while the picture holds its place; `> unmask image : "id"` restores it.
   (`crop=` on `> add image` is different: it draws a different picture, and the
@@ -467,13 +477,23 @@ written after the fence lands in the last variant's step.
 
 ## 8. Drawings and Python
 
-Shapes: `Rectangle(w, h)`, `Circle(r)`, `Ellipse(w, h)`, `Line(start, end)`,
-`Polygon(points)`, `Curve(segments)`, `Arrow(start, end)`. All take `pos`,
-`anchor`, `id`, `z_order`, `fill_color`, `stroke_color`, `fill_opacity`,
-`stroke_width`, `stroke_dash`, `stroke_cap`, `stroke_join`, `stroke_opacity`.
-The default is a solid black fill with no stroke; an outline needs
-`fill_opacity=0, stroke_width=0.05`. A `Gradient.linear(...)` or
-`Gradient.radial(...)` works anywhere a color does.
+Shapes: `Rectangle(w, h)`, `Circle(r)` and `Ellipse(w, h)` sit at a `pos` with
+an `anchor`. `Line(start, end)`, `Polygon(points)`, `Curve(segments)` and
+`Arrow(start, end)` carry their geometry as points and take neither: the points
+are the position, and `move_to` is what relocates one.
+
+Every shape takes `id`, `z_order`, `stroke_color`, `stroke_width`,
+`stroke_dash`, `stroke_cap`, `stroke_join` and `stroke_opacity`. The ones that
+fill (`Rectangle`, `Circle`, `Ellipse`, `Polygon`, `Curve`) also take
+`fill_color` and `fill_opacity`; `Line` and `Arrow` are stroke-only. The default
+is a solid black fill with no stroke; an outline needs `fill_opacity=0,
+stroke_width=0.05`. A `Gradient.linear(...)` or `Gradient.radial(...)` works
+anywhere a color does.
+
+A `Text` carries the same stroke fields and Typst paints the stroke over the
+glyph. A label with a white outline behind it is two copies of the text at the
+same position, the back one filled and stroked in the outline colour; the stroke
+leaves glyph metrics alone, so both copies measure the same.
 
 ```markdown
 > add : Rectangle(1.7, 1.1, pos=(-1.4, -1.6), corner_radius=0.15, fill_color="accent")
@@ -571,9 +591,8 @@ and `date` are handled by the base, everything else is read by the template;
 grep it for `directive.get` before writing a property. A property no template
 reads is silently ignored.
 
-**One idea per slide.** A title and a body that fits. Nothing warns when content
-runs past its region, and splitting a slide in two keeps the text at the size the
-rest of the deck uses.
+**One idea per slide.** A title and a body that fits. Splitting a slide in two
+keeps the text at the size the rest of the deck uses.
 
 **Reveal in steps when the slide argues something.** A list of consequences, a
 derivation, a before-and-after comparison: `> pause` between the parts. A slide
