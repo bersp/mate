@@ -810,12 +810,12 @@ config:
 The collision report compares bounding boxes, so a diagonal arrow reports
 against the rectangle it spans, and a box holding another (a label inside a
 shape, the slide background) is never reported. The widow report reads the
-prose: titles, code, equations and a paragraph broken by hand are left out.
+prose: titles, covers, code, equations and a paragraph broken by hand are left
+out.
 
-**Look at the pages before handing the deck over.** The warning catches content
-that leaves its region, and nothing catches the rest: an image that pushes its
-caption off the slide, a wide equation reaching into the margin, a long title
-crowding the body. Render the pages and look at them:
+**Look at the pages before handing the deck over.** The checks catch what they
+name and nothing else: an image that pushes its caption off the slide, a wide
+equation reaching into the margin, a long title crowding the body. Render the pages and look at them:
 
 ```bash
 pdftoppm -png -r 80 deck.pdf /tmp/deck_page    # /tmp/deck_page-01.png, ...

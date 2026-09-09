@@ -280,7 +280,7 @@ One check per `warn.*` config key, each a `find_*` returning what it found and a
 - `find_collisions(roots, hidden_ids)` — the pairs of drawn boxes that cross, each with the shared area, ordered by descending area. It walks the roots for the nodes the renderer places (fixed, not a `Group`, not a spacer, not hidden), grows each box by its `stroke_width` (the ink a stroke lays outside the box, which gives a horizontal line a height), and sweeps them ordered by left edge. A pair is dropped when one box holds the other, when the two are ancestor and descendant, or when both are pieces of the same `Arrow`.
 - `find_widows(elements, min_words)` — the paragraphs whose last line carries `min_words` words or fewer. A candidate is a `Text` carrying a `max_width`; verbatim runs, whole equations and a paragraph holding a hard line break are left out. Each candidate is copied with its last `k` words removed, for `k` up to `min_words`, every copy is measured in one pass, and the smallest `k` whose removal costs the paragraph a line is the number of words its last line carries. The removal runs over the parsed inlines of each leaf: an emphasis emptied by it goes with its content, and a code or math span counts as one word.
 
-`Presentation.end_slide` runs the three over the slide it is sealing, the slide background left out of the collision pass; `Figure.write` runs the collision one over its elements.
+`Presentation.end_slide` runs the three over the slide it is sealing, the slide background left out of the collision pass and a cover slide out of the widow one; `Figure.write` runs the collision one over its elements.
 
 ### `templates/` — the template stack
 

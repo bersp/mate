@@ -129,8 +129,10 @@ class Presentation(PresentationTemplateBase):
         """Log a warning for each paragraph of this slide ending in a short line.
 
         The title region is left out: a title split over two lines is a break
-        the author chose.
+        the author chose. A cover carries no prose and is skipped whole.
         """
+        if self.current_slide.is_cover:
+            return
         prose = [
             el
             for name, region in self.layout.regions.items()
