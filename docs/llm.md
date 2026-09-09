@@ -29,6 +29,8 @@ The build loop is one command:
 mate deck.md
 ```
 
+`mate deck.md --warn` builds and runs the checks of section 9 as well.
+
 A 25-slide deck of text and images builds in about two seconds (measurements are
 cached under `.mate_cache/`, which is safe to delete). Drawings are where the
 cost shows: a page carrying a few thousand shapes adds about a second of its own,
@@ -659,6 +661,17 @@ if __name__ == "__main__":
 picture: palette names resolve against the deck and ids inside the file answer to
 `> modify`. Run the file directly to preview it as a standalone PDF.
 
+The collision check runs on that preview when the guard turns it on, naming the
+labels that cross while they are being placed:
+
+```python
+from mate import config
+
+if __name__ == "__main__":
+    config.set("warn.collisions", True)
+    fig.write("scene.pdf")
+```
+
 ### Composing a drawing
 
 - A group stacked in a region is placed by the region, and `set_align("center")`
@@ -777,14 +790,27 @@ away from the emphasis its author wants; a colored one has to be undone first.
 as a hex literal inside a slide. A hex belongs in the front matter `colors:`
 block, under a name.
 
-**Turn the overflow warning on while building the deck.** `warn.overflow`
-is off by default; set it in the front matter and every slide whose content
-outgrows its region is named as the deck builds:
+**Turn the checks on while building the deck.** Three of them, each off by
+default, each naming the slide as the deck builds:
+
+| key | what it reports |
+|---|---|
+| `warn.overflow` | a region holding more than it fits |
+| `warn.collisions` | two drawn boxes crossing: a label over a stroke, a label over a label |
+| `warn.widows` | a paragraph whose last line carries `warn.widow_min_words` words or fewer (3 by default) |
+
+`mate deck.md --warn` turns on all three for one build, which is how to run them
+while writing. The front matter is for a check left on:
 
 ```yaml
 config:
   warn.overflow: true
 ```
+
+The collision report compares bounding boxes, so a diagonal arrow reports
+against the rectangle it spans, and a box holding another (a label inside a
+shape, the slide background) is never reported. The widow report reads the
+prose: titles, code, equations and a paragraph broken by hand are left out.
 
 **Look at the pages before handing the deck over.** The warning catches content
 that leaves its region, and nothing catches the rest: an image that pushes its
@@ -1057,5 +1083,6 @@ Failure modes verified against the current code.
   it takes the caption with it.
 - Colors are palette names; hex values live in the front matter or in the
   template's palette.
+- The build was run once with `--warn` and what it reported was read.
 - The reveal steps make sense read in order.
 - Every image and figure path resolves from the directory the build runs in.
