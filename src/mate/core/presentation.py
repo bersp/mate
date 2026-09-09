@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..backends.typst import TypstRenderer as _Renderer
+from ..composition.collisions import Collision, find_collisions, log_collisions
 from ..config import config
 from ..log import logger
 from ..parser.ir import FrontMatter
@@ -70,7 +71,7 @@ class Presentation(PresentationTemplateBase):
         )
         background = self.background()
         if background is not None:
-            slide.add(background)
+            slide.background = slide.add(background)
         if config.get("footer.show") and not is_cover:
             self.add_footer(show_total=config.get("footer.show_total"))
         return slide
@@ -101,6 +102,8 @@ class Presentation(PresentationTemplateBase):
         self._resolve_overwrites()
         self._resolve_alternates()
         self._resolve_modifies()
+        if config.get("warn.collisions"):
+            self._warn_collisions(number)
         canvas = (self.width, self.height)
         slide.snapshots = [
             Snapshot(self._renderer.render_snapshot(roots, canvas, hidden))
@@ -135,6 +138,25 @@ class Presentation(PresentationTemplateBase):
                     rf"{' and '.join(excess)} than region [magenta]{name}[/magenta]",
                     extra={"markup": True, "highlighter": None},
                 )
+
+    def _warn_collisions(self, number: int) -> None:
+        """Log a warning for each pair of drawn boxes crossing on this slide.
+
+        Walks every reveal step with the elements it hides and reports a pair
+        once, on the first step it appears in. The slide background is left
+        out: it sits behind the content by design.
+        """
+        seen: set[tuple[int, int]] = set()
+        collisions: list[Collision] = []
+        slide = self.current_slide
+        for roots, hidden in slide.reveal_states():
+            content = [root for root in roots if root is not slide.background]
+            for a, b, area in find_collisions(content, hidden):
+                key = (id(a), id(b))
+                if key not in seen:
+                    seen.add(key)
+                    collisions.append((a, b, area))
+        log_collisions(collisions, f"Slide {number}")
 
     def write(self, path: str | Path | None = None, ppi: float | None = None) -> None:
         """Compile the closed slides into a file at ``path``.

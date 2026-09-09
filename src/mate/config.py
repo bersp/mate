@@ -23,7 +23,8 @@ _MISSING = object()
 #
 # The ``warn.*`` keys are the build-time checks, each off by default and each
 # reporting through the logger. ``warn.overflow`` names every region whose
-# arranged content is larger than the region itself.
+# arranged content is larger than the region itself; ``warn.collisions`` names
+# the pairs of drawn boxes that cross.
 # The cover splits into ``cover.title`` and ``cover.author`` roles, each carrying
 # the same dimensions. The font/size literals are kept in sync
 # with ``typst query`` on a blank doc so the rendered output never relies on
@@ -60,6 +61,7 @@ _DEFAULTS: dict[str, object] = {
     "region.content.arrange_gap": 0.25,
     "arrange.gap": 0.2,
     "warn.overflow": False,
+    "warn.collisions": False,
     "line.stroke_width": 0.05,
     "arrow.tip": "hook",
     "arrow.triangle.length": 0.25,

@@ -30,6 +30,8 @@ class Slide:
     is_cover : bool
         ``True`` for a generated cover page. A cover carries no footer and is
         excluded from the slide numbering.
+    background : Element | None
+        The element drawn behind the slide's content, or ``None``.
     steps : list[list[Element]]
         Root elements grouped by reveal step; elements with
         ``placement != "fixed"`` are skipped at render time.
@@ -47,6 +49,7 @@ class Slide:
         self.title: str | None = title
         self.subtitle: str | None = subtitle
         self.is_cover: bool = is_cover
+        self.background: Element | None = None
         self.steps: list[list[Element]] = [[]]
         self.replaced: list[tuple[int, Element]] = []
         self.reveals: list[tuple[int, Element]] = []
