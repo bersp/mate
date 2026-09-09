@@ -15,6 +15,8 @@ from ..elements.shapes import Arrow
 from ..elements.spacing import HSpace, VSpace
 from ..elements.text import Text
 from ..log import logger
+from ..parser import inlines_to_markdown, parse_markup
+from ..parser.ir import Bold, Code, Inline, Italic, LineBreak, Math, TextRun
 from .layout import Layout
 
 # An overlap thinner than this in either axis is two boxes touching.
@@ -28,6 +30,7 @@ _DESCRIPTION_LENGTH = 30
 
 Collision = tuple[Element, Element, float]
 Overflow = tuple[str, float, float]
+Widow = tuple[Text, int, str]
 
 
 def find_overflows(layout: Layout) -> list[Overflow]:
@@ -179,6 +182,11 @@ def find_collisions(
     return collisions
 
 
+def _escape(text: str) -> str:
+    """Escape the brackets of ``text`` for a rich-markup log line."""
+    return text.replace("[", r"\[")
+
+
 def _describe(el: Element) -> str:
     """Name an element for a report line."""
     name = type(el).__name__
@@ -191,7 +199,7 @@ def _describe(el: Element) -> str:
         label = f"{name} {text!r}"
     else:
         label = f"{name} #{el._mid}"
-    return label.replace("[", r"\[")
+    return _escape(label)
 
 
 def log_collisions(collisions: list[Collision], subject: str) -> None:
@@ -201,5 +209,170 @@ def log_collisions(collisions: list[Collision], subject: str) -> None:
             rf"[yellow b]{subject}[/yellow b] [magenta]{_describe(a)}[/magenta] "
             rf"overlaps [magenta]{_describe(b)}[/magenta] over "
             rf"{area:.2f} cm2",
+            extra={"markup": True, "highlighter": None},
+        )
+
+
+def _prose(el: Element, out: list[Text]) -> None:
+    """Collect the wrapped texts of ``el``'s subtree.
+
+    A text carrying a ``max_width`` is a paragraph the layout wraps. Verbatim
+    runs (a code block's lines) and whole equations break where they break.
+    """
+    if el.placement == "omitted":
+        return
+    if (
+        isinstance(el, Text)
+        and el.max_width is not None
+        and not el.verbatim
+        and not el.is_math_run
+    ):
+        out.append(el)
+        return
+    for child in el.children:
+        _prose(child, out)
+
+
+def _leaves(el: Element, out: list[Element]) -> None:
+    """Collect the childless nodes of ``el``'s subtree, in source order."""
+    if not el.children:
+        out.append(el)
+        return
+    for child in el.children:
+        _leaves(child, out)
+
+
+def _inline_words(nodes: list[Inline]) -> list[str]:
+    """Return the words of an inline token list; a code or math span is one word."""
+    words: list[str] = []
+    for node in nodes:
+        match node:
+            case TextRun(text):
+                words.extend(text.split())
+            case Bold(children) | Italic(children):
+                words.extend(_inline_words(children))
+            case Code(text):
+                words.append(f"`{text}`")
+            case Math(raw, _):
+                words.append(f"${raw}$")
+    return words
+
+
+def _words(text: Text) -> list[str]:
+    """Return the words of a text, its spans included, in reading order."""
+    leaves: list[Element] = []
+    _leaves(text, leaves)
+    words: list[str] = []
+    for leaf in leaves:
+        words.extend(_inline_words(parse_markup(leaf.content)))
+    return words
+
+
+def _has_line_break(text: Text) -> bool:
+    """Return whether the text carries a line break the author wrote."""
+    leaves: list[Element] = []
+    _leaves(text, leaves)
+    return any(
+        isinstance(node, LineBreak)
+        for leaf in leaves
+        for node in parse_markup(leaf.content)
+    )
+
+
+def _drop_words(nodes: list[Inline], count: int) -> tuple[list[Inline], int]:
+    """Return ``nodes`` without its last ``count`` words, and the count still owed.
+
+    An emphasis emptied by the removal goes with its content, which keeps the
+    markup balanced.
+    """
+    kept: list[Inline] = []
+    for node in reversed(nodes):
+        if count == 0:
+            kept.append(node)
+            continue
+        match node:
+            case TextRun(text):
+                words = text.split()
+                if len(words) <= count:
+                    count -= len(words)
+                    continue
+                kept.append(TextRun(" ".join(words[: len(words) - count])))
+                count = 0
+            case Bold(children):
+                inner, count = _drop_words(children, count)
+                if inner:
+                    kept.append(Bold(inner))
+            case Italic(children):
+                inner, count = _drop_words(children, count)
+                if inner:
+                    kept.append(Italic(inner))
+            case Code() | Math():
+                count -= 1
+            case _:
+                kept.append(node)
+    kept.reverse()
+    return kept, count
+
+
+def _without_last_words(text: Text, count: int) -> Text:
+    """Return a copy of ``text`` with its last ``count`` words removed."""
+    clone = text.copy()
+    leaves: list[Element] = []
+    _leaves(clone, leaves)
+    owed = count
+    for leaf in reversed(leaves):
+        if owed == 0:
+            break
+        nodes, owed = _drop_words(parse_markup(leaf.content), owed)
+        leaf.content = inlines_to_markdown(nodes)
+    return clone
+
+
+def find_widows(elements: Iterable[Element], min_words: int) -> list[Widow]:
+    """Return the paragraphs whose last line carries ``min_words`` words or fewer.
+
+    Each paragraph is measured again with its last ``k`` words removed, for ``k``
+    up to ``min_words``: the smallest ``k`` whose removal costs the paragraph a
+    line is the number of words its last line carries. Typst breaks the lines
+    both times, and every copy is measured in one pass.
+
+    A paragraph carrying a hard line break is left out: its lines are the
+    author's.
+    """
+    candidates: list[Text] = []
+    for el in elements:
+        _prose(el, candidates)
+    trials: list[tuple[Text, list[str], list[tuple[int, Text]]]] = []
+    for text in candidates:
+        words = _words(text)
+        if len(words) <= min_words or _has_line_break(text):
+            continue
+        shortened = [(k, _without_last_words(text, k)) for k in range(1, min_words + 1)]
+        trials.append((text, words, shortened))
+    if not trials:
+        return []
+    measure_all(
+        [text for text, _, _ in trials]
+        + [clone for _, _, shortened in trials for _, clone in shortened]
+    )
+
+    widows: list[Widow] = []
+    for text, words, shortened in trials:
+        height = text.get_height()
+        for count, clone in shortened:
+            if clone.get_height() < height - _TOLERANCE:
+                widows.append((text, count, " ".join(words[-count:])))
+                break
+    return widows
+
+
+def log_widows(widows: list[Widow], subject: str) -> None:
+    """Log one warning per widowed paragraph, each line opening with ``subject``."""
+    for text, count, words in widows:
+        plural = "" if count == 1 else "s"
+        logger.warning(
+            rf"[yellow b]{subject}[/yellow b] the last line of "
+            rf"[magenta]{_describe(text)}[/magenta] carries {count} word{plural}: "
+            rf"[magenta]{_escape(repr(words))}[/magenta]",
             extra={"markup": True, "highlighter": None},
         )

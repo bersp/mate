@@ -7,8 +7,10 @@ from ..composition.checks import (
     Collision,
     find_collisions,
     find_overflows,
+    find_widows,
     log_collisions,
     log_overflows,
+    log_widows,
 )
 from ..config import config
 from ..log import logger
@@ -104,6 +106,8 @@ class Presentation(PresentationTemplateBase):
             region.arrange()
         if config.get("warn.overflow"):
             log_overflows(find_overflows(self.layout), f"Slide {number}")
+        if config.get("warn.widows"):
+            self._warn_widows(number)
         self._resolve_overwrites()
         self._resolve_alternates()
         self._resolve_modifies()
@@ -119,6 +123,23 @@ class Presentation(PresentationTemplateBase):
         logger.info(
             rf"[yellow b]Generating[/yellow b] Slide {number}{suffix}",
             extra={"markup": True, "highlighter": None},
+        )
+
+    def _warn_widows(self, number: int) -> None:
+        """Log a warning for each paragraph of this slide ending in a short line.
+
+        The title region is left out: a title split over two lines is a break
+        the author chose.
+        """
+        prose = [
+            el
+            for name, region in self.layout.regions.items()
+            if name != "title"
+            for el in region.elements
+        ]
+        log_widows(
+            find_widows(prose, config.get("warn.widow_min_words")),
+            f"Slide {number}",
         )
 
     def _warn_collisions(self, number: int) -> None:
