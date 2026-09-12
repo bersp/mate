@@ -311,10 +311,10 @@ def _markdown_to_typst(s: str) -> str:
     r"""Translate the Markdown markup of ``s`` into Typst markup.
 
     Parses ``s`` into inline tokens and emits the Typst form of each:
-    ``**bold**`` / ``*italic*`` / ``_italic_`` become ``*...*`` / ``_..._``,
-    ``` `code` ``` and ``$math$`` keep their verbatim bodies, a hard line break
-    becomes Typst's ``\`` line break, and every literal character is
-    Typst-escaped when special.
+    ``**bold**`` / ``*italic*`` / ``_italic_`` become ``#strong[...]`` /
+    ``#emph[...]``, which hold mid-word; ``` `code` ``` and ``$math$`` keep
+    their verbatim bodies, a hard line break becomes Typst's ``\`` line break,
+    and every literal character is Typst-escaped when special.
     """
     return _inline_to_typst(parse_markup(s))
 
@@ -326,9 +326,9 @@ def _inline_to_typst(nodes: list[Inline]) -> str:
         if isinstance(node, TextRun):
             out.append("".join(_escape_char(c) for c in node.text))
         elif isinstance(node, Bold):
-            out.append(f"*{_inline_to_typst(node.children)}*")
+            out.append(f"#strong[{_inline_to_typst(node.children)}]")
         elif isinstance(node, Italic):
-            out.append(f"_{_inline_to_typst(node.children)}_")
+            out.append(f"#emph[{_inline_to_typst(node.children)}]")
         elif isinstance(node, Code):
             out.append(f"`{node.text}`")
         elif isinstance(node, Math):
