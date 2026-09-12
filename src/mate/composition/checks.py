@@ -7,6 +7,7 @@ figure file).
 
 from __future__ import annotations
 
+import re
 from typing import Iterable
 
 from ..core.element import Element, measure_all, union_bbox
@@ -27,6 +28,9 @@ _MIN_AREA = 0.01  # cm2
 
 # Characters of an element's text kept in a report line.
 _DESCRIPTION_LENGTH = 30
+
+# One word of running text.
+_WORD = re.compile(r"\S+")
 
 Collision = tuple[Element, Element, float]
 Overflow = tuple[str, float, float]
@@ -283,7 +287,8 @@ def _drop_words(nodes: list[Inline], count: int) -> tuple[list[Inline], int]:
     """Return ``nodes`` without its last ``count`` words, and the count still owed.
 
     An emphasis emptied by the removal goes with its content, which keeps the
-    markup balanced.
+    markup balanced. A shortened run is cut at a word boundary, keeping the
+    whitespace that separates it from the node before it.
     """
     kept: list[Inline] = []
     for node in reversed(nodes):
@@ -292,11 +297,11 @@ def _drop_words(nodes: list[Inline], count: int) -> tuple[list[Inline], int]:
             continue
         match node:
             case TextRun(text):
-                words = text.split()
-                if len(words) <= count:
-                    count -= len(words)
+                starts = [m.start() for m in _WORD.finditer(text)]
+                if len(starts) <= count:
+                    count -= len(starts)
                     continue
-                kept.append(TextRun(" ".join(words[: len(words) - count])))
+                kept.append(TextRun(text[: starts[len(starts) - count]]))
                 count = 0
             case Bold(children):
                 inner, count = _drop_words(children, count)
