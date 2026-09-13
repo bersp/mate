@@ -5,9 +5,9 @@ knowledge of the codebase and covers the whole authoring surface: deck syntax,
 layout, reveals, design defaults, and how to extend the tool when the deck needs
 something the current vocabulary does not have.
 
-Read section 2 before writing anything: what a deck can use (templates, config
-keys, colors, commands, fonts) is installation-dependent and is meant to be
-listed, not remembered.
+Run `mate --info deck.md` and read section 2 before writing anything: what a
+deck can use (templates, config keys, colors, commands, regions, fonts) is
+installation-dependent and is meant to be listed, not remembered.
 
 ## 1. The model
 
@@ -23,13 +23,20 @@ A deck is one Markdown file. `mate deck.md` writes `deck.pdf` next to it.
   slide centre, x to the right and y up. The slide is 16 x 9 cm by default:
   x runs in [-8, 8] and y in [-4.5, 4.5].
 
-The build loop is one command:
+### The loop
 
-```bash
-mate deck.md
-```
+1. Run `mate --info deck.md` and read it (section 2). Templates, config keys,
+   colors, commands, regions and fonts are installation-dependent.
+2. Write the deck.
+3. Build with the checks on: `mate deck.md --warn`.
+4. Render every page to an image and look at every one of them (section 9).
+5. Note every defect in one pass, fix them in a single edit, render again.
 
-`mate deck.md --warn` builds and runs the checks of section 9 as well.
+Before step 2, the deck needs three things from the user: the material that goes
+on the slides, where the images and figures live, and the template. The content
+is theirs. Ask when any of the three is missing, and ask again whenever the deck
+has a genuinely open choice (a look that departs from the template, a slide
+count, a structure). One question costs less than a deck they have to rewrite.
 
 A 25-slide deck of text and images builds in about two seconds (measurements are
 cached under `.mate_cache/`, which is safe to delete). Drawings are where the
@@ -41,60 +48,38 @@ values.
 
 ## 2. List what varies, do not assume it
 
-Everything in this section is a shell one-liner. Run the ones relevant to the
-task before writing the deck.
-
-Built-in templates:
+One command prints what this installation offers:
 
 ```bash
-python -c "import pkgutil, mate.templates as t; print(sorted(m.name for m in pkgutil.iter_modules(t.__path__)))"
+mate --info deck.md
 ```
+
+The deck's front matter is applied first, and the listing carries, in order: the
+built-in templates and the ones the deck loads, every config key with its
+current value, the palette, the commands, the regions of the layout, the font
+families that resolve, and the API names a `> add` line or a `python mate` fence
+can name. `mate --info` alone prints the same listing for a deck with no front
+matter.
+
+**A name outside that listing does not exist.** A config key, a color, a
+command, a region, a font family or an element invented by analogy raises at
+build time. Print the listing and pick from it.
 
 Templates written for a deck are `.py` files sitting next to the Markdown file;
 a front-matter entry resolves to a sibling `<name>.py` when one exists and to a
-built-in name otherwise. List both before choosing.
+built-in name otherwise. The listing names both kinds.
 
-Config keys (the error enumerates every defined key):
-
-```bash
-python -c "from mate.config import config; config.get('?')"
-```
-
-Palette colors:
-
-```bash
-python -c "from mate.config import config; config.colors.get('?')"
-```
-
-Commands available on a bare deck (every public method is callable as a
-command):
-
-```bash
-python -c "from mate.core.template import PresentationTemplateBase as B; print(sorted(n for n in dir(B) if not n.startswith('_')))"
-```
-
-Commands and options a specific template adds: read the file. Its public methods
-are commands, its `config.get('<name>.<key>', default)` calls are the config keys
-it publishes, its `config.colors.set_multiple({...})` call is the palette it
-adds, and its `directive.get('<key>')` calls are the `#>` properties it reads.
+Two things the listing cannot carry, read from the template file itself: the
+`<template>.<key>` keys it reads with a default it never sets, and the `#>`
+directive properties it acts on. A property no template reads is ignored without
+a word.
 
 ```bash
 grep -n "def \|config.get\|colors.set_multiple\|directive.get" <template>.py
 ```
 
-Font families that resolve (only these; anything else raises at build time):
-
-```bash
-python -c "from mate.backends.typst import _available_font_families as f; print(sorted(f()))"
-```
-
-`font_paths` in the front matter adds directories of font files to that set.
-
-Element types and shapes:
-
-```bash
-python -c "import mate; print(mate.__all__)"
-```
+`font_paths` in the front matter adds directories of font files to the set of
+families that resolve (section 10).
 
 ### Reading the source
 
@@ -151,8 +136,11 @@ Body text.
 More body text.
 ```
 
-`flow` is the template to start from when the user states no preference. Section
-2 lists the alternatives, and section 10 covers switching or writing one.
+**Write `templates: [flow]` unless the user names another one.** A front matter
+without a `templates:` entry builds on the bare base: no background, no cover
+design, no title treatment. `flow` is the deck's starting look whenever the user
+states no preference. Section 2 lists the alternatives, and section 10 covers
+switching or writing one.
 
 Order of the pieces:
 
@@ -356,21 +344,13 @@ is the point (a stamp in a corner, a label on a drawing), not a way to take
 control of an ordinary block.
 
 The default layout carries `title`, `footer`, `left_margin`, `right_margin`,
-`content` (active by default), `full` and `full_with_margins`. A template can
-add or resize regions; list the region names of the loaded template
-(`grep -n "layout.add\|layout.get" <template>.py`) instead of assuming.
+`content` (active by default), `full` and `full_with_margins`. A template adds
+and resizes regions, and the REGIONS block of `mate --info deck.md` prints the
+centre, size, anchor and gap of every one the deck has.
 
 On a default 16 x 9 slide, `content` is 14.6 cm wide and 6.5 cm tall, spanning
 x [-7.3, 7.3] and y [-4.0, 2.5], anchored `top-left` with a 0.25 cm gap. Those
-are the numbers to size things against, and a template changes them. Print the
-ones a given deck has:
-
-```bash
-python -c "
-from mate import Presentation, config
-config.templates = ['flow']          # the deck's front-matter list
-print(Presentation('x').layout.get('content'))"
-```
+are the numbers to size things against, and a template changes them.
 
 A region stacks its content from its anchor, top to bottom, with `arrange_gap`
 between elements. The nine anchors are `top-left`, `top-center`, `top-right`,
@@ -478,6 +458,9 @@ reveals that variant cumulatively before the next one takes over, and a block
 written after the fence lands in the last variant's step.
 
 ## 8. Drawings and Python
+
+Read this section when the deck needs a drawing built in Python. A deck of text,
+images and ready-made figure files needs nothing from here.
 
 Python owns every coordinate here: a shape is an object placed by hand, in
 centimetres from the slide centre. One element goes in a `> add` command, a
@@ -815,18 +798,86 @@ out.
 
 **Look at the pages before handing the deck over.** The checks catch what they
 name and nothing else: an image that pushes its caption off the slide, a wide
-equation reaching into the margin, a long title crowding the body. Render the pages and look at them:
+equation reaching into the margin, a long title crowding the body. Render every
+page to an image and open every one of them:
 
 ```bash
-pdftoppm -png -r 80 deck.pdf /tmp/deck_page    # /tmp/deck_page-01.png, ...
+pdftoppm -png -r 150 deck.pdf /tmp/deck_page    # /tmp/deck_page-01.png, ...
 ```
+
+Reading the images is the step, not rendering them. At 150 dpi a 16 x 9 cm slide
+comes out 945 px wide, which is where a 7 pt caption stays legible; 80 dpi is
+small enough to hide the defect being looked for.
 
 Render every page at once, note every defect in one pass, fix them in a single
 edit, and render once more to confirm. Chasing one defect per rebuild costs
 several times as much. Every reveal step is a page someone sees: check that the
 first one is not blank and the last one is not crowded.
 
+### A deck end to end
+
+One file carrying the pieces above: a cover directive, a subtitle, reveal steps,
+a grid holding a figure, an anchored region and a captioned equation. It builds
+without a warning.
+
+```markdown
+---
+templates: [flow]
+config:
+  text.fontsize: 11
+colors:
+  accent: "#B5557A"
+---
+
+#>
+> cover: True
+> title: Mixing in a stratified layer
+> author: Name Surname
+> date: March 2026
+
+# What the runs measure
+
+## Two regimes, one control parameter
+
+- Above Ri = 0.25 the buoyancy flux saturates.
+
+> pause
+
+- Below it the layer overturns within one eddy turnover.
+
+> pause
+> vspace : 0.5
+
+The transition is what the next slide isolates. [[color="accent"]]
+
+# The spectrum
+
+> grid : [["text", "fig"]], hgap=0.6, width_ratios=[1, 1.2]
+> region : "text"
+
+- Energy peaks at the forcing scale and decays steadily below it.
+- The slope holds in both runs.
+
+> region : "fig", anchor="center"
+> add image : "figures/spectrum.png", width="100%"
+
+# The balance
+
+> region : "content", anchor="center"
+
+$$
+(dif E) / (dif t) = P - epsilon - B
+$$
+
+> vspace : 0.6
+
+Production feeds the range, dissipation and buoyancy drain it. [[align="center", color="dark_gray", fontsize=9]]
+```
+
 ## 10. Changing the look
+
+Read this section when the deck's look is what the task is about. A deck that
+takes the template it names as it comes needs nothing from here.
 
 Three levels, in order.
 
@@ -851,6 +902,36 @@ An undefined key raises and the message lists every defined one. A template also
 publishes keys in its own namespace (`<template>.<prop>`), which the front matter
 can set.
 
+### Fonts
+
+Each typographic role carries its own family, and the `.font` keys of
+`mate --info` are the roles: `text`, `title`, `subtitle`, `h3` to `h6`,
+`cover.title`, `cover.author`, `math` and `code`. Changing the deck's type is a
+front-matter block:
+
+```yaml
+config:
+  text.font: Lato
+  title.font: Playfair Display
+  math.font: New Computer Modern Math
+```
+
+Every role but `code` also carries `<role>.fontweight`, which takes `"regular"`,
+`"bold"` or a number (`700`). A single word or line takes `font=` in a span
+(section 5) and leaves the deck alone.
+
+The FONTS block of `mate --info` is the whole set of families that resolve, and
+naming one outside it raises at build time with the set listed. `font_paths`
+adds directories of font files (`.ttf`, `.otf`) to that set, expanding a leading
+`~` and otherwise relative to the Markdown file:
+
+```yaml
+font_paths: [~/.local/share/fonts, ./assets/fonts]
+```
+
+A font a template names is a config value like any other: the front matter
+overrides it without touching the template.
+
 **2. A different template**, when the user asks about aesthetics. `flow` is the
 default; the other built-in templates are starting points to offer, not solutions
 to a specific layout problem. Templates stack: `templates: [mine, base]` inherits from both, and the
@@ -860,6 +941,14 @@ earlier entry wins where the two define the same thing.
 cover design, a title treatment, a new command, a restyled code block, a new
 region map. Write `my_template.py` beside the Markdown file and list it as
 `templates: [my_template]`.
+
+Asked for a template with nothing else stated, keep the structure and the design
+language of the one it starts from (`flow` unless the user names another) and
+take the theme from the deck's subject: the palette, the cover, the background
+motif, the title treatment. A talk on ocean turbulence and a talk on compiler
+internals come out of the same skeleton with different colors and a different
+cover. When the subject suggests no particular direction, or when the design
+wants a structure the base template does not have, ask the user which way to go.
 
 ### Writing a template
 
@@ -1024,7 +1113,42 @@ parameters valid fence options.
 
 ## 11. Traps
 
-Failure modes verified against the current code.
+Failure modes verified against the current code, split by what the build does.
+
+### Silent: the build exits clean and the deck is wrong
+
+These are the ones to check by reading the file and the rendered pages.
+
+- **A fence inside a fence needs more backticks than the one it sits in.** A
+  three-backtick block holding another three-backtick block ends at the inner
+  one, and everything after it, slides included, is swallowed as its content
+  without a word. The build succeeds with the slides simply gone. Use four
+  backticks outside, and count the slides in the build log.
+- **`$$ ... $$` written inside a paragraph line is not display math**: it comes
+  out as inline math flanked by literal `$`. The delimiters take their own lines.
+- **A `||` inside an emphasis pair breaks it.** `**bold with || a marker**`
+  renders its asterisks literally. Keep the marker outside the emphasis.
+- **Math is Typst.** `\frac{a}{b}` is not a fraction, and a bare `/` inside math
+  builds one where a literal slash was meant (`\/`).
+- **A bracket pair inside a code fence becomes a span** when the second bracket
+  parses as keyword properties. Real code rarely does, but `[x][color="red"]`
+  inside a fence is markup, not code.
+- **A `code.theme` role outside the seven is ignored** (`keyword`, `string`,
+  `comment`, `number`, `function`, `builtin`, `decorator`), and so is a `#>`
+  directive property no loaded template reads. Both spell nothing on the page.
+- **`> modify` and `> mask image` apply from the reveal step of the call
+  onward**; placed before their `> pause`, they land a step early.
+- **A long title wraps and grows downward.** A title wraps at the width of the
+  `title` region (14.6 cm by default, or what `title.max_width` sets), and every
+  extra line pushes the title block toward the content, which does not move out
+  of the way. Shorten the title, move the second half to `##`, or lower
+  `title.fontsize`.
+- **Blank lines between list items change nothing.** Items stack with the
+  region's gap; `> vspace` is what opens space.
+- **A hex string works anywhere a color does**, and putting one in slide content
+  defeats re-tinting from the front matter. The palette is the deck's.
+
+### Loud: the build raises and names the construct
 
 - **A paragraph on the line right below a blockquote is swallowed by it**, and
   mate tries to run it as a command. Leave a blank line after a command block
@@ -1032,55 +1156,34 @@ Failure modes verified against the current code.
   blockquote on their own and need no blank line.
 - **`> alt` outside a `markdown alternate` body raises.**
 - **`pos` or `anchor` without `floating=True` raises.**
-- **Math is Typst.** `\frac{a}{b}` is not a fraction, and a bare `/` inside math
-  builds one where a literal slash was meant (`\/`).
 - **Ids are cleared at every new slide.** Reusing a key on the next slide is
-  fine; targeting an element on a previous slide is not.
-- **`> modify` and `> mask image` apply from the reveal step of the call
-  onward**; they belong after the `> pause` that triggers them.
-- **A bracket pair inside a code fence becomes a span** when the second bracket
-  parses as keyword properties. Real code rarely does, but `[x][color="red"]`
-  inside a fence is markup, not code.
+  fine; targeting an element on a previous slide raises.
 - **A deck that does not open with a `#` heading or a directive raises.**
 - **A font family that does not resolve raises at build time.** List the families
   before naming one.
-- **The palette is the deck's; a hex string works anywhere a color does**, but
-  putting hex in slide content defeats re-tinting from the front matter.
-- **A `||` inside an emphasis pair breaks it.** `**bold with || a marker**`
-  renders its asterisks literally. Keep the marker outside the emphasis.
-- **`$$ ... $$` written inside a paragraph line is not display math**: it comes
-  out as inline math flanked by literal `$`. The delimiters take their own lines.
-- **Blank lines between list items change nothing.** Items stack with the
-  region's gap; `> vspace` is what opens space.
 - **`color` is a markup property, not a constructor argument.**
   `Rectangle(3, 1, color="red")` raises; constructors take `fill_color` and
   `stroke_color`. `color=` belongs in a span, a fence option or `> modify`.
-- **A fence inside a fence needs more backticks than the one it sits in.** A
-  three-backtick block holding another three-backtick block ends at the inner
-  one, and everything after it, slides included, is swallowed as its content
-  without a word. The build succeeds with the slides simply gone. Use four
-  backticks outside, and count the slides in the build log.
 - **A `Group` takes no `pos`.** A group's position is the union of its children's
   boxes. `Group(children=[...], pos=(5, 3))` raises; build it and place it with
   `move_to((5, 3))`.
-- **A long title wraps and grows downward.** A title wraps at the width of the
-  `title` region (14.6 cm by default, or what `title.max_width` sets), and every
-  extra line pushes the title block toward the content, which does not move out
-  of the way. Shorten the title, move the second half to `##`, or lower
-  `title.fontsize`.
-- **Image and figure paths resolve against the working directory**, not against
-  the Markdown file. Run `mate` from the deck's own directory.
 - **Ordered lists parse but are not rendered** by the base template
   (`add_ordered_list` raises `NotImplementedError`). Use bullets, or implement
   the method in a template.
+- **Image and figure paths resolve against the working directory**, not against
+  the Markdown file. Run `mate` from the deck's own directory.
 
 ## 12. Before you finish
 
 - The deck builds: `mate deck.md` exits clean.
+- The build log names every slide the file carries. A missing one is a fence
+  swallowing the rest of the deck.
 - No `> draw layout` left in the file.
-- The pages were rendered and looked at: nothing runs past its region or off the
-  slide. Check the figure slides first, an oversized image is the usual cause and
-  it takes the caption with it.
+- The pages were rendered at 150 dpi and every one of them was looked at:
+  nothing runs past its region or off the slide. Check the figure slides first,
+  an oversized image is the usual cause and it takes the caption with it.
+- Every `$$` delimiter sits on a line of its own, and no `||` sits inside an
+  emphasis pair.
 - Colors are palette names; hex values live in the front matter or in the
   template's palette.
 - The build was run once with `--warn` and what it reported was read.
