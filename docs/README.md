@@ -8,6 +8,8 @@ mate slides.md
 
 The PDF lands next to the source, as `slides.pdf`.
 
+`mate slides.md --warn` builds and runs every check on the way: `warn.overflow` names each region holding more than it fits, `warn.collisions` names the pairs of drawn boxes that cross, and `warn.widows` names the paragraphs whose last line carries `warn.widow_min_words` words or fewer (3 by default). Each one is a configuration key of its own, off by default, and the front matter turns on the ones a deck wants to keep.
+
 `mate --info slides.md` prints what that deck can name: the built-in templates and the ones it loads, every configuration key with its current value, the palette, the commands, the regions of its layout, the font families that resolve and the API names. Without a file, `mate --info` prints the same listing for a deck with no front matter.
 
 ## Contents
