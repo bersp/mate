@@ -194,6 +194,10 @@ class Colors:
         """Set ``name`` to ``hex_value``."""
         self._palette[name] = hex_value
 
+    def items(self) -> dict[str, str]:
+        """Return every defined name and its hex string."""
+        return dict(self._palette)
+
     def set_multiple(self, colors: dict[str, str]) -> None:
         """Set each ``name``/``hex_value`` entry of ``colors``."""
         self._palette.update(colors)
@@ -244,6 +248,10 @@ class Config:
     def set_multiple(self, values: dict[str, object]) -> None:
         """Override the default for each ``key``/``value`` entry process-wide."""
         self._defaults.update(values)
+
+    def items(self) -> dict[str, object]:
+        """Return every defined key and its current value."""
+        return dict(self._defaults)
 
     def keys_under(self, namespace: str) -> list[str]:
         """Return the defined keys of ``namespace``, sorted."""

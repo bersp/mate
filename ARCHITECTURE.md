@@ -14,7 +14,7 @@ A Python-driven presentation tool.
 ```
 mate/
 ├── __init__.py        # public re-exports
-├── cli.py             # `mate <presentation.md> [--warn]` entry point
+├── cli.py             # `mate <presentation.md> [--warn]` / `mate --info` entry point
 ├── config.py          # process-global `config` singleton (slide size, color palette)
 ├── log.py             # process-global `mate` logger
 ├── pyproject.toml
@@ -270,7 +270,7 @@ Region owns its elements: `add(el)`, `remove(el)`, `replace(old, new)`, `remove_
 
 `layout_to_group(layout, names=None, **drawable_kw)` returns a `Group` of one sub-`Group` per region (`names` selects and orders them), each holding a `Rectangle` matching the region (with `drawable_kw` forwarded, so the caller picks outline vs. fill) and a `Text` of the region name centred on it.
 
-`config.py` holds the process-global `config` singleton. It owns a flat store of defaults keyed by dotted paths — `config.get("region.content.anchor")` / `config.set(key, value)` — which templates read as starting values and may override; `get` raises on an undefined key. The slide size lives in this store under `slide.width`/`slide.height`; `config.slide_width`/`slide_height` are read-only views of those keys (read by `Region.create_*`). The color palette is `config.colors`, a `Colors` registry: `config.colors.get(name)` returns the hex for a palette name, passes a literal hex string through unchanged, and raises on anything else; `config.colors.set(name, hex)` defines a name. `config.templates` is the ordered list of template file names a `Presentation` inherits from (see `templates/`). `config.font_paths` is a list of extra font directories the backend hands to Typst (on top of the project `fonts/` dir). `config.apply_overrides(values)` sets each key after checking it against the defined keys, raising on an undefined one. `config.keys_under(namespace)` lists the defined keys of one namespace, which is how `--warn` turns on every `warn.*` switch.
+`config.py` holds the process-global `config` singleton. It owns a flat store of defaults keyed by dotted paths — `config.get("region.content.anchor")` / `config.set(key, value)` — which templates read as starting values and may override; `get` raises on an undefined key. The slide size lives in this store under `slide.width`/`slide.height`; `config.slide_width`/`slide_height` are read-only views of those keys (read by `Region.create_*`). The color palette is `config.colors`, a `Colors` registry: `config.colors.get(name)` returns the hex for a palette name, passes a literal hex string through unchanged, and raises on anything else; `config.colors.set(name, hex)` defines a name. `config.templates` is the ordered list of template file names a `Presentation` inherits from (see `templates/`). `config.font_paths` is a list of extra font directories the backend hands to Typst (on top of the project `fonts/` dir). `config.apply_overrides(values)` sets each key after checking it against the defined keys, raising on an undefined one. `config.keys_under(namespace)` lists the defined keys of one namespace, which is how `--warn` turns on every `warn.*` switch. `config.items()` and `config.colors.items()` return the whole key store and the whole palette, which is what `--info` prints.
 
 ### `composition/checks.py` — the build-time checks
 

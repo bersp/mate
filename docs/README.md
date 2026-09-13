@@ -8,6 +8,8 @@ mate slides.md
 
 The PDF lands next to the source, as `slides.pdf`.
 
+`mate --info slides.md` prints what that deck can name: the built-in templates and the ones it loads, every configuration key with its current value, the palette, the commands, the regions of its layout, the font families that resolve and the API names. Without a file, `mate --info` prints the same listing for a deck with no front matter.
+
 ## Contents
 
 - [Markdown elements](#markdown-elements)
