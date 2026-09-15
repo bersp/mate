@@ -606,7 +606,7 @@ A short presentation usually needs a single directive at the top of the file, fo
 ...
 ```
 
-The cover takes its `title` and shows `author` and `date` when present. Some templates also render a `tagline` line with the cover title. Property values are Python literals when they parse as one, and raw strings otherwise.
+The cover takes its `title` and shows `subtitle`, `author` and `date` when present, and `logos` names the image files a cover design places. Property values are Python literals when they parse as one, and raw strings otherwise.
 
 A directive placed anywhere in the file runs at that point, and what it does is up to the template: it receives every property and decides. A template can put a running section label on the slides that follow, switch the theme halfway through the talk, drop the footer, restyle code, or act on whatever property it reads. Each template declares the properties it reads, `mate --info slides.md` lists them under DIRECTIVES, and a property outside that list raises with the list in the message.
 
@@ -635,7 +635,7 @@ The keys and their defaults:
 | `title.*`, `subtitle.*`, `math.*` | same four dimensions per role |
 | `math.align` | `"center"` (horizontal placement of a display equation) |
 | `h3.*` .. `h6.*` | same four dimensions, one role per in-body heading level |
-| `cover.title.*`, `cover.tagline.*`, `cover.author.*` | same four dimensions per role |
+| `cover.title.*`, `cover.subtitle.*`, `cover.author.*` | same four dimensions per role |
 | `list.bullet.symbols` | `["circle", "dash", "circle_outline"]` (symbol per nesting level; a level past the list reuses the last). Built-in symbols: `"square"`, `"square_outline"`, `"circle"`, `"circle_outline"`, `"dash"` |
 | `list.bullet.scale`, `list.bullet.gap` | `0.7`, `0.15` |
 | `list.bullet.dash_thickness`, `list.bullet.outline_width` | `0.04`, `0.04` (bar height of `dash`; stroke of the outline symbols) |
@@ -660,7 +660,7 @@ The keys and their defaults:
 | `arrange.gap` | `0.2` |
 | `typst.preamble` | `""` (markup prepended to every generated document) |
 
-Every typographic role (`text`, `title`, `subtitle`, `h3`..`h6`, `math`, `cover.title`, `cover.tagline`, `cover.author`) carries the same four dimensions: `font`, `fontweight`, `fontsize` and `color`.
+Every typographic role (`text`, `title`, `subtitle`, `h3`..`h6`, `math`, `cover.title`, `cover.subtitle`, `cover.author`) carries the same four dimensions: `font`, `fontweight`, `fontsize` and `color`.
 
 Templates read their own knobs from the namespace carrying their name (`flow.<prop>` keys belong to the `flow` template), which the front matter can set freely.
 

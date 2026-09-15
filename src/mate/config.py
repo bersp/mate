@@ -26,8 +26,8 @@ _MISSING = object()
 # arranged content is larger than the region itself; ``warn.collisions`` names
 # the pairs of drawn boxes that cross; ``warn.widows`` names the paragraphs
 # whose last line carries ``warn.widow_min_words`` words or fewer.
-# The cover splits into ``cover.title`` and ``cover.author`` roles, each carrying
-# the same dimensions. The font/size literals are kept in sync
+# The cover splits into ``cover.title``, ``cover.subtitle`` and ``cover.author``
+# roles, each carrying the same dimensions. The font/size literals are kept in sync
 # with ``typst query`` on a blank doc so the rendered output never relies on
 # Typst's implicit fallback; ``color`` is a palette name resolved via
 # ``config.colors``.
@@ -112,6 +112,10 @@ _DEFAULTS: dict[str, object] = {
     "cover.title.fontweight": "bold",
     "cover.title.fontsize": 14.0,
     "cover.title.color": "black",
+    "cover.subtitle.font": "libertinus serif",
+    "cover.subtitle.fontweight": "regular",
+    "cover.subtitle.fontsize": 12.0,
+    "cover.subtitle.color": "black",
     "cover.author.font": "libertinus serif",
     "cover.author.fontweight": "regular",
     "cover.author.fontsize": 12.0,

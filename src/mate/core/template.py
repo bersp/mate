@@ -152,8 +152,10 @@ class PresentationTemplateBase:
     directive_properties: dict[str, str] = {
         "cover": "render a cover slide when true",
         "title": "the cover title",
+        "subtitle": "the line that accompanies the cover title",
         "author": "the author line of the cover",
         "date": "the date line of the cover",
+        "logos": "image files for the cover, one path or a list of them",
     }
 
     # --- Internals ----------------------------------------------------------
@@ -953,9 +955,9 @@ class PresentationTemplateBase:
     def add_cover(self, title: str, **props: str) -> Group:
         """Render a cover page from a ``title`` and generic directive properties.
 
-        Stacks ``title`` and any of ``author`` and ``date`` found in ``props``
-        as text in the ``full_with_margins`` region; other properties are
-        ignored. A template overrides this to change the layout.
+        Stacks ``title`` and any of ``subtitle``, ``author`` and ``date`` found
+        in ``props`` as text in the ``full_with_margins`` region; other
+        properties are ignored. A template overrides this to change the layout.
         """
         region = self.layout.get("full_with_margins").set_anchor("center-left")
         members = Group()
@@ -970,6 +972,19 @@ class PresentationTemplateBase:
         )
         region.add(title_el)
         members.add(title_el)
+
+        subtitle = props.get("subtitle")
+        if subtitle is not None:
+            subtitle_el = Text(
+                subtitle,
+                font=config.get("cover.subtitle.font"),
+                fontsize=config.get("cover.subtitle.fontsize"),
+                weight=config.get("cover.subtitle.fontweight"),
+                fill_color=config.get("cover.subtitle.color"),
+                max_width=region.width,
+            )
+            region.add(subtitle_el)
+            members.add(subtitle_el)
 
         meta = (("author", "cover.author"), ("date", "cover.author"))
         if any(props.get(key) is not None for key, _ in meta):

@@ -2,7 +2,7 @@
 
 Colours: full palette + ``flow.*`` (backdrop, cover_title, cover_accent,
 cover_author, streamline, streamline_dot).
-Config: ``flow.tagline.*`` styles the cover's lead line.
+Config: ``cover.subtitle.*`` styles the cover's lead line.
 Fonts: Lato and Playfair Display.
 Footer: disabled by default.
 Defines: ``background``, ``add_cover``, ``add_title``.
@@ -25,7 +25,6 @@ class PresentationTemplate(PresentationTemplateBase):
     band_height = 2.6  # depth of the content-slide flow band
     directive_properties = {
         "section": "the running section, printed as an eyebrow above every later title",
-        "tagline": "a line above the cover title",
     }
 
     def setup(self) -> None:
@@ -77,10 +76,10 @@ class PresentationTemplate(PresentationTemplateBase):
                 "cover.title.fontweight": 600,
                 "cover.title.fontsize": 20.0,
                 "cover.title.color": "flow.cover_title",
-                "flow.tagline.font": "Lato",
-                "flow.tagline.fontweight": "regular",
-                "flow.tagline.fontsize": 14.0,
-                "flow.tagline.color": "flow.cover_accent",
+                "cover.subtitle.font": "Lato",
+                "cover.subtitle.fontweight": "regular",
+                "cover.subtitle.fontsize": 14.0,
+                "cover.subtitle.color": "flow.cover_accent",
                 "cover.author.font": "Lato",
                 "cover.author.fontsize": 10.0,
                 "cover.author.color": "flow.cover_author",
@@ -122,21 +121,21 @@ class PresentationTemplate(PresentationTemplateBase):
         return group
 
     def add_cover(self, title: str, **props: str) -> Group:
-        """Build the cover: an optional tagline, the title, an accent rule, and
+        """Build the cover: an optional subtitle, the title, an accent rule, and
         the author and date on one line."""
         W, H = config.slide_width, config.slide_height
         left_x = -W / 2 + 1.15
-        tagline = props.get("tagline")
+        subtitle = props.get("subtitle")
 
         stack = []
-        if tagline:
+        if subtitle:
             stack.append(
                 Text(
-                    tagline,
-                    font=config.get("flow.tagline.font"),
-                    fontsize=config.get("flow.tagline.fontsize"),
-                    weight=config.get("flow.tagline.fontweight"),
-                    fill_color=config.get("flow.tagline.color"),
+                    subtitle,
+                    font=config.get("cover.subtitle.font"),
+                    fontsize=config.get("cover.subtitle.fontsize"),
+                    weight=config.get("cover.subtitle.fontweight"),
+                    fill_color=config.get("cover.subtitle.color"),
                 )
             )
         stack.append(

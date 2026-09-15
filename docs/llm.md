@@ -25,6 +25,7 @@ colors:
 #>
 > cover: True
 > title: The title
+> subtitle: What the talk is about
 > author: Name Surname
 > date: March 2026
 
@@ -213,6 +214,7 @@ colors:
 #>
 > cover: True
 > title: The talk title
+> subtitle: What the talk is about
 > author: Name Surname
 > date: March 2026
 
@@ -233,9 +235,10 @@ states no preference. Section 2 lists the alternatives, and section 10 covers
 switching or writing one.
 
 The DIRECTIVES block of `mate --info deck.md` lists the properties a `#>`
-directive can carry under the loaded templates, `cover`, `title`, `author` and
-`date` from the base and the rest from the templates. A property that records
-state (a running section, a theme) builds no slide of its own: a section cover
+directive can carry under the loaded templates, `cover`, `title`, `subtitle`,
+`author`, `date` and `logos` from the base and the rest from the templates. A
+property that records state (a running section, a theme) builds no slide of its
+own: a section cover
 is a cover directive (`cover: True`, `title:`) placed between the slides, and a
 recording property on the same directive takes effect with it.
 
@@ -1008,6 +1011,7 @@ colors:
 #>
 > cover: True
 > title: Mixing in a stratified layer
+> subtitle: Direct numerical simulation of the transition
 > author: Name Surname
 > date: March 2026
 
@@ -1082,8 +1086,8 @@ can set.
 
 Each typographic role carries its own family, and the `.font` keys of
 `mate --info` are the roles: `text`, `title`, `subtitle`, `h3` to `h6`,
-`cover.title`, `cover.author`, `math` and `code`. Changing the deck's type is a
-front-matter block:
+`cover.title`, `cover.subtitle`, `cover.author`, `math` and `code`. Changing the
+deck's type is a front-matter block:
 
 ```yaml
 config:
