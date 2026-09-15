@@ -787,7 +787,10 @@ def _image_markup(el: Image) -> str:
     fractions: they size the piece it names, not the whole file.
 
     Crop and mask compose into one visible rectangle of the file, shown
-    inside a ``#box(clip: true)`` that measures the rendered image. The
+    inside a ``#box(clip: true)`` that measures the rendered image. Both of
+    the windowed image's dimensions are pinned, the missing one derived from
+    the file's natural ratio: inside the clipping box an unpinned dimension
+    is the box's own, which draws a different rectangle of the file. The
     image sits in a block of its own full height, which holds it against
     the top of the box, moved by the negative offset that lands the
     rectangle's top-left at the box origin.
@@ -807,11 +810,25 @@ def _image_markup(el: Image) -> str:
     y = crop_y + mask_y * crop_h
     w = mask_w * crop_w
     h = mask_h * crop_h
+    if el.width is not None and el.height is not None:
+        sizes = f"let iw = {el.width / crop_w}cm; let ih = {el.height / crop_h}cm; "
+    elif el.width is not None:
+        sizes = (
+            f"let iw = {el.width / crop_w}cm; "
+            "let ih = iw * (nat.height / nat.width); "
+        )
+    elif el.height is not None:
+        sizes = (
+            f"let ih = {el.height / crop_h}cm; "
+            "let iw = ih * (nat.width / nat.height); "
+        )
+    else:
+        sizes = "let iw = nat.width; let ih = nat.height; "
     return (
-        f"#context {{ let im = {image}; let m = measure(im); "
-        f"box(clip: true, width: m.width * {w}, height: m.height * {h}, "
-        f"block(height: m.height, "
-        f"move(dx: -m.width * {x}, dy: -m.height * {y}, im))) }}"
+        f'#context {{ let nat = measure(image("{path}")); {sizes}'
+        f'let im = image("{path}", width: iw, height: ih); '
+        f"box(clip: true, width: iw * {w}, height: ih * {h}, "
+        f"block(height: ih, move(dx: -iw * {x}, dy: -ih * {y}, im))) }}"
     )
 
 
