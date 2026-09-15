@@ -382,6 +382,14 @@ class Line(Drawable):
         """Return the end endpoint."""
         return Vec(self._pos + self.end)
 
+    def point_at(self, fraction: float) -> Vec:
+        """Return the point ``fraction`` of the way from ``start`` to ``end``.
+
+        ``0`` is ``start``, ``0.5`` the midpoint, ``1`` ``end``.
+        """
+        start, end = self.get_start(), self.get_end()
+        return Vec(start + (end - start) * fraction)
+
     def get_width(self) -> float:
         return self._transformed_extents(
             abs(self.end.x - self.start.x), abs(self.end.y - self.start.y)
@@ -1067,6 +1075,15 @@ class Arrow(Group):
     def get_end(self) -> Vec:
         """Return the end endpoint."""
         return Vec(self._pos + self.end)
+
+    def point_at(self, fraction: float) -> Vec:
+        """Return the point ``fraction`` of the way from ``start`` to ``end``.
+
+        ``0`` is ``start``, ``0.5`` the midpoint, ``1`` ``end``; the endpoints
+        are the authored ones, ``gap`` left aside.
+        """
+        start, end = self.get_start(), self.get_end()
+        return Vec(start + (end - start) * fraction)
 
     def set_start(self, start: VecLike) -> Arrow:
         """Set the start endpoint, keeping ``end`` fixed.
