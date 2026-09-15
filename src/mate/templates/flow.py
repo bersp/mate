@@ -23,6 +23,10 @@ from ..elements.text import Text
 
 class PresentationTemplate(PresentationTemplateBase):
     band_height = 2.6  # depth of the content-slide flow band
+    directive_properties = {
+        "section": "the running section, printed as an eyebrow above every later title",
+        "tagline": "a line above the cover title",
+    }
 
     def setup(self) -> None:
         config.colors.set_multiple(

@@ -56,10 +56,11 @@ mate --info deck.md
 
 The deck's front matter is applied first, and the listing carries, in order: the
 built-in templates and the ones the deck loads, every config key with its
-current value, the palette, the commands, the regions of the layout, the font
-families that resolve, and the API names a `> add` line or a `python mate` fence
-can name. `mate --info` alone prints the same listing for a deck with no front
-matter.
+current value, the palette, the commands, the `#>` directive properties the
+template stack acts on, the regions of the layout, the font families that
+resolve, and the API names a `> add` line or a `python mate` fence can name. `mate --info` alone prints the same listing for a deck with no front
+matter. The templates a deck loads show only when the deck is given: write the
+front matter first and run the listing on that file.
 
 **A name outside that listing does not exist.** A config key, a color, a
 command, a region, a font family or an element invented by analogy raises at
@@ -69,13 +70,12 @@ Templates written for a deck are `.py` files sitting next to the Markdown file;
 a front-matter entry resolves to a sibling `<name>.py` when one exists and to a
 built-in name otherwise. The listing names both kinds.
 
-Two things the listing cannot carry, read from the template file itself: the
-`<template>.<key>` keys it reads with a default it never sets, and the `#>`
-directive properties it acts on. A property no template reads is ignored without
-a word.
+A directive property outside the DIRECTIVES block raises at build time, with
+the block's contents in the message. One thing the listing cannot carry, read from the template file itself: the
+`<template>.<key>` keys it reads with a default it never sets.
 
 ```bash
-grep -n "def \|config.get\|colors.set_multiple\|directive.get" <template>.py
+grep -n "def \|config.get\|colors.set_multiple" <template>.py
 ```
 
 `font_paths` in the front matter adds directories of font files to the set of
@@ -142,12 +142,21 @@ design, no title treatment. `flow` is the deck's starting look whenever the user
 states no preference. Section 2 lists the alternatives, and section 10 covers
 switching or writing one.
 
+The DIRECTIVES block of `mate --info deck.md` lists the properties a `#>`
+directive can carry under the loaded templates, `cover`, `title`, `author` and
+`date` from the base and the rest from the templates. A property that records
+state (a running section, a theme) builds no slide of its own: a section cover
+is a cover directive (`cover: True`, `title:`) placed between the slides, and a
+recording property on the same directive takes effect with it.
+
 Order of the pieces:
 
 1. **Front matter** (optional, opens the file): `templates`, `config`,
    `colors`, `font_paths`. Front-matter values override template values.
 2. **Directives** (`#>` plus a blockquote of `key: value` lines): off-slide
-   instructions handed to the template between slides.
+   instructions handed to the template between slides. A property the template
+   records (a running section, a theme) holds for every later slide until
+   another directive changes it.
 3. **Slides**: everything from one `#` heading to the next.
 
 The file opens with a `#` heading or a directive. A paragraph before the
@@ -283,7 +292,7 @@ habits fail silently or raise.
 | accents | `hat(beta)`, `overline(x)`, `dot(q)` |
 | bold upright symbol | `bold(upright(x))` |
 | words inside math | `"cte"`, `"Re"_lambda` |
-| spacing | `thin`, `quad`, `wide` |
+| spacing | `thin`, `quad`, `wide`; a number before a fraction needs one: `15 thin frac(L, lambda)` |
 | calligraphic | `cal(L)` |
 | delimiters | `angle.l u angle.r`, `abs(x)`, `norm(x)`; `lr(...)` grows them to their content |
 
@@ -328,7 +337,9 @@ Common options: `title`, `numbers`, `numbers_start`, `bg_color`, `fontsize`,
 The `theme` roles are `keyword`, `string`, `comment`, `number`, `function`,
 `builtin` and `decorator`. An entry replaces that role's properties and the
 roles left out keep the deck theme; a key that is none of the seven is ignored
-without a word.
+without a word. That merge is the fence option's. The `code.theme` config key,
+set from the front matter or a template, is the whole mapping: a value with
+fewer than seven roles leaves the missing ones unstyled.
 
 Inside a fence everything is verbatim except two constructs: `[body][props]`
 spans (only when the second bracket reads as keyword properties; `a[i][j]`
@@ -355,7 +366,10 @@ are the numbers to size things against, and a template changes them.
 A region stacks its content from its anchor, top to bottom, with `arrange_gap`
 between elements. The nine anchors are `top-left`, `top-center`, `top-right`,
 `center-left`, `center`, `center-right`, `bottom-left`, `bottom-center`,
-`bottom-right`.
+`bottom-right`. The anchor's horizontal half also aligns every stacked block
+inside the region: under `center` each paragraph and bullet is centred on its
+own line, under `center-left` the stack is centred vertically and the blocks
+stay left-flush. A block's own `align` overrides that for the block alone.
 
 ### Grids
 
@@ -421,12 +435,16 @@ revealing never moves what is already visible.
   arrive one step at a time, with the space reserved from the start. `\||`
   escapes it.
 - `> modify : "id", <props>` restyles or moves every element carrying that id,
-  from its step onward. Ids are per slide; the same key is free again in the
-  next slide.
+  from its step onward. Several `> modify` lines on one id accumulate: each step
+  shows every edit up to it. Ids are per slide; the same key is free again in
+  the next slide.
 - `set_hidden(True)` reserves the element's box and draws nothing. It is how a
   layer built in Python inside a figure waits for its step:
   `> modify : "id", hidden=False` brings it in with the room held from the first
-  step and the rest of the drawing still. `opacity` is a different knob,
+  step and the rest of the drawing still. The held box counts in the group's
+  box: a region places the drawing by its full extent on every step, and a
+  hidden layer off to one side leaves the visible part off-centre until it
+  appears. `opacity` is a different knob,
   writing `fill_opacity` alone: it leaves a stroke visible and, set back to 1,
   fills a shape that was drawn as an outline.
 - `> mask image : "id", x=0.2, y=0.3, width=0.4, height=0.5` shows a window of a tagged
@@ -509,7 +527,10 @@ takes `id=` and `z_order=`.
 
 The default is a solid black fill with no stroke; an outline is
 `fill_opacity=0, stroke_width=0.05`. `Line` and `Arrow` fill nothing and take
-the stroke fields alone.
+the stroke fields alone. Every field in the table is a constructor keyword;
+the calls in the Placing table below are methods on the built element
+(`Rectangle(3, 1, fill_color="red").rotate(15)`), and `color=` is a span
+property, not a keyword (section 11).
 
 A `Text` carries them too, and Typst paints the stroke over the glyph. A label
 with a white outline behind it is two copies of the text at the same position,
@@ -584,8 +605,10 @@ bottom and anchors the stack as a whole. It is what a region runs internally,
 and it is available for a column built inside a drawing.
 
 A region is reachable from a fence when a drawing is placed against the layout:
-`self.layout.get("content")` carries `center`, `left`, `right`, `top`, `bottom`
-and `get_anchor_point(anchor)`.
+`self.layout.get("content")` carries `width`, `height`,
+`get_anchor_point(anchor)`, and `center`, `left`, `right`, `top`, `bottom`,
+each a `Vec` at the midpoint of that edge (`region.top.y` is the top edge's
+height, `region.left.x` the left edge).
 
 ### Running Python in a deck
 
@@ -600,6 +623,11 @@ for i, name in enumerate(["red", "green", "blue"]):
     self.add_element(Circle(0.5, pos=(-W / 3 + i * W / 3, -2.7), fill_color=name))
 ```
 ````
+
+`self.add_element(el)` floats the element at its own `pos`;
+`self.add_element(el, region="content")` stacks it in that region under the
+content above it. The fence is also where an element gets a method call after
+construction: a `> add` line returns no handle on what it built.
 
 The fence runs at its position in the slide, which makes it the way to change a
 setting partway through a deck:
@@ -642,7 +670,24 @@ if __name__ == "__main__":
 
 `> add mate figure : "scene.py"` embeds it. It arrives as elements, not a
 picture: palette names resolve against the deck and ids inside the file answer to
-`> modify`. Run the file directly to preview it as a standalone PDF.
+`> modify`. Run the file directly to preview it as a standalone PDF. The preview
+runs against the base palette: a colour the deck's front matter adds does not
+resolve there, and a figure meant to be previewed names a base colour that the
+front matter re-tints.
+
+The file runs with its own directory on `sys.path`, and a drawing shared by
+several slides lives in a builder module that each figure file imports:
+
+```python
+from buckets import build
+
+fig = build(step=2)
+```
+
+An id registers when its element is constructed. A builder that holds a
+module-level `Figure` of its own registers that figure's ids on every slide
+that imports it; the builder exposes a function and the figure files own the
+`Figure`.
 
 The collision check runs on that preview when the guard turns it on, naming the
 labels that cross while they are being placed:
@@ -685,12 +730,11 @@ An argument written by habit is one more value to keep in sync when the content
 or the template changes.
 
 **Show the tools the deck has.** Unless the user asks otherwise, open a deck with
-a cover directive, and use the structural devices the loaded template supports
-(a running section, a section cover, a theme switch) where the talk changes
-subject. Which properties exist is template-dependent: `cover`, `title`, `author`
-and `date` are handled by the base, everything else is read by the template;
-grep it for `directive.get` before writing a property. A property no template
-reads is silently ignored.
+a cover directive, and mark where the talk changes subject. A section cover is a
+cover directive between two slides (`cover: True` and a `title:`), and it works
+under every template. What else a directive can carry (a running section, a
+theme switch) is template-dependent, and the DIRECTIVES block of `mate --info`
+lists it. A property outside that block raises.
 
 **One idea per slide.** A title and a body that fits. Splitting a slide in two
 keeps the text at the size the rest of the deck uses.
@@ -712,7 +756,9 @@ Energy spectrum against wavenumber. [[fontsize=7, color="dark_gray", align="cent
 Size a figure that carries a caption on `height`. A `width` of 14.6 cm is 6.5 cm
 tall only for a file wider than 2.25:1, and a plot is usually nearer 1.4:1, which
 comes out 10 cm tall on a 9 cm slide. The image, the 0.25 cm gap and the caption
-share the region's 6.5 cm.
+share the region's 6.5 cm. The file's aspect ratio comes from `pdfinfo f.pdf`
+(the page size line) or, for a raster,
+`python -c "from PIL import Image; print(Image.open('f.png').size)"`.
 
 **Figure plus commentary goes in a grid**: the text gets its own column and the
 figure keeps its size.
@@ -742,9 +788,12 @@ itself, and that comes before compactness.
 
 **A slide holding one equation or one line gets its region anchored.**
 `> region : "content", anchor="center"` centres it for that slide, and
-`"center-left"` centres it vertically while the text stays left-flush. A
-`> vspace` at the top of a `top-left` region pushes the content down without
-balancing it.
+`"center-left"` centres it vertically while the text stays left-flush; with
+bullets or paragraphs in the stack, `"center-left"` is the one to use. The title
+sits in its own region and stays put: a short stack anchored at the centre of
+`content` opens a band of empty space under the title, and a slide with a body
+of several blocks keeps the `top-left` default. A `> vspace` at the top of a
+`top-left` region pushes the content down without balancing it.
 
 **A bold lead line frames the body** when the title alone does not. `##` is the
 slide subtitle, right under the title; an in-body lead is a bold paragraph of its
@@ -792,9 +841,14 @@ config:
 
 The collision report compares bounding boxes, so a diagonal arrow reports
 against the rectangle it spans, and a box holding another (a label inside a
-shape, the slide background) is never reported. The widow report reads the
+shape, the slide background) is never reported. On a drawing with diagonal
+arrows most of the report is that: read it for the text-against-text and
+text-against-tip entries. Everything the template's `background()` draws is
+left out of the check, footer rules included. The widow report reads the
 prose: titles, covers, code, equations and a paragraph broken by hand are left
-out.
+out. The report is advice, not an error: in a narrow grid column the wrap is
+not steerable by rewording, and a hard line break (`\` at the end of a line)
+before the last words settles it, or the warning is left standing.
 
 **Look at the pages before handing the deck over.** The checks catch what they
 name and nothing else: an image that pushes its caption off the slide, a wide
@@ -1005,6 +1059,13 @@ Rules that come from the machinery:
   not copy a sibling template's whole config dict.
 - A hook that also wants the base behaviour calls `super()` explicitly
   (`on_directive` typically does).
+- The directive properties `on_directive` reads are declared in a class
+  attribute, `directive_properties = {"section": "the running section"}`, one
+  line of description each. `mate --info` lists them, and a deck naming a
+  property no template declares raises before `on_directive` runs.
+- The `h3` to `h6` roles carry their own `.font`, `.fontsize` and `.color` and
+  do not follow `text.*` or `title.*`: a template that changes the deck's type
+  sets them too, or an in-body heading comes out in the base family.
 
 Hooks worth knowing, all optional:
 
@@ -1016,7 +1077,7 @@ Hooks worth knowing, all optional:
 | `background` | the element drawn behind every slide (branch on `self.current_slide.is_cover`) |
 | `add_title` | the title design (an eyebrow line, uppercase, tracking) |
 | `add_cover` | the cover design, from `title` and the directive properties |
-| `add_footer` | the footer |
+| `add_footer` | the footer. `footer.show` draws it and `footer.show_total` appends `/<total>`; the base styles the page number from the `text.*` keys |
 | `on_directive` | act on `#>` properties: a running section, a theme switch, a section cover |
 | `add_code` | build a `Code` subclass instead of the default block |
 
@@ -1032,6 +1093,30 @@ method.
 ```markdown
 > full center layout
 ```
+
+A command that adds content resolves its region, sizes against it, and adds
+the element to the slide and to the region's stack:
+
+```python
+    def callout(self, text: str, region: str = "active") -> Group:
+        """Add a sentence in an accent-tinted box spanning the region."""
+        target_region = self.resolve_region(region)
+        width = target_region.width - self.content_indent
+        label = Text(text, max_width=width - 0.6, fill_color="my_template.ink")
+        box = Rectangle(width, label.get_height() + 0.6, corner_radius=0.15,
+                        fill_color="my_template.tint")
+        members = Group([box, label])
+        members.indent = self.content_indent
+        self.current_slide.add(members)
+        target_region.add(members)
+        return members
+```
+
+`resolve_region` honours the `"active"` default and the fence a call sits in.
+`self.current_slide.add` is what renders the element and `target_region.add`
+what stacks it; a floating element skips the second. `indent` is the ambient
+content indent, the text column of a list item: an element carrying it lands
+where a paragraph in the same spot lands.
 
 A method named `add_<name>(self, blocks, args)` becomes a new fenced block,
 reached as ```` ```markdown <name> : args ````. `args` is the fence's verbatim
@@ -1055,7 +1140,7 @@ class PresentationTemplate(PresentationTemplateBase):
                 case BulletList():
                     self.add_bullet_list(block)
                 case _:
-                    self._dispatch_block(block)
+                    self.dispatch_block(block)
 ```
 
 Two vocabularies meet here. A fence's properties are markup names, the ones from
@@ -1067,13 +1152,15 @@ The block types come from `mate.parser`: `Paragraph.inlines`, `BulletList.items`
 `ListItem.blocks`, `MathBlock`, `MethodCall`, plus `inlines_to_markdown` to turn
 inlines back into the Markdown a content method takes. `CodeBlock(language,
 options, source)` and the other fence types live in `mate.parser.ir`.
-`self._dispatch_block(block)` renders any block the way the deck itself would,
+`self.dispatch_block(block)` renders any block the way the deck itself would,
 which is the fallback for everything the fence does not treat specially.
 
-A directive property the template acts on is read in `on_directive`, which owns
-the slides it makes:
+A directive property the template acts on is declared on the class and read in
+`on_directive`, which owns the slides it makes:
 
 ```python
+    directive_properties = {"section": "open a section cover and set the running section"}
+
     def on_directive(self, directive) -> None:
         """Open a section cover on ``section:``, then run the base handling."""
         section = directive.get("section")
@@ -1102,7 +1189,7 @@ paste it into the deck's template and edit the copy.
             options, region, code_kwargs, MyCode
         )
         el = MyCode(source, language=language, **kwargs)
-        el.indent = self._content_indent
+        el.indent = self.content_indent
         self.current_slide.add(el)
         target_region.add(el)
         return el
@@ -1134,8 +1221,8 @@ These are the ones to check by reading the file and the rendered pages.
   parses as keyword properties. Real code rarely does, but `[x][color="red"]`
   inside a fence is markup, not code.
 - **A `code.theme` role outside the seven is ignored** (`keyword`, `string`,
-  `comment`, `number`, `function`, `builtin`, `decorator`), and so is a `#>`
-  directive property no loaded template reads. Both spell nothing on the page.
+  `comment`, `number`, `function`, `builtin`, `decorator`). It spells nothing
+  on the page.
 - **`> modify` and `> mask image` apply from the reveal step of the call
   onward**; placed before their `> pause`, they land a step early.
 - **A long title wraps and grows downward.** A title wraps at the width of the
@@ -1154,6 +1241,8 @@ These are the ones to check by reading the file and the rendered pages.
   mate tries to run it as a command. Leave a blank line after a command block
   before a paragraph. Lists, fences, math blocks and headings interrupt the
   blockquote on their own and need no blank line.
+- **A `#>` directive property no loaded template declares raises**, listing
+  the declared ones. The DIRECTIVES block of `mate --info` is that list.
 - **`> alt` outside a `markdown alternate` body raises.**
 - **`pos` or `anchor` without `floating=True` raises.**
 - **Ids are cleared at every new slide.** Reusing a key on the next slide is

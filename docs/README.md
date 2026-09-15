@@ -10,7 +10,7 @@ The PDF lands next to the source, as `slides.pdf`.
 
 `mate slides.md --warn` builds and runs every check on the way: `warn.overflow` names each region holding more than it fits, `warn.collisions` names the pairs of drawn boxes that cross, and `warn.widows` names the paragraphs whose last line carries `warn.widow_min_words` words or fewer (3 by default). Each one is a configuration key of its own, off by default, and the front matter turns on the ones a deck wants to keep.
 
-`mate --info slides.md` prints what that deck can name: the built-in templates and the ones it loads, every configuration key with its current value, the palette, the commands, the regions of its layout, the font families that resolve and the API names. Without a file, `mate --info` prints the same listing for a deck with no front matter.
+`mate --info slides.md` prints what that deck can name: the built-in templates and the ones it loads, every configuration key with its current value, the palette, the commands, the directive properties the templates read, the regions of its layout, the font families that resolve and the API names. Without a file, `mate --info` prints the same listing for a deck with no front matter.
 
 ## Contents
 
@@ -609,7 +609,7 @@ A short presentation usually needs a single directive at the top of the file, fo
 
 The cover takes its `title` and shows `author` and `date` when present. Some templates also render a `tagline` line with the cover title. Property values are Python literals when they parse as one, and raw strings otherwise.
 
-A directive placed anywhere in the file runs at that point, and what it does is up to the template: it receives every property and decides. A template can put a running section label on the slides that follow, switch the theme halfway through the talk, drop the footer, restyle code, or act on whatever property it reads. A property no template reads is ignored.
+A directive placed anywhere in the file runs at that point, and what it does is up to the template: it receives every property and decides. A template can put a running section label on the slides that follow, switch the theme halfway through the talk, drop the footer, restyle code, or act on whatever property it reads. Each template declares the properties it reads, `mate --info slides.md` lists them under DIRECTIVES, and a property outside that list raises with the list in the message.
 
 ## Configuration
 
@@ -760,7 +760,7 @@ class PresentationTemplate(PresentationTemplateBase):
             options, region, code_kwargs, MyCode
         )
         el = MyCode(source, language=language, **kwargs)
-        el.indent = self._content_indent
+        el.indent = self.content_indent
         self.current_slide.add(el)
         target_region.add(el)
         return el

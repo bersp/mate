@@ -140,6 +140,17 @@ def _print_info(source_path: Path | None) -> None:
         + [f"added by the loaded templates: {', '.join(from_templates) or 'none'}"],
     )
 
+    directives = presentation_class._declared_directive_properties()
+    from_templates = [
+        name for name in directives if name not in Presentation.directive_properties
+    ]
+    width = max(len(name) for name in directives)
+    _print_section(
+        "DIRECTIVES",
+        [f"{name:<{width}}  {directives[name]}" for name in directives]
+        + [f"added by the loaded templates: {', '.join(from_templates) or 'none'}"],
+    )
+
     _print_section(
         "REGIONS",
         [f"{name}: {region!r}" for name, region in presentation.layout.regions.items()],
@@ -171,5 +182,5 @@ def main() -> None:
             pres.add_parsed_slide(item)
             pres.end_slide()
         else:
-            pres.on_directive(item)
+            pres.run_directive(item)
     pres.write()

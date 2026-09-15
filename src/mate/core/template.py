@@ -146,13 +146,23 @@ class PresentationTemplateBase:
     """Base for presentation templates: the layout, content methods, and reveal
     machinery a concrete ``PresentationTemplate`` subclass builds on."""
 
+    # The ``#>`` directive properties this class acts on, each with a one-line
+    # description. A template declares the ones its ``on_directive`` reads;
+    # ``mate --info`` lists the declarations of the whole template stack.
+    directive_properties: dict[str, str] = {
+        "cover": "render a cover slide when true",
+        "title": "the cover title",
+        "author": "the author line of the cover",
+        "date": "the date line of the cover",
+    }
+
     # --- Internals ----------------------------------------------------------
     def __init__(self) -> None:
         self.bullet_symbols: dict[str, BulletSymbolBuilder] = dict(
             _BUILTIN_BULLET_SYMBOLS
         )
         self._cap_height_cache: dict[tuple, float] = {}
-        self._content_indent: float = 0.0
+        self.content_indent: float = 0.0
         self._list_level: int = 0
         self._fragment_region: str | None = None
         self._region_override: Region | None = None
@@ -335,9 +345,9 @@ class PresentationTemplateBase:
             self.add_title()
 
         for block in parsed.blocks:
-            self._dispatch_block(block)
+            self.dispatch_block(block)
 
-    def _dispatch_block(self, block: Block) -> None:
+    def dispatch_block(self, block: Block) -> None:
         """Render one parsed block via its matching ``add_*`` handler.
 
         Drives both top-level slide content and the blocks of a list item, so
@@ -388,7 +398,7 @@ class PresentationTemplateBase:
 
         before = {id(el) for el in self._root_elements()}
         if floating:
-            geometry = self._resolve_region(region or "active")
+            geometry = self.resolve_region(region or "active")
             cluster_anchor = anchor or geometry.anchor
             temp = Region(
                 geometry.center, geometry.width, geometry.height, anchor=cluster_anchor
@@ -396,14 +406,14 @@ class PresentationTemplateBase:
             previous_override = self._region_override
             self._region_override = temp
             for block in blocks:
-                self._dispatch_block(block)
+                self.dispatch_block(block)
             self._region_override = previous_override
         else:
             previous_region = self._fragment_region
             if region is not None:
                 self._fragment_region = region
             for block in blocks:
-                self._dispatch_block(block)
+                self.dispatch_block(block)
             self._fragment_region = previous_region
 
         new_roots = [el for el in self._root_elements() if id(el) not in before]
@@ -449,7 +459,7 @@ class PresentationTemplateBase:
         before = {id(el) for el in self._root_elements()}
         self._region_override = temp
         for block in blocks:
-            self._dispatch_block(block)
+            self.dispatch_block(block)
         self._region_override = None
 
         body = [el for el in self._root_elements() if id(el) not in before]
@@ -473,7 +483,7 @@ class PresentationTemplateBase:
         active one.
         """
         props = eval_props(args)
-        target = self._resolve_region(props.pop("region", "active"))
+        target = self.resolve_region(props.pop("region", "active"))
 
         variants: list[list[Block]] = [[]]
         for block in blocks:
@@ -491,7 +501,7 @@ class PresentationTemplateBase:
             )
             self._region_override = temp
             for block in variant:
-                self._dispatch_block(block)
+                self.dispatch_block(block)
             self._region_override = None
             temp.arrange()
 
@@ -557,7 +567,7 @@ class PresentationTemplateBase:
                     el.shift((0, delta_y))
         self._alternates = []
 
-    def _resolve_region(self, region: str) -> Region:
+    def resolve_region(self, region: str) -> Region:
         """Resolve a region name, honoring an active region override.
 
         An ``overwrite`` body renders into a temporary region override; otherwise
@@ -611,6 +621,34 @@ class PresentationTemplateBase:
         if method is None:
             raise ValueError(f"unknown blockquote method '> {name.replace('_', ' ')}'")
         eval_call(args, method)
+
+    @classmethod
+    def _declared_directive_properties(cls) -> dict[str, str]:
+        """Return the ``directive_properties`` of every class in the MRO, merged
+        base-ward first: an earlier-listed template's description stands."""
+        declared: dict[str, str] = {}
+        for klass in reversed(cls.__mro__):
+            declared.update(klass.__dict__.get("directive_properties", {}))
+        return declared
+
+    def run_directive(self, directive: Directive) -> None:
+        """Hand a ``#>`` directive to :meth:`on_directive` after checking its
+        properties.
+
+        A property no class of the template stack declares in its
+        ``directive_properties`` raises :class:`ValueError` naming it and
+        listing the declared ones.
+        """
+        declared = self._declared_directive_properties()
+        for key in directive.props:
+            if key not in declared:
+                loaded = ", ".join(config.templates) or "none"
+                raise ValueError(
+                    f"{key!r} is not a '#>' directive property of the loaded "
+                    f"templates (loaded templates: {loaded}). Declared "
+                    f"properties: {', '.join(declared)}."
+                )
+        self.on_directive(directive)
 
     # --- Content ------------------------------------------------------------
     def add_paragraph(self, text: str) -> Text:
@@ -688,11 +726,11 @@ class PresentationTemplateBase:
         )
 
         _, bullet_width = self._make_bullet(symbol, config.get("text.color"))
-        outer_indent = self._content_indent
-        self._content_indent = outer_indent + bullet_width + spacing
+        outer_indent = self.content_indent
+        self.content_indent = outer_indent + bullet_width + spacing
         for block in rest:
-            self._dispatch_block(block)
-        self._content_indent = outer_indent
+            self.dispatch_block(block)
+        self.content_indent = outer_indent
 
     def add_bullet_item(
         self,
@@ -716,13 +754,13 @@ class PresentationTemplateBase:
         :meth:`~mate.composition.layout.Region.arrange` stacks whole items with
         its own gap, independent of blank lines in the source.
         """
-        target_region = self._resolve_region(region)
+        target_region = self.resolve_region(region)
         if symbol is None:
             symbol = self._bullet_for_level(self._list_level or 1)
         spacing = config.get("list.bullet.gap") if spacing is None else spacing
         color = config.get("text.color") if color is None else color
 
-        indent = self._content_indent
+        indent = self.content_indent
         cap_height = self._cap_height()
         bullet, bullet_width = self._make_bullet(symbol, color)
 
@@ -967,8 +1005,8 @@ class PresentationTemplateBase:
         those without it raises :class:`ValueError`.
         """
         _check_placement_options("add text", floating, text_kwargs)
-        target_region = self._resolve_region(region)
-        indent = self._content_indent
+        target_region = self.resolve_region(region)
+        indent = self.content_indent
         text_kwargs.setdefault("max_width", target_region.width - indent)
         text_kwargs.setdefault("line_gap", target_region.arrange_gap)
         el = Text(text, align=align, **text_kwargs)
@@ -1004,8 +1042,8 @@ class PresentationTemplateBase:
             names = ", ".join(repr(u) for u in unknown)
             valid = ", ".join(sorted(valid_options | {"region"}))
             raise ValueError(f"unknown code option(s) {names}; valid: {valid}")
-        target_region = self._resolve_region(region)
-        code_kwargs.setdefault("width", target_region.width - self._content_indent)
+        target_region = self.resolve_region(region)
+        code_kwargs.setdefault("width", target_region.width - self.content_indent)
         return target_region, code_kwargs
 
     def add_code(
@@ -1025,7 +1063,7 @@ class PresentationTemplateBase:
         """
         target_region, kwargs = self.resolve_code_options(options, region, code_kwargs)
         el = Code(source, language=language, **kwargs)
-        el.indent = self._content_indent
+        el.indent = self.content_indent
         self.current_slide.add(el)
         target_region.add(el)
         return el
@@ -1038,10 +1076,10 @@ class PresentationTemplateBase:
         region's stack, where
         :meth:`~mate.composition.layout.Region.arrange` sets its position.
         """
-        element.indent = self._content_indent
+        element.indent = self.content_indent
         self.current_slide.add(element)
         if region is not None:
-            self._resolve_region(region).add(element)
+            self.resolve_region(region).add(element)
         return element
 
     def add_vspace(self, height: float, region: str = "active") -> VSpace:
@@ -1051,7 +1089,7 @@ class PresentationTemplateBase:
         height into :meth:`Region.arrange`, opening that much vertical space
         between the elements stacked around it.
         """
-        target_region = self._resolve_region(region)
+        target_region = self.resolve_region(region)
         spacer = VSpace(height)
         target_region.add(spacer)
         return spacer
@@ -1085,8 +1123,8 @@ class PresentationTemplateBase:
         those without it raises :class:`ValueError`.
         """
         _check_placement_options("add image", floating, image_kwargs)
-        target_region = self._resolve_region(region)
-        indent = self._content_indent
+        target_region = self.resolve_region(region)
+        indent = self.content_indent
         available_width = target_region.width - indent
         width_cm = self._resolve_image_extent(width, available_width)
         height_cm = self._resolve_image_extent(height, target_region.height)
@@ -1139,7 +1177,7 @@ class PresentationTemplateBase:
         _check_placement_options(
             "add mate figure", floating, {"pos": pos, "anchor": anchor}
         )
-        target_region = self._resolve_region(region)
+        target_region = self.resolve_region(region)
         if not Path(path).is_file():
             raise ValueError(f"add mate figure: no such file: {path!r}")
         directory = str(Path(path).resolve().parent)
@@ -1158,7 +1196,7 @@ class PresentationTemplateBase:
         group = Group(
             children=figure.elements, anchor=anchor or "center", **group_kwargs
         )
-        group.indent = self._content_indent
+        group.indent = self.content_indent
         self.current_slide.add(group)
         if floating:
             if pos is not None:

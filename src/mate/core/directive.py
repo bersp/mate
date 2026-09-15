@@ -12,8 +12,8 @@ class Directive:
 
     ``props`` maps each ``key: value`` line of the marker's blockquote to the
     value read as a Python literal; which keys are meaningful is up to the
-    template that consumes the directive through ``on_directive`` (e.g.
-    ``cover``, ``title``, ``theme``, ``section``).
+    template that consumes the directive through ``on_directive``, and each
+    template declares the ones it reads in its ``directive_properties``.
     """
 
     props: dict[str, object] = field(default_factory=dict)
