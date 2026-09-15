@@ -834,7 +834,7 @@ Arrow((-3, -2), (3, -2), tip=TriangleTip(length=0.5, width=0.4), stroke_dash="da
 
 `mate --info slides.md` prints everything the deck can use: the templates, every configuration key with its current value, the palette, the commands, the directive properties, the regions with their sizes, the fonts that resolve and the API names. The front matter is applied first, so the listing is the one that deck builds with; `mate --info` alone prints the defaults.
 
-`mate slides.md` builds `slides.pdf`. `mate slides.md --png` writes the pages as PNG images instead (`slides-1.png`, `slides-2.png`, ...).
+`mate slides.md` builds `slides.pdf`. `mate slides.md --png` writes the pages as PNG images instead (`slides-1.png`, `slides-2.png`, ...). Both land next to the deck; `--out DIR` (or `-o DIR`) writes them in another directory.
 
 `mate slides.md --warn` builds with three checks turned on. They only print warnings. `warn.overflow` reports a region holding more than fits in it. `warn.collisions` reports two drawn things that cross: a label over a line, two labels on top of each other. Lines and open arrow heads are compared by their strokes, everything else by its bounding box, and a box inside another one (a label inside a shape, the slide background) is not a collision. `warn.widows` reports a paragraph whose last line has `warn.widow_min_words` words or fewer (2 by default); a paragraph with a hard line break is skipped, and so is one narrower than half the slide, a grid column say, where rewording does not steer the wrap. Each check is also a configuration key; the front matter keeps one on for every build.
 

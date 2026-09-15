@@ -91,10 +91,11 @@ x in [-8, 8] and y in [-4.5, 4.5], and `content` spans x [-7.3, 7.3], y
 [-4.0, 2.5]. Colors are palette names; hex lives in the front matter.
 
 ```bash
-mate --info deck.md         # what this deck can name
-mate deck.md --warn         # build with every check on
-mate deck.md --png          # one PNG per page, deck-1.png, ... (deck-01.png past nine pages)
-mate deck.md --figure f.py  # preview a figure file under the deck's palette
+mate --info deck.md                    # what this deck can name
+mate deck.md --warn                    # build with every check on
+mate deck.md --out build               # write the PDF in another directory
+mate deck.md --png --out .mate_cache   # one PNG per page, written there
+mate deck.md --figure f.py             # preview a figure file under the deck's palette
 ```
 
 ## 1. The model
@@ -117,8 +118,8 @@ A deck is one Markdown file. `mate deck.md` writes `deck.pdf` next to it.
    colors, commands, regions and fonts are installation-dependent.
 2. Write the deck.
 3. Build with the checks on: `mate deck.md --warn`.
-4. Render every page to an image (`mate deck.md --png`) and look at every one
-   of them (section 9).
+4. Render every page to an image (`mate deck.md --png --out .mate_cache`) and
+   look at every one of them (section 9).
 5. Note every defect in one pass, fix them in a single edit, render again.
 
 Before step 2, the deck needs three things from the user: the material that goes
@@ -974,8 +975,11 @@ equation reaching into the margin, a long title crowding the body. Render every
 page to an image and open every one of them:
 
 ```bash
-mate deck.md --png    # deck-1.png, deck-2.png, ... next to the deck; zero-padded past nine pages
+mate deck.md --png --out .mate_cache    # deck-1.png, deck-2.png, ... zero-padded past nine pages
 ```
+
+`--out` is the directory the build writes to, the deck's own when it is left out.
+`.mate_cache` is the one to give it for the images.
 
 Reading the images is the step, not rendering them. The pages come out at
 144 dpi, 907 px wide for a 16 x 9 cm slide, where a 7 pt caption stays legible;
@@ -1397,6 +1401,8 @@ These are the ones to check by reading the file and the rendered pages.
 - The pages were rendered with `--png` and every one of them was looked at:
   nothing runs past its region or off the slide. Check the figure slides first,
   an oversized image is the usual cause and it takes the caption with it.
+- The images rendered with `--png` are deleted, unless the user asked for
+  them.
 - Every `$$` delimiter sits on a line of its own, and no `||` sits inside an
   emphasis pair.
 - Colors are palette names; hex values live in the front matter or in the

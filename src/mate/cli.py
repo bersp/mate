@@ -39,7 +39,14 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--png",
         action="store_true",
-        help="write one PNG per page, <deck>-<n>.png next to the deck, instead of the PDF",
+        help="write one PNG per page, <deck>-<n>.png, instead of the PDF",
+    )
+    parser.add_argument(
+        "-o",
+        "--out",
+        type=Path,
+        metavar="DIR",
+        help="the directory the build writes to, the deck's own by default",
     )
     parser.add_argument(
         "--figure",
@@ -58,6 +65,8 @@ def _parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if args.source is None and not args.info:
         parser.error("the deck's Markdown file is required")
+    if args.out is not None and not args.out.is_dir():
+        parser.error(f"--out: no such directory: {args.out}")
     return args
 
 
@@ -230,7 +239,6 @@ def main() -> None:
             pres.end_slide()
         else:
             pres.run_directive(item)
-    if args.png:
-        pres.write(source_path.with_name(f"{source_path.stem}-{{n}}.png"))
-    else:
-        pres.write()
+    out_dir = args.out if args.out is not None else source_path.parent
+    name = f"{source_path.stem}-{{n}}.png" if args.png else f"{source_path.stem}.pdf"
+    pres.write(out_dir / name)
