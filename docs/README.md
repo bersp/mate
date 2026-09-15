@@ -831,19 +831,13 @@ Arrow((-3, -2), (3, -2), tip=TriangleTip(length=0.5, width=0.4), stroke_dash="da
 
 ## Command line
 
-`mate slides.md` writes `slides.pdf`. With `--png` it writes the pages as images instead, `slides-1.png`, `slides-2.png` and so on, next to the deck.
+`mate --info slides.md` prints everything the deck can use: the templates, every configuration key with its current value, the palette, the commands, the directive properties, the regions with their sizes, the fonts that resolve and the API names. The front matter is applied first, so the listing is the one that deck builds with; `mate --info` alone prints the defaults.
 
-`mate --info slides.md` prints everything the deck can name: the templates, the configuration keys with their current values, the palette, the commands, the directive properties, the regions, the fonts and the API names. Without a deck it prints the defaults.
+`mate slides.md` builds `slides.pdf`. `mate slides.md --png` writes the pages as PNG images instead (`slides-1.png`, `slides-2.png`, ...).
 
-`mate slides.md --figure scene.py` runs a figure file with the deck's front matter already applied, so the `write` in the file produces a preview in the deck's colors (see [Figures](#figures)).
+`mate slides.md --warn` builds with three checks turned on. They only print warnings. `warn.overflow` reports a region holding more than fits in it. `warn.collisions` reports two drawn things that cross: a label over a line, two labels on top of each other. Lines and open arrow heads are compared by their strokes, everything else by its bounding box, and a box inside another one (a label inside a shape, the slide background) is not a collision. `warn.widows` reports a paragraph whose last line has `warn.widow_min_words` words or fewer (3 by default); a paragraph with a hard line break is skipped. Each check is also a configuration key, so the front matter can keep one on for every build.
 
-### Checks
-
-`mate slides.md --warn` builds the deck with three checks on. They only warn; the PDF is the same.
-
-`warn.overflow` warns when a region holds more than fits in it. `warn.collisions` warns when two drawn things cross, say a label over a line or two labels over each other; lines and open arrow heads are compared by their strokes, everything else by its box, and a box inside another one (a label inside a shape, the slide background) is not a collision. `warn.widows` warns when the last line of a paragraph has `warn.widow_min_words` words or fewer (3 by default); a paragraph with a hard line break is skipped.
-
-Each check is also a configuration key, off by default. Set the ones you want on every build in the front matter.
+`mate slides.md --figure scene.py` runs a figure file with the deck's front matter applied first, so a palette name the deck defines resolves in the preview. A plain `python scene.py` only knows the base palette. See [Figures](#figures).
 
 ## As a library
 
