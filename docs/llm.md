@@ -9,6 +9,94 @@ Run `mate --info deck.md` and read section 2 before writing anything: what a
 deck can use (templates, config keys, colors, commands, regions, fonts) is
 installation-dependent and is meant to be listed, not remembered.
 
+## Reference sheet
+
+The shape of a deck at a glance; the numbered sections expand every line.
+
+````markdown
+---
+templates: [flow]
+config:
+  text.fontsize: 10
+colors:
+  accent: "#B5557A"
+---
+
+#>
+> cover: True
+> title: The title
+> author: Name Surname
+> date: March 2026
+
+# Slide title
+## Subtitle, first block only
+
+A paragraph with **bold**, inline math $x^2$ and [a span][color="accent", fontsize=9].
+A whole block takes its properties at the end. [[color="dark_gray"]]
+
+- a bullet
+  - a nested bullet
+
+1. a numbered item
+
+$$
+integral_0^oo e^(-x^2) dif x = sqrt(pi) / 2
+$$
+
+> pause
+
+```python : title="solver.py", numbers=True
+def f(x):
+    return x**2
+```
+
+# A figure beside its commentary
+
+> grid : [["text", "fig"]], hgap=0.6
+> region : "text"
+
+Text in the left cell.
+
+> region : "fig", anchor="center"
+> add image : "figures/plot.pdf", width="100%"
+````
+
+| command | arguments |
+|---|---|
+| `> pause` | opens a reveal step |
+| `> vspace : 0.5` | height in cm |
+| `> region : "name"` | `anchor=` for this slide |
+| `> grid : [["a", "b"]]` | `hgap`, `vgap`, `width_ratios`, `height_ratios`, `anchors` |
+| `> add image : "f.png"` | `width`/`height` in cm or `"80%"`, `region`, `floating`, `pos`, `anchor`, `id` |
+| `> add mate figure : "f.py"` | `region`, `floating`, `pos`, `anchor`, `id` |
+| `> add : Circle(0.5, pos=(0, 1))` | any element; `region=` stacks it |
+| `> add text : "words"` | `region`, `align`, any `Text` keyword |
+| `> modify : "id", color="red"` | any property with a setter, from this step on |
+| `> reveal : "id"`, `> hide : "id"` | ids, several per line |
+| `> mask image : "id", x=0, y=0, width=0.5, height=1` | fractions of the image |
+| `> draw layout` | debug overlay of the regions; remove before finishing |
+
+Span properties: `color`, `opacity`, `fontsize`, `font`, `weight`, `style`,
+`letter_spacing`, `align`, `text_align`, `shift`, `rotate`, `scale`, `id`,
+`z_order`. Fences: a code fence with `: options`, ```` ```markdown fragment : props ````,
+```` ```markdown overwrite : "id" ````, ```` ```markdown alternate ```` with `> alt`
+between variants, ```` ```python mate ```` for Python with the presentation as
+`self`. `||` inside text, math or code splits it into reveal steps.
+
+Math is Typst: `frac(a, b)`, `a / b`, `\/` for a literal slash, `integral_0^oo`,
+`epsilon`, `->`, `"words"`, `thin`. `$$` delimiters take lines of their own.
+
+Coordinates are cm from the slide centre, x right and y up; a 16 x 9 slide runs
+x in [-8, 8] and y in [-4.5, 4.5], and `content` spans x [-7.3, 7.3], y
+[-4.0, 2.5]. Colors are palette names; hex lives in the front matter.
+
+```bash
+mate --info deck.md         # what this deck can name
+mate deck.md --warn         # build with every check on
+mate deck.md --png          # one PNG per page, deck-1.png, ...
+mate deck.md --figure f.py  # preview a figure file under the deck's palette
+```
+
 ## 1. The model
 
 A deck is one Markdown file. `mate deck.md` writes `deck.pdf` next to it.
@@ -593,11 +681,9 @@ otherwise ask element by element.
 
 ### Ids, hiding and draw order
 
-`id="key"` on any element registers it, and `> modify : "key", <props>` restyles
-or moves everything carrying that key from its reveal step onward.
-`set_hidden(True)` holds the box and draws nothing, which is how a layer waits
-for its step. `z_order` sorts the whole slide and cascades from a group to the
-descendants that carry none.
+As on the rest of the slide (sections 6 and 7): `id="key"` on any element
+registers it for `> modify`, `> reveal` and `> hide`, `set_hidden(True)` holds
+the box and draws nothing, and `z_order` sorts the whole slide.
 
 ### Grouping and stacking
 
@@ -743,12 +829,14 @@ under every template. What else a directive can carry (a running section, a
 theme switch) is template-dependent, and the DIRECTIVES block of `mate --info`
 lists it. A property outside that block raises.
 
-**One idea per slide.** A title and a body that fits. Splitting a slide in two
-keeps the text at the size the rest of the deck uses.
-
-**Reveal in steps when the slide argues something.** A list of consequences, a
-derivation, a before-and-after comparison: `> pause` between the parts. A slide
-that is a single figure or a single statement needs no steps.
+**House style.** One idea per slide: a title and a body that fits, split in two
+before the text shrinks. `> pause` between the parts of an argument (a list of
+consequences, a derivation, a before-and-after); a single figure or statement
+needs no steps. A bold paragraph of its own is the lead line when the title
+alone does not frame the body; `##` is the subtitle, right under the title.
+Inside the running text, write plain: no color and no bold unless one word
+carries the point. A plain deck is one request away from the emphasis its author
+wants; a colored one has to be undone first.
 
 **A figure gets a caption.** The image and the caption stack in the active
 region, one after the other, with the caption styled down and centred under a
@@ -802,10 +890,6 @@ sits in its own region and stays put: a short stack anchored at the centre of
 of several blocks keeps the `top-left` default. A `> vspace` at the top of a
 `top-left` region pushes the content down without balancing it.
 
-**A bold lead line frames the body** when the title alone does not. `##` is the
-slide subtitle, right under the title; an in-body lead is a bold paragraph of its
-own.
-
 **`> vspace` sets the separation where the region's gap is wrong.** The spacer
 replaces the region's usual gap at that point, it does not add to it. Reach for
 it around equations, before a closing statement, and between a figure and its
@@ -819,11 +903,6 @@ bottom.
 other role keys carry the deck's sizes, and a `fontsize=` on a span is for one
 genuine exception. When most slides want smaller text, change the role key in the
 front matter once instead of tuning block by block.
-
-**Emphasis is the author's call, not a default.** Inside the running text, write
-plain: no color and no bold unless one word genuinely carries the point (the lead
-line above is a structural device, not emphasis). A plain deck is one request
-away from the emphasis its author wants; a colored one has to be undone first.
 
 **Colors come from the palette by name** (`color="red"`, `color="accent"`), never
 as a hex literal inside a slide. A hex belongs in the front matter `colors:`

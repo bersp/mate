@@ -831,18 +831,19 @@ Arrow((-3, -2), (3, -2), tip=TriangleTip(length=0.5, width=0.4), stroke_dash="da
 
 ## Command line
 
-`mate slides.md` builds the PDF. A few flags change what comes out:
+`mate slides.md` writes `slides.pdf`. With `--png` it writes the pages as images instead, `slides-1.png`, `slides-2.png` and so on, next to the deck.
 
-- `--png` writes one PNG per page in place of the PDF, `slides-1.png`, `slides-2.png` and so on next to the deck. Handy for looking at the pages without opening a viewer.
-- `--warn` turns on the three build checks for this run. They print warnings and leave the PDF alone.
-- `--figure scene.py` runs a figure file as a script with the deck's front matter applied first (templates, palette, configuration), so its `write` produces a preview with the deck's colors. See [Figures](#figures).
-- `--info` prints what the deck can name: the templates, every configuration key with its current value, the palette, the commands, the directive properties the templates read, the regions, the font families that resolve and the API names. Without a deck it lists the bare defaults.
+`mate --info slides.md` prints everything the deck can name: the templates, the configuration keys with their current values, the palette, the commands, the directive properties, the regions, the fonts and the API names. Without a deck it prints the defaults.
 
-The checks are configuration keys, off by default; the front matter turns on the ones a deck wants on every build:
+`mate slides.md --figure scene.py` runs a figure file with the deck's front matter already applied, so the `write` in the file produces a preview in the deck's colors (see [Figures](#figures)).
 
-- `warn.overflow` reports a region whose content is wider or taller than the region.
-- `warn.collisions` reports two drawn things that cross: a label over a line, two labels on top of each other. Lines and open arrow heads count by their actual strokes, everything else by its bounding box. A box inside another one (a label inside a shape, the slide background) is fine and not reported.
-- `warn.widows` reports a paragraph whose last line has `warn.widow_min_words` words or fewer (3 by default). A hard line break in the paragraph turns the check off for it.
+### Checks
+
+`mate slides.md --warn` builds the deck with three checks on. They only warn; the PDF is the same.
+
+`warn.overflow` warns when a region holds more than fits in it. `warn.collisions` warns when two drawn things cross, say a label over a line or two labels over each other; lines and open arrow heads are compared by their strokes, everything else by its box, and a box inside another one (a label inside a shape, the slide background) is not a collision. `warn.widows` warns when the last line of a paragraph has `warn.widow_min_words` words or fewer (3 by default); a paragraph with a hard line break is skipped.
+
+Each check is also a configuration key, off by default. Set the ones you want on every build in the front matter.
 
 ## As a library
 
