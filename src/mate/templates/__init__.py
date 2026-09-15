@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib
 import importlib.util
+import pkgutil
 from pathlib import Path
 
 from ..config import _DEFAULTS
@@ -35,5 +36,20 @@ def load_template(name: str) -> type:
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
     else:
-        module = importlib.import_module(f"mate.templates.{name}")
+        module_name = f"mate.templates.{name}"
+        try:
+            module = importlib.import_module(module_name)
+        except ModuleNotFoundError as exc:
+            if exc.name != module_name:
+                raise
+            raise ValueError(
+                f"{name!r} is not a template: no {name}.py next to the deck and "
+                f"no built-in of that name. Built-in templates: "
+                f"{', '.join(built_in_templates())}."
+            ) from None
     return module.PresentationTemplate
+
+
+def built_in_templates() -> list[str]:
+    """Return the names of the templates shipped under ``mate.templates``."""
+    return sorted(module.name for module in pkgutil.iter_modules(__path__))

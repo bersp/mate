@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..config import config
-from ..core.element import Anchor, Element, bbox_anchor_point
+from ..core.element import Anchor, Element, anchor_offsets, bbox_anchor_point
 from ..core.vec import Vec, VecLike
 from ..log import logger
 from .arrange import arrange as _arrange_elements
@@ -36,6 +36,7 @@ class Region:
         self._center: Vec = Vec(center)
         self._width: float = float(width)
         self._height: float = float(height)
+        anchor_offsets(anchor)
         self._anchor: Anchor = anchor
         self._default_anchor: Anchor = anchor
         self._arrange_gap: float = (
@@ -165,11 +166,13 @@ class Region:
         return self
 
     def set_anchor(self, value: Anchor) -> Region:
+        anchor_offsets(value)
         self._anchor = value
         return self
 
     def set_anchor_default(self, value: Anchor) -> Region:
         """Set the anchor and the default it resets to when a slide opens."""
+        anchor_offsets(value)
         self._anchor = value
         self._default_anchor = value
         return self

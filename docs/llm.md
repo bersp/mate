@@ -1250,9 +1250,13 @@ These are the ones to check by reading the file and the rendered pages.
 - **A deck that does not open with a `#` heading or a directive raises.**
 - **A font family that does not resolve raises at build time.** List the families
   before naming one.
+- **A `templates:` entry that is neither a built-in nor a sibling `.py` raises**,
+  listing the built-in names. So does an anchor outside the nine.
 - **`color` is a markup property, not a constructor argument.**
   `Rectangle(3, 1, color="red")` raises; constructors take `fill_color` and
   `stroke_color`. `color=` belongs in a span, a fence option or `> modify`.
+  The same holds for `rotate`, `shift` and `scale`, and the error from a
+  `> add` or `> add text` line says so.
 - **A `Group` takes no `pos`.** A group's position is the union of its children's
   boxes. `Group(children=[...], pos=(5, 3))` raises; build it and place it with
   `move_to((5, 3))`.

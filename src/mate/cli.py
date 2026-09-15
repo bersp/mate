@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import argparse
-import pkgutil
 import textwrap
 from pathlib import Path
 
-from . import Presentation, __all__ as api_names, config, templates
+from . import Presentation, __all__ as api_names, config
 from .backends.typst import _available_font_families
 from .parser import ParsedDocument, ParsedSlide, parse_markdown
+from .templates import built_in_templates
 
 
 def _resolve_template(name: str, base_dir: Path) -> str:
@@ -103,13 +103,10 @@ def _print_info(source_path: Path | None) -> None:
     )
     print(f"mate ({scope})")
 
-    built_in = sorted(
-        module.name for module in pkgutil.iter_modules(templates.__path__)
-    )
     _print_section(
         "TEMPLATES",
         [
-            f"built-in: {', '.join(built_in)}",
+            f"built-in: {', '.join(built_in_templates())}",
             f"loaded: {', '.join(config.templates) or 'none'}",
         ],
     )

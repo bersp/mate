@@ -617,10 +617,28 @@ class PresentationTemplateBase:
                 "'> alt' is only valid as a variant separator inside a "
                 "'markdown alternate' block"
             )
+        command = f"> {name.replace('_', ' ')}"
         method = getattr(self, name, None)
         if method is None:
-            raise ValueError(f"unknown blockquote method '> {name.replace('_', ' ')}'")
-        eval_call(args, method)
+            hint = (
+                ". A paragraph on the line right below a blockquote joins it: "
+                "leave a blank line between them"
+                if len(name.split("_")) > 3
+                else ""
+            )
+            raise ValueError(f"unknown blockquote method '{command}'{hint}")
+        try:
+            eval_call(args, method)
+        except TypeError as exc:
+            if "unexpected keyword argument" not in str(exc):
+                raise
+            raise ValueError(
+                f"'{command}': {exc}. A constructor takes the style fields "
+                "(fill_color, stroke_color, stroke_width, ...) and the placement "
+                "fields (pos, anchor, align, id, z_order); color, rotate, shift "
+                "and scale are applied after construction, as a span property, "
+                "a '> modify' property or a method call."
+            ) from None
 
     @classmethod
     def _declared_directive_properties(cls) -> dict[str, str]:

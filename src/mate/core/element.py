@@ -98,14 +98,23 @@ _ANCHOR_OFFSETS: dict[Anchor, tuple[float, float]] = {
 
 
 def anchor_offsets(anchor: Anchor) -> tuple[float, float]:
-    """Return ``(h_mul, v_mul)`` for ``anchor`` (see :data:`_ANCHOR_OFFSETS`)."""
-    return _ANCHOR_OFFSETS[anchor]
+    """Return ``(h_mul, v_mul)`` for ``anchor`` (see :data:`_ANCHOR_OFFSETS`).
+
+    A name outside the nine anchors raises :class:`ValueError` listing them.
+    """
+    offsets = _ANCHOR_OFFSETS.get(anchor)
+    if offsets is None:
+        raise ValueError(
+            f"{anchor!r} is not an anchor. Valid anchors: "
+            f"{', '.join(_ANCHOR_OFFSETS)}."
+        )
+    return offsets
 
 
 def bbox_anchor_point(bbox: tuple[float, float, float, float], anchor: Anchor) -> Vec:
     """Return the position of ``anchor`` on a centre-based ``(x, y, w, h)`` box."""
     cx, cy, w, h = bbox
-    h_mul, v_mul = _ANCHOR_OFFSETS[anchor]
+    h_mul, v_mul = anchor_offsets(anchor)
     return Vec(cx + (h_mul - 0.5) * w, cy + (v_mul - 0.5) * h)
 
 
@@ -308,6 +317,7 @@ class Element:
         id: IDKey | list[IDKey] | None = None,
     ) -> None:
         self._pos: Vec = Vec(pos) if pos is not None else Vec(0, 0)
+        anchor_offsets(anchor)
         self._anchor: Anchor = anchor
         # Rotation of this element's own body about its centre, in degrees
         # counterclockwise. Written by `rotate`; the backend emits the
@@ -525,6 +535,7 @@ class Element:
         Geometric mutator: invalidates the bbox cache of this element's
         tree (the bbox corners move).
         """
+        anchor_offsets(anchor)
         self._anchor = anchor
         self._invalidate_subtree_and_ancestors()
         return self
