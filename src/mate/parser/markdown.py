@@ -255,7 +255,9 @@ def _fold_block(node: SyntaxTreeNode) -> Block:
             if lang.strip() == "python" and name.strip() == "mate":
                 return PythonBlock(node.content)
             if lang.strip() == "markdown":
-                return FencedBlock(name.strip(), args.strip(), _fold_body(node.content))
+                return FencedBlock(
+                    name.strip().replace(" ", "_"), args.strip(), _fold_body(node.content)
+                )
             language, _, options = node.info.partition(":")
             return CodeBlock(language.strip(), options.strip(), node.content)
     raise _unsupported(node.type)

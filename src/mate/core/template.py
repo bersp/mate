@@ -368,7 +368,13 @@ class PresentationTemplateBase:
             case MethodCall(name, args):
                 self.run_method_call(name, args)
             case FencedBlock(name, args, blocks):
-                getattr(self, f"add_{name}")(blocks, args)
+                method = getattr(self, f"add_{name}", None)
+                if method is None:
+                    raise ValueError(
+                        f"unknown fenced block 'markdown {name.replace('_', ' ')}': "
+                        f"no 'add_{name}' method on the presentation"
+                    )
+                method(blocks, args)
             case PythonBlock(source):
                 self._run_python(source)
             case CodeBlock(language, options, source):
@@ -930,8 +936,9 @@ class PresentationTemplateBase:
             raise ValueError(
                 "a '#>' directive with 'cover: True' needs a 'title:' property"
             )
+        # Directive values are read as Python literals; a cover's lines are text.
         self.new_slide(is_cover=True)
-        self.add_cover(title, **props)
+        self.add_cover(str(title), **{key: str(value) for key, value in props.items()})
         self.end_slide()
 
     def add_cover(self, title: str, **props: str) -> Group:
