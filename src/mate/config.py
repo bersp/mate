@@ -69,7 +69,7 @@ _DEFAULTS: dict[str, object] = {
     "warn.widow_min_words": 3,
     "line.stroke_width": 0.05,
     "arrow.tip": "hook",
-    "arrow.gap": 0.1,
+    "arrow.gap": 0.15,
     "arrow.triangle.length": 0.25,
     "arrow.triangle.width": 0.2,
     "arrow.hook.length": 0.2,
@@ -149,6 +149,10 @@ _DEFAULTS: dict[str, object] = {
     "list.bullet.outline_width": 0.04,
     "footer.show": True,
     "footer.show_total": False,
+    "footer.font": "libertinus serif",
+    "footer.fontweight": "regular",
+    "footer.fontsize": 9.0,
+    "footer.color": "dark_gray",
 }
 
 _DEFAULT_PALETTE: dict[str, str] = {

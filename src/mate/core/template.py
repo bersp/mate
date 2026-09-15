@@ -824,12 +824,15 @@ class PresentationTemplateBase:
     ) -> Drawable:
         """Build a bullet whose longest dimension equals ``size``.
 
-        ``symbol`` is a key of ``bullet_symbols`` or a :class:`Drawable` (scaled
-        in place on a copy so the caller's instance is untouched, then filled in
-        ``color``).
+        ``symbol`` is a key of ``bullet_symbols`` or a :class:`Drawable`: a
+        copy of it, filled in ``color``, scaled to ``size`` unless it is a
+        :class:`Text`, which keeps its own size (a numbered marker reads at the
+        body size).
         """
         if isinstance(symbol, Drawable):
-            shape = self._scale_to_longest(symbol.copy(), size)
+            shape = symbol.copy()
+            if not isinstance(shape, Text):
+                self._scale_to_longest(shape, size)
             shape.set_fill_color(color)
             return shape
 
@@ -858,8 +861,16 @@ class PresentationTemplateBase:
         return shape
 
     def add_ordered_list(self, block: OrderedList) -> None:
-        """Render an ordered list."""
-        raise NotImplementedError("add_ordered_list is not implemented")
+        """Render a numbered list, one item per :meth:`_add_list_item` call.
+
+        An item's marker is its number and a period, set in the body font and
+        counted from the list's start number. The nesting level rises for the
+        items and drops back after them, as for a bullet list.
+        """
+        self._list_level += 1
+        for number, item in enumerate(block.items, start=block.start):
+            self._add_list_item(item, symbol=Text(f"{number}."))
+        self._list_level -= 1
 
     def add_title(self) -> Group:
         """Build the current slide's title."""
@@ -966,11 +977,13 @@ class PresentationTemplateBase:
         return members
 
     def add_footer(self, show_total: bool = False) -> Group:
-        """Build the current slide's footer: a separator line and a page number.
+        """Build the current slide's footer: a page number in the ``footer`` role.
 
-        The page number sits at the footer's right edge. ``show_total``
-        appends ``/<total>`` from the presentation's ``total_slides``;
-        asking for it without a declared total raises :class:`ValueError`.
+        The page number sits at the footer's right edge, set in ``footer.font``,
+        ``footer.fontsize``, ``footer.fontweight`` and ``footer.color``.
+        ``show_total`` appends ``/<total>`` from the presentation's
+        ``total_slides``; asking for it without a declared total raises
+        :class:`ValueError`.
         """
         footer_region = self.layout.get("footer")
         idx = self.slides.index(self.current_slide)
@@ -985,11 +998,12 @@ class PresentationTemplateBase:
         members = Group()
         num_el = Text(
             label,
-            font=config.get("text.font"),
-            fontsize=config.get("text.fontsize"),
-            fill_color=config.get("text.color"),
-            pos=footer_region.get_anchor_point("top-right"),
-            anchor="top-right",
+            font=config.get("footer.font"),
+            fontsize=config.get("footer.fontsize"),
+            weight=config.get("footer.fontweight"),
+            fill_color=config.get("footer.color"),
+            pos=footer_region.get_anchor_point("center-right"),
+            anchor="center-right",
         )
         members.add(num_el)
 
@@ -1269,6 +1283,18 @@ class PresentationTemplateBase:
                     )
         step = len(self.current_slide.steps) - 1
         self._modifies.append((targets, props, step))
+
+    def reveal(self, *ids: IDKey) -> None:
+        """Show every element registered under each of ``ids``, from this reveal
+        step onward: ``modify(id, hidden=False)`` per id."""
+        for id in ids:
+            self.modify(id, hidden=False)
+
+    def hide(self, *ids: IDKey) -> None:
+        """Hide every element registered under each of ``ids``, from this reveal
+        step onward, its box held in place: ``modify(id, hidden=True)`` per id."""
+        for id in ids:
+            self.modify(id, hidden=True)
 
     def _resolve_modifies(self) -> None:
         """Apply the deferred ``modify`` calls.
