@@ -28,8 +28,13 @@ class Slide:
         The slide's title and subtitle text; :meth:`Presentation.add_title`
         turns the title string into a rendered ``Text``.
     is_cover : bool
-        ``True`` for a generated cover page. A cover carries no footer and is
-        excluded from the slide numbering.
+        ``True`` for a generated cover page.
+    counted : bool
+        Whether the slide takes a number: a counted slide advances the slide
+        counter and carries the footer. A cover is not counted unless asked.
+    number : int | None
+        The slide's number, the counter's value while the slide is open;
+        ``None`` on an uncounted slide.
     background : Element | None
         The element drawn behind the slide's content, or ``None``.
     steps : list[list[Element]]
@@ -45,10 +50,13 @@ class Slide:
         title: str | None = None,
         subtitle: str | None = None,
         is_cover: bool = False,
+        counted: bool | None = None,
     ) -> None:
         self.title: str | None = title
         self.subtitle: str | None = subtitle
         self.is_cover: bool = is_cover
+        self.counted: bool = (not is_cover) if counted is None else counted
+        self.number: int | None = None
         self.background: Element | None = None
         self.steps: list[list[Element]] = [[]]
         self.replaced: list[tuple[int, Element]] = []

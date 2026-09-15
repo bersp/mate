@@ -977,17 +977,19 @@ class PresentationTemplateBase:
         return members
 
     def add_footer(self, show_total: bool = False) -> Group:
-        """Build the current slide's footer: a page number in the ``footer`` role.
+        """Build and return the current slide's footer: a page number in the
+        ``footer`` role.
 
-        The page number sits at the footer's right edge, set in ``footer.font``,
-        ``footer.fontsize``, ``footer.fontweight`` and ``footer.color``.
-        ``show_total`` appends ``/<total>`` from the presentation's
-        ``total_slides``; asking for it without a declared total raises
-        :class:`ValueError`.
+        The page number is the slide's ``number``, at the footer's right edge,
+        set in ``footer.font``, ``footer.fontsize``, ``footer.fontweight`` and
+        ``footer.color``. ``show_total`` appends ``/<total>`` from the
+        presentation's ``total_slides``; asking for it without a declared total
+        raises :class:`ValueError`. The group is returned, not added:
+        :meth:`Presentation.end_slide` places it on the slide's first reveal
+        step once the number is final.
         """
         footer_region = self.layout.get("footer")
-        idx = self.slides.index(self.current_slide)
-        number = sum(1 for s in self.slides[: idx + 1] if not s.is_cover)
+        number = self.current_slide.number
 
         if show_total and self.total_slides is None:
             raise ValueError(
@@ -1006,8 +1008,6 @@ class PresentationTemplateBase:
             anchor="center-right",
         )
         members.add(num_el)
-
-        self.current_slide.add(members)
 
         return members
 

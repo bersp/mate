@@ -51,6 +51,7 @@ class Presentation(PresentationTemplateBase):
         self.height: float = config.slide_height
         self.slides: list[Slide] = []
         self.current_slide: Slide | None = None
+        self.slide_counter: int = 0
         self._renderer = _Renderer()
 
     def new_slide(
@@ -58,19 +59,25 @@ class Presentation(PresentationTemplateBase):
         title: str | None = None,
         subtitle: str | None = None,
         is_cover: bool = False,
+        counted: bool | None = None,
     ) -> Slide:
         """Create, attach, and return a fresh open slide.
 
         The template's :meth:`background` element, when any, is added first so
-        it renders behind everything. When ``footer.show`` is enabled,
-        a content slide's footer is added on creation; the footer shows
-        ``/<total>`` when ``footer.show_total`` is set. A cover slide
-        (``is_cover``) carries no footer.
+        it renders behind everything. ``counted`` says whether the slide takes
+        a number: ``None`` (default) counts every slide but a cover
+        (``is_cover``). A counted slide advances ``slide_counter`` and takes
+        its value as ``number``; :meth:`adjust_slide_count` moves the counter
+        while the slide is open, and :meth:`end_slide` builds the footer from
+        the number that stands then.
         """
         id_registry.clear()
-        slide = Slide(title, subtitle, is_cover)
+        slide = Slide(title, subtitle, is_cover, counted)
         self.slides.append(slide)
         self.current_slide = slide
+        if slide.counted:
+            self.slide_counter += 1
+            slide.number = self.slide_counter
         self.layout.reset_active()
         logger.debug(
             rf"[yellow]NEW SLIDE[/yellow] ({len(self.slides)}) {title!r}",
@@ -79,9 +86,19 @@ class Presentation(PresentationTemplateBase):
         background = self.background()
         if background is not None:
             slide.background = slide.add(background)
-        if config.get("footer.show") and not is_cover:
-            self.add_footer(show_total=config.get("footer.show_total"))
         return slide
+
+    def adjust_slide_count(self, delta: int) -> None:
+        """Add ``delta`` to the slide counter, the current slide's number with it.
+
+        ``> adjust slide count : -1`` on a slide gives it the number of the
+        slide before it, and every later slide follows on from there: a slide
+        duplicated and edited by hand stands in for a reveal step. The
+        declared total the command line computes carries the same deltas.
+        """
+        self.slide_counter += delta
+        if self.current_slide.counted:
+            self.current_slide.number = self.slide_counter
 
     def pause(self) -> None:
         """Split the current slide: open a new reveal step.
@@ -95,13 +112,18 @@ class Presentation(PresentationTemplateBase):
     def end_slide(self) -> None:
         """Arrange every region, seal the slide into snapshots, then clear regions.
 
-        The regions are arranged once over the slide's full content, so every
+        A counted slide gets its footer first, on the first reveal step, with
+        the number that stands once the slide's own commands have run. The
+        regions are arranged once over the slide's full content, so every
         position is baked before any page is rendered; each reveal step is then
         rendered as a :class:`Snapshot` of its cumulative root elements. The
         cleared regions are reused by the next slide.
         """
         slide = self.current_slide
         number = self.slides.index(slide) + 1
+        if config.get("footer.show") and slide.counted:
+            footer = self.add_footer(show_total=config.get("footer.show_total"))
+            slide.steps[0].append(footer)
         for region in self.layout.regions.values():
             region.arrange()
         if config.get("warn.overflow"):
@@ -170,18 +192,20 @@ class Presentation(PresentationTemplateBase):
         suffix picks the output format and ``ppi`` the resolution of a raster
         one. Raises if any slide is still open (call
         :meth:`Presentation.end_slide` first) or, when ``total_slides`` was
-        declared, if the number of content slides built (covers excluded)
-        differs from it.
+        declared, if the slide counter ends anywhere else.
         """
         open_count = sum(not s.is_sealed for s in self.slides)
         if open_count:
             raise RuntimeError(
                 f"{open_count} slide(s) still open; call .end_slide() before write()."
             )
-        content_count = sum(1 for s in self.slides if not s.is_cover)
-        if self.total_slides is not None and content_count != self.total_slides:
+        if self.total_slides is not None and self.slide_counter != self.total_slides:
             raise RuntimeError(
-                f"declared {self.total_slides} slide(s) but built {content_count}."
+                f"the deck declares {self.total_slides} slide(s) (its '#' headings, "
+                f"adjusted by its '> adjust slide count' lines) but the counter "
+                f"reached {self.slide_counter}. A slide a template builds from a "
+                "hook passes counted=False to new_slide; a heading slide swallowed "
+                "by an unclosed fence is never built."
             )
         path = Path(path) if path is not None else Path(f"{self.name}.pdf")
         logger.info(

@@ -10,7 +10,8 @@ from pathlib import Path
 
 from . import Presentation, __all__ as api_names, config
 from .backends.typst import _available_font_families
-from .parser import FrontMatter, ParsedDocument, ParsedSlide, parse_markdown
+from .core.authoring import eval_call
+from .parser import FrontMatter, MethodCall, ParsedDocument, ParsedSlide, parse_markdown
 from .templates import built_in_templates
 
 
@@ -190,6 +191,19 @@ def _run_figure(path: Path, frontmatter: FrontMatter) -> None:
         sys.path.remove(directory)
 
 
+def _declared_slide_total(doc: ParsedDocument) -> int:
+    """Return the number of ``#`` headings in ``doc`` plus every
+    ``> adjust slide count`` delta its slides carry: the value the slide
+    counter reaches when the deck builds."""
+    deltas = sum(
+        eval_call(block.args, lambda delta: delta)
+        for slide in doc.slides
+        for block in slide.blocks
+        if isinstance(block, MethodCall) and block.name == "adjust_slide_count"
+    )
+    return len(doc.slides) + deltas
+
+
 def main() -> None:
     """Parse the command line and write the deck's slides to a PDF."""
     args = _parse_args()
@@ -203,7 +217,7 @@ def main() -> None:
         return
     pres = Presentation(
         str(source_path.with_suffix("")),
-        total_slides=len(doc.slides),
+        total_slides=_declared_slide_total(doc),
         frontmatter=doc.frontmatter,
     )
     # After the front matter, which the flag overrides.
