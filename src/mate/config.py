@@ -66,7 +66,7 @@ _DEFAULTS: dict[str, object] = {
     "warn.overflow": False,
     "warn.collisions": False,
     "warn.widows": False,
-    "warn.widow_min_words": 3,
+    "warn.widow_min_words": 2,
     "line.stroke_width": 0.05,
     "arrow.tip": "hook",
     "arrow.gap": 0.15,

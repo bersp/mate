@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from typing import Iterable
 
+from ..config import config
 from ..core.element import Element, measure_all, union_bbox
 from ..core.vec import Vec
 from ..elements.group import Group
@@ -434,15 +435,17 @@ def find_widows(elements: Iterable[Element], min_words: int) -> list[Widow]:
     both times, and every copy is measured in one pass.
 
     A paragraph carrying a hard line break is left out: its lines are the
-    author's.
+    author's. So is a paragraph whose measure is under half the slide width
+    (a grid column): its wrap is not steerable by rewording.
     """
     candidates: list[Text] = []
     for el in elements:
         _prose(el, candidates)
+    narrow = config.slide_width / 2
     trials: list[tuple[Text, list[str], list[tuple[int, Text]]]] = []
     for text in candidates:
         words = _words(text)
-        if len(words) <= min_words or _has_line_break(text):
+        if len(words) <= min_words or _has_line_break(text) or text.max_width < narrow:
             continue
         shortened = [(k, _without_last_words(text, k)) for k in range(1, min_words + 1)]
         trials.append((text, words, shortened))
