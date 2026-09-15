@@ -46,7 +46,9 @@ _MISSING = object()
 # ``dash`` is a bar ``list.bullet.dash_thickness`` tall.
 #
 # ``arrow.tip`` names an ``Arrow``'s default end marker: ``triangle``,
-# ``hook`` or ``bar``.
+# ``hook`` or ``bar``. ``arrow.gap`` is the cm an arrow stops short of each
+# of its endpoints: the drawn tip and tail sit that far inside ``start`` and
+# ``end``, clear of the boxes those points lie on.
 #
 # Each arrow end marker carries its own dimensions. The solid triangle takes
 # ``arrow.triangle.length`` and ``arrow.triangle.width``, cm along and across
@@ -67,9 +69,10 @@ _DEFAULTS: dict[str, object] = {
     "warn.widow_min_words": 3,
     "line.stroke_width": 0.05,
     "arrow.tip": "hook",
+    "arrow.gap": 0.1,
     "arrow.triangle.length": 0.25,
     "arrow.triangle.width": 0.2,
-    "arrow.hook.length": 0.3,
+    "arrow.hook.length": 0.2,
     "arrow.hook.opening_angle": 45.0,
     "arrow.bar.width": 0.2,
     "image.align": "center",

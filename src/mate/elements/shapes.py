@@ -967,8 +967,9 @@ class Arrow(Group):
     """Segment carrying an end marker on one or both endpoints.
 
     An arrow is the group of the shapes it is drawn from: a :class:`Line`
-    shaft and one :class:`ArrowTip` per marked endpoint. The shaft stops short
-    of a marker that claims the room. The bbox is the union of the pieces and
+    shaft and one :class:`ArrowTip` per marked endpoint. The drawn ends sit
+    ``gap`` cm inside ``start`` and ``end``, and the shaft stops short of a
+    marker that claims the room. The bbox is the union of the pieces and
     covers the markers. ``_pos`` is the midpoint of the endpoints, and the
     whole thing moves rigidly under
     :meth:`~mate.core.element.Element.move_to`,
@@ -988,6 +989,9 @@ class Arrow(Group):
         is a :class:`Line`.
     tail : ArrowTip or None, optional
         Marker at ``start``. ``None`` (default) leaves that end bare.
+    gap : float or None, optional
+        Distance in cm between each endpoint and the drawn end on it. ``None``
+        (default) reads ``arrow.gap`` from the config.
     stroke_width : float or None, optional
         Stroke thickness in cm. ``None`` (default) reads
         ``line.stroke_width`` from the config.
@@ -999,6 +1003,8 @@ class Arrow(Group):
     start, end : Vec
         The endpoints relative to ``_pos``; :meth:`get_start` / :meth:`get_end`
         return the endpoints themselves.
+    gap : float
+        The distance each drawn end keeps from its endpoint.
     shaft : Line
         The segment drawn between the markers.
     tip, tail : ArrowTip or None
@@ -1012,6 +1018,7 @@ class Arrow(Group):
         *,
         tip: ArrowTip | None = None,
         tail: ArrowTip | None = None,
+        gap: float | None = None,
         placement: Placement = "fixed",
         z_order: float | None = None,
         id: IDKey | list[IDKey] | None = None,
@@ -1026,6 +1033,7 @@ class Arrow(Group):
         self.shaft: Line = Line(start, end)
         self.tip: ArrowTip = _named_tip(config.get("arrow.tip")) if tip is None else tip
         self.tail: ArrowTip | None = tail
+        self.gap: float = config.get("arrow.gap") if gap is None else gap
         pieces = [self.shaft, self.tip]
         if self.tail is not None:
             pieces.append(self.tail)
@@ -1102,6 +1110,15 @@ class Arrow(Group):
         self._restyle_pieces()
         return self
 
+    def set_gap(self, gap: float) -> Arrow:
+        """Set the distance each drawn end keeps from its endpoint.
+
+        Geometric mutator: invalidates the bbox cache of this element's tree.
+        """
+        self.gap = gap
+        self._reseat(self.get_start(), self.get_end())
+        return self
+
     def _repr_fields(self) -> str:
         s, e = self.get_start(), self.get_end()
         fields = (
@@ -1130,11 +1147,13 @@ class Arrow(Group):
                 f"({start.x:.4g}, {start.y:.4g})."
             )
         direction = _unit(Vec(end - start))
-        self.tip._place_at(end, direction)
+        drawn_start = start + direction * self.gap
+        drawn_end = end - direction * self.gap
+        self.tip._place_at(drawn_end, direction)
         if self.tail is not None:
-            self.tail._place_at(start, Vec(-direction))
-        self.shaft.set_start(start + direction * self._tail_inset())
-        self.shaft.set_end(end - direction * self.tip.shaft_inset())
+            self.tail._place_at(drawn_start, Vec(-direction))
+        self.shaft.set_start(drawn_start + direction * self._tail_inset())
+        self.shaft.set_end(drawn_end - direction * self.tip.shaft_inset())
         if not self._shaft_runs_forward(direction):
             self.shaft.set_start(self.shaft.get_end())
         center = Vec((start + end) / 2)

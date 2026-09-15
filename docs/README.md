@@ -652,8 +652,9 @@ The keys and their defaults:
 | `code.theme` | syntax role to properties mapping (see [Code blocks](#code-blocks)) |
 | `line.stroke_width` | `0.05` |
 | `arrow.tip` | `"hook"` |
+| `arrow.gap` | `0.1` (cm each drawn end stops short of its endpoint) |
 | `arrow.triangle.length`, `arrow.triangle.width` | `0.25`, `0.2` |
-| `arrow.hook.length`, `arrow.hook.opening_angle` | `0.3`, `45.0` |
+| `arrow.hook.length`, `arrow.hook.opening_angle` | `0.2`, `45.0` |
 | `arrow.bar.width` | `0.2` |
 | `arrange.gap` | `0.2` |
 | `typst.preamble` | `""` (markup prepended to every generated document) |

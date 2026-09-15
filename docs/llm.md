@@ -500,7 +500,7 @@ file of its own.
 | `Line(start, end)` | two points | stroke only; `stroke_width` defaults to `line.stroke_width` |
 | `Polygon(points)` | three points or more | filled and closed |
 | `Curve(segments)` | segments, the first a `MoveTo` | `MoveTo(p)`, `LineTo(p)`, `CubicTo(c1, c2, p)`, `QuadTo(c, p)`, `Close()` |
-| `Arrow(start, end)` | two points | `tip=` and `tail=` take `TriangleTip()`, `HookTip()` or `BarTip()`; with none given the tip is the marker `arrow.tip` names |
+| `Arrow(start, end)` | two points | `tip=` and `tail=` take `TriangleTip()`, `HookTip()` or `BarTip()`; with none given the tip is the marker `arrow.tip` names. The drawn ends stop `gap=` cm short of the points (`arrow.gap`, 0.1 by default), clear of the boxes they aim at |
 | `Text("words")` | the source string | the markup of section 5 works here |
 | `Image("f.png")` | the path | `width=` / `height=` in cm, `crop=(x, y, w, h)` in fractions of the file |
 | `Group([...])` | the children | takes `anchor=`, never `pos=` |
