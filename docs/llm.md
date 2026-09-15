@@ -93,7 +93,7 @@ x in [-8, 8] and y in [-4.5, 4.5], and `content` spans x [-7.3, 7.3], y
 ```bash
 mate --info deck.md         # what this deck can name
 mate deck.md --warn         # build with every check on
-mate deck.md --png          # one PNG per page, deck-1.png, ...
+mate deck.md --png          # one PNG per page, deck-1.png, ... (deck-01.png past nine pages)
 mate deck.md --figure f.py  # preview a figure file under the deck's palette
 ```
 
@@ -243,9 +243,11 @@ Order of the pieces:
 1. **Front matter** (optional, opens the file): `templates`, `config`,
    `colors`, `font_paths`. Front-matter values override template values.
 2. **Directives** (`#>` plus a blockquote of `key: value` lines): off-slide
-   instructions handed to the template between slides. A property the template
-   records (a running section, a theme) holds for every later slide until
-   another directive changes it.
+   instructions handed to the template between slides. A value is read as a
+   Python literal when it parses as one (`True`, `2026`) and as text otherwise;
+   the cover's lines are text either way. A property the template records (a
+   running section, a theme) holds for every later slide until another
+   directive changes it.
 3. **Slides**: everything from one `#` heading to the next.
 
 The file opens with a `#` heading or a directive. A paragraph before the
@@ -300,6 +302,7 @@ is one call; a blockquote can hold several.
 | `> mask image : "id"` | `id`, `x=0`, `y=0`, `width=1`, `height=1` (fractions) |
 | `> unmask image : "id"` | `id` |
 | `> draw layout` | `regions=None`, `stroke_width=0.03`. Debug overlay of the region map |
+| `> adjust slide count : -1` | `delta`. Moves the slide counter: this slide takes the number before it, and the deck's total follows |
 
 `width` and `height` on an image are centimetres, or a `"<n>%"` string. The
 percentage on `width` is that fraction of the region's **width** and on `height`
@@ -332,6 +335,8 @@ work inside math.
 | `weight` | `weight="bold"` or `weight=600` |
 | `style` | `style="italic"` |
 | `letter_spacing` | `letter_spacing=0.15` (em) |
+| `case` | `case="upper"` (transforms the words, leaves markup alone) |
+| `max_width` | `max_width=11` (cm; narrows the measure of a block) |
 | `align` | `align="center"` (places the block in its region) |
 | `text_align` | `text_align="center"` (aligns wrapped lines inside the block) |
 | `shift` | `shift=(0.1, 0.3)` (cm) |
@@ -379,6 +384,8 @@ habits fail silently or raise.
 | literal slash | `\/` (a bare `/` builds a fraction) |
 | integral, sum | `integral_0^oo`, `sum_(i=1)^n` |
 | greek, operators | `epsilon`, `partial`, `approx`, `prop`, `->`, `=>`, `oo` |
+| constants | `planck.reduce` (there is no `hbar`), `hbar` raises |
+| limits under an operator | `max_(p in P) sum_(s in p) d_s` |
 | accents | `hat(beta)`, `overline(x)`, `dot(q)` |
 | bold upright symbol | `bold(upright(x))` |
 | words inside math | `"cte"`, `"Re"_lambda` |
@@ -596,7 +603,7 @@ file of its own.
 | `Arrow(start, end)` | two points | `tip=` and `tail=` take `TriangleTip()`, `HookTip()` or `BarTip()`; with none given the tip is the marker `arrow.tip` names. The drawn ends stop `gap=` cm short of the points (`arrow.gap`, 0.15 by default), clear of the boxes they aim at |
 | `Text("words")` | the source string | the markup of section 5 works here |
 | `Image("f.png")` | the path | `width=` / `height=` in cm, `crop=(x, y, w, h)` in fractions of the file |
-| `Group([...])` | the children | takes `anchor=`, never `pos=` |
+| `Group([...])` | the children | takes `anchor=` and `align=`, never `pos=` |
 | `VSpace(h)`, `HSpace(w)` | the size in cm | draws nothing and holds a box |
 
 `Rectangle`, `Circle`, `Ellipse`, `Text` and `Image` sit at a `pos=` with an
@@ -662,7 +669,15 @@ bounding boxes meet, `align` slides the element along the shared side
 
 ```python
 fig.add(Text("inflow").next_to(box, "left", align="top", gap=0.2))
+fig.add(Text("fetch").move_to(box.center))
+fig.add(Text("report").next_to(arrow.point_at(0.5), "top", gap=0.1))
 ```
+
+A label inside a shape sits on the shape's `center`, free for a fixed shape. A
+label on an arrow goes against a point of the shaft, `point_at(fraction)` on a
+`Line` or an `Arrow` (`0` is the start, `1` the end): `next_to(arrow, side)`
+measures against the arrow's whole box, which for a diagonal is the rectangle
+it spans, and leaves the label far from the shaft.
 
 ### Measuring
 
@@ -689,7 +704,15 @@ the box and draws nothing, and `z_order` sorts the whole slide.
 
 A `Group` is a tree node whose box is the union of its children's. It has no
 body of its own, which makes its fill and stroke fields bulk setters over the
-subtree, and it moves as a unit.
+subtree, and it moves as a unit. Its setters reach every descendant carrying
+the field, labels included: a tint meant for the shapes alone is set on them,
+not on the group.
+
+A `Text`'s box is its line box, ascent and descent included: at 20 pt that is
+about half a centimetre of empty space above and below the glyphs. A `gap`
+between two stacked texts is measured between the boxes, and the white a
+reader sees is the gap minus that slack; a display-size title over a small
+line wants a gap of 0.5 cm or more before any daylight shows.
 
 `arrange(elements, pos, anchor, gap=0.0, width=None, direction="column")`
 stacks a list from top to bottom and anchors the stack as a whole. It is what a
@@ -781,6 +804,10 @@ An id registers when its element is constructed. A builder that holds a
 module-level `Figure` of its own registers that figure's ids on every slide
 that imports it; the builder exposes a function and the figure files own the
 `Figure`.
+
+A figure with hidden layers previews with the layers hidden, a page sized to
+the whole drawing with one layer on it; the guard is the place to show them
+all (`for el in fig.elements: el.set_hidden(False)`) before writing.
 
 The collision check runs on that preview when the guard turns it on, naming the
 labels that cross while they are being placed:
@@ -884,10 +911,12 @@ itself, and that comes before compactness.
 **A slide holding one equation or one line gets its region anchored.**
 `> region : "content", anchor="center"` centres it for that slide, and
 `"center-left"` centres it vertically while the text stays left-flush; with
-bullets or paragraphs in the stack, `"center-left"` is the one to use. The title
-sits in its own region and stays put: a short stack anchored at the centre of
-`content` opens a band of empty space under the title, and a slide with a body
-of several blocks keeps the `top-left` default. A `> vspace` at the top of a
+bullets or paragraphs in the stack, `"center-left"` is the one to use. The
+criterion is the stack's height against the region's, not the number of
+blocks: a stack filling less than about half of `content` is centred, whatever
+it is made of, and a body that fills the region keeps the `top-left` default.
+The title sits in its own region and stays put, so a stack of two lines
+centred in `content` still leaves a band of empty space under the title. A `> vspace` at the top of a
 `top-left` region pushes the content down without balancing it.
 
 **`> vspace` sets the separation where the region's gap is wrong.** The spacer
@@ -902,7 +931,9 @@ bottom.
 **Sizes come from the role keys.** `text.fontsize`, `title.fontsize` and the
 other role keys carry the deck's sizes, and a `fontsize=` on a span is for one
 genuine exception. When most slides want smaller text, change the role key in the
-front matter once instead of tuning block by block.
+front matter once instead of tuning block by block. A template's default is
+set for dense slides: `flow` ships `text.fontsize: 9`, and a talk of short
+bullets wants 11 or 12 in the front matter.
 
 **Colors come from the palette by name** (`color="red"`, `color="accent"`), never
 as a hex literal inside a slide. A hex belongs in the front matter `colors:`
@@ -915,7 +946,7 @@ default, each naming the slide as the deck builds:
 |---|---|
 | `warn.overflow` | a region holding more than it fits |
 | `warn.collisions` | two drawn boxes crossing: a label over a stroke, a label over a label |
-| `warn.widows` | a paragraph whose last line carries `warn.widow_min_words` words or fewer (3 by default) |
+| `warn.widows` | a paragraph whose last line carries `warn.widow_min_words` words or fewer (2 by default); a paragraph narrower than half the slide (a grid column) is left out |
 
 `mate deck.md --warn` turns on all three for one build, which is how to run them
 while writing. The front matter is for a check left on:
@@ -943,7 +974,7 @@ equation reaching into the margin, a long title crowding the body. Render every
 page to an image and open every one of them:
 
 ```bash
-mate deck.md --png    # deck-1.png, deck-2.png, ... next to the deck
+mate deck.md --png    # deck-1.png, deck-2.png, ... next to the deck; zero-padded past nine pages
 ```
 
 Reading the images is the step, not rendering them. The pages come out at
@@ -1161,10 +1192,10 @@ Hooks worth knowing, all optional:
 | `setup` | colors, config keys, bullet symbols (`self.bullet_symbols["name"] = builder`) |
 | `build_layout` | replace the region map |
 | `setup_layout` | adjust or extend the regions built by `build_layout` |
-| `background` | the element drawn behind every slide (branch on `self.current_slide.is_cover`) |
+| `background` | the element drawn behind every slide (branch on `self.current_slide.is_cover`, or on state the template records for a slide kind of its own) |
 | `add_title` | the title design (an eyebrow line, uppercase, tracking) |
 | `add_cover` | the cover design, from `title` and the directive properties |
-| `add_footer` | the footer. `footer.show` draws it, `footer.show_total` appends `/<total>`, and the `footer.font`, `.fontsize`, `.fontweight` and `.color` keys style the page number |
+| `add_footer` | builds and returns the footer group; the slide places it on its first step at `end_slide`. `footer.show` draws it, `footer.show_total` appends `/<total>`, and the `footer.font`, `.fontsize`, `.fontweight` and `.color` keys style the page number |
 | `on_directive` | act on `#>` properties: a running section, a theme switch, a section cover |
 | `add_code` | build a `Code` subclass instead of the default block |
 
@@ -1206,8 +1237,9 @@ content indent, the text column of a list item: an element carrying it lands
 where a paragraph in the same spot lands.
 
 A method named `add_<name>(self, blocks, args)` becomes a new fenced block,
-reached as ```` ```markdown <name> : args ````. `args` is the fence's verbatim
-property text and `blocks` its parsed body:
+reached as ```` ```markdown <name> : args ````; spaces in the fence name become
+underscores, as in a command, and a name with no method raises. `args` is the
+fence's verbatim property text and `blocks` its parsed body:
 
 ```python
 from mate.core.authoring import eval_props
@@ -1253,14 +1285,20 @@ A directive property the template acts on is declared on the class and read in
         section = directive.get("section")
         if section is not None:
             self._section = section          # state initialised in setup()
-            self.new_slide(is_cover=True)
+            self.new_slide(counted=False)
             self.current_slide.add(Text(section, fontsize=24))
             self.end_slide()
         super().on_directive(directive)
 ```
 
-`new_slide(is_cover=True)` and `end_slide()` are the pair that builds a slide
-from a hook. The `super()` call keeps the base behaviour, which handles
+`new_slide(counted=False)` and `end_slide()` are the pair that builds a slide
+from a hook. `counted=False` keeps the slide off the slide counter, which
+`write()` checks against the deck's `#` headings at the end of the build; a
+hook slide left counted fails that check. `is_cover=True` marks the slide as a
+cover, which `background()` reads, and a cover is uncounted on its own. From
+the deck, `> adjust slide count : -1` moves the counter the way a slide
+duplicated by hand needs: the copy takes the number of the original and the
+total follows, with no reveal machinery involved. The `super()` call keeps the base behaviour, which handles
 `cover: True` and ignores every property no template reads.
 
 To restyle code blocks, subclass `Code`, replace `build()`, and override
