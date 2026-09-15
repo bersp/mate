@@ -20,7 +20,7 @@ from ..elements.text import Text
 from ..log import logger
 from ..parser import inlines_to_markdown, parse_markup
 from ..parser.ir import Bold, Code, Inline, Italic, LineBreak, Math, TextRun
-from .layout import Layout
+from .layout import Layout, Region
 
 # An overlap thinner than this in either axis is two boxes touching.
 _TOLERANCE = 0.01  # cm
@@ -39,10 +39,17 @@ Overflow = tuple[str, float, float]
 Widow = tuple[Text, int, str]
 
 
-def find_overflows(layout: Layout) -> list[Overflow]:
+def find_overflows(
+    layout: Layout, slots: Iterable[tuple[str, Region, list[Element]]] = ()
+) -> list[Overflow]:
     """Return the regions holding more than they fit, with the excess in cm.
 
     Reads the boxes the arrange pass measured, without a query of its own.
+
+    ``slots`` are the ``(region name, region, elements)`` of the groups a
+    region holds without stacking, one per ``markdown alternate`` variant.
+    A spacer carries their height into the region's stack, which the first
+    loop weighs; each group is measured here against the region's width.
     """
     overflows: list[Overflow] = []
     for name, region in layout.regions.items():
@@ -53,6 +60,12 @@ def find_overflows(layout: Layout) -> list[Overflow]:
         extra_height = height - region.height
         if extra_width > _TOLERANCE or extra_height > _TOLERANCE:
             overflows.append((name, extra_width, extra_height))
+    for name, region, elements in slots:
+        if not elements:
+            continue
+        extra_width = union_bbox(elements)[2] - region.width
+        if extra_width > _TOLERANCE:
+            overflows.append((name, extra_width, 0.0))
     return overflows
 
 

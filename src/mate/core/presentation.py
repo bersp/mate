@@ -127,7 +127,9 @@ class Presentation(PresentationTemplateBase):
         for region in self.layout.regions.values():
             region.arrange()
         if config.get("warn.overflow"):
-            log_overflows(find_overflows(self.layout), f"Slide {number}")
+            log_overflows(
+                find_overflows(self.layout, self._alternate_slots), f"Slide {number}"
+            )
         if config.get("warn.widows"):
             self._warn_widows(number)
         self._resolve_overwrites()

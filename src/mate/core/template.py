@@ -168,6 +168,7 @@ class PresentationTemplateBase:
         self._region_override: Region | None = None
         self._overwrites: list[tuple[Group, list[Element], str, int]] = []
         self._alternates: list[tuple[VSpace, list[list[Element]], float]] = []
+        self._alternate_slots: list[tuple[str, Region, list[Element]]] = []
         self._modifies: list[tuple[list[Element], dict, int]] = []
         self._python_namespace: dict | None = None
 
@@ -529,6 +530,13 @@ class PresentationTemplateBase:
         vspace = VSpace(max(heights) + gap_above + gap)
         target.add(vspace)
         self._alternates.append((vspace, variant_elements, gap_above))
+        # The spacer carries the slot's height into the region; the width
+        # check measures the variants themselves.
+        name = next(
+            (n for n, r in self.layout.regions.items() if r is target), None
+        )
+        if name is not None:
+            self._alternate_slots += [(name, target, els) for els in variant_elements]
 
     def _region_of(self, el: Element) -> Region:
         """Return the layout region whose stack contains ``el``."""
@@ -572,6 +580,7 @@ class PresentationTemplateBase:
                 for el in els:
                     el.shift((0, delta_y))
         self._alternates = []
+        self._alternate_slots = []
 
     def resolve_region(self, region: str) -> Region:
         """Resolve a region name, honoring an active region override.
