@@ -11,8 +11,9 @@ import re
 from typing import Iterable
 
 from ..core.element import Element, measure_all, union_bbox
+from ..core.vec import Vec
 from ..elements.group import Group
-from ..elements.shapes import Arrow
+from ..elements.shapes import Arrow, Curve, Line, LineTo, MoveTo
 from ..elements.spacing import HSpace, VSpace
 from ..elements.text import Text
 from ..log import logger
@@ -123,6 +124,93 @@ def _overlap_area(
     return width * height
 
 
+Segment = tuple[Vec, Vec]
+
+
+def _segments_of(el: Element) -> list[Segment] | None:
+    """Return the straight segments ``el`` draws, or ``None`` for a shape read as a box.
+
+    A :class:`Line` is one segment. A :class:`Curve` of ``MoveTo`` and
+    ``LineTo`` steps (an open arrow marker) is the polyline through them.
+    """
+    if isinstance(el, Line):
+        return [(el.get_start(), el.get_end())]
+    if isinstance(el, Curve):
+        points: list[Vec] = []
+        for segment in el.get_segments():
+            if not isinstance(segment, (MoveTo, LineTo)):
+                return None
+            points.append(segment.point)
+        return list(zip(points, points[1:]))
+    return None
+
+
+def _segment_crosses_box(
+    segment: Segment, half_stroke: float, box: tuple[float, float, float, float]
+) -> bool:
+    """Return whether ``segment``, grown by ``half_stroke``, enters ``box``.
+
+    Clips the segment against the box's four sides (Liang-Barsky); a
+    segment that only grazes a side within the tolerance does not enter.
+    """
+    p, q = segment
+    bx, by, bw, bh = box
+    left = bx - bw / 2 - half_stroke + _TOLERANCE
+    right = bx + bw / 2 + half_stroke - _TOLERANCE
+    bottom = by - bh / 2 - half_stroke + _TOLERANCE
+    top = by + bh / 2 + half_stroke - _TOLERANCE
+    dx, dy = q.x - p.x, q.y - p.y
+    t0, t1 = 0.0, 1.0
+    for delta, low, high in ((dx, left - p.x, right - p.x), (dy, bottom - p.y, top - p.y)):
+        if delta == 0:
+            if low > 0 or high < 0:
+                return False
+            continue
+        enter, leave = sorted((low / delta, high / delta))
+        t0, t1 = max(t0, enter), min(t1, leave)
+        if t0 >= t1:
+            return False
+    return True
+
+
+def _segments_cross(a: Segment, b: Segment) -> bool:
+    """Return whether two segments intersect."""
+    p1, p2 = a
+    q1, q2 = b
+
+    def side(o: Vec, u: Vec, v: Vec) -> float:
+        return (u.x - o.x) * (v.y - o.y) - (u.y - o.y) * (v.x - o.x)
+
+    d1, d2 = side(q1, q2, p1), side(q1, q2, p2)
+    d3, d4 = side(p1, p2, q1), side(p1, p2, q2)
+    return d1 * d2 < 0 and d3 * d4 < 0
+
+
+def _half_stroke(el: Element) -> float:
+    """Return half the stroke width of ``el``, ``0`` for an unstroked one."""
+    return (getattr(el, "stroke_width", None) or 0.0) / 2
+
+
+def _cross(
+    el: Element,
+    bbox: tuple[float, float, float, float],
+    other: Element,
+    other_bbox: tuple[float, float, float, float],
+) -> bool:
+    """Return whether two drawn elements cross: by segment for a line or an open
+    marker, by box for everything else."""
+    segments, other_segments = _segments_of(el), _segments_of(other)
+    if segments is not None and other_segments is not None:
+        return any(_segments_cross(a, b) for a in segments for b in other_segments)
+    if segments is not None:
+        half = _half_stroke(el)
+        return any(_segment_crosses_box(s, half, other_bbox) for s in segments)
+    if other_segments is not None:
+        half = _half_stroke(other)
+        return any(_segment_crosses_box(s, half, bbox) for s in other_segments)
+    return True
+
+
 def _contains(
     outer: tuple[float, float, float, float], inner: tuple[float, float, float, float]
 ) -> bool:
@@ -145,8 +233,10 @@ def find_collisions(
     A pair is reported when the two boxes overlap partially. One box holding
     the other is a deliberate arrangement (a label inside a shape, a slide
     background, the lines of a code block) and is left out, as are the pieces
-    of a single arrow. The boxes are the measured bounding boxes: a diagonal
-    line reports against the rectangle it spans.
+    of a single arrow. The boxes are the measured bounding boxes, except that
+    a :class:`Line` (an arrow's shaft included) is its segment: it reports
+    against a box its stroke enters and against a segment it intersects, and
+    a diagonal shaft passes the boxes its own box spans.
 
     Each box grows by the ink its stroke lays outside it, which gives a
     horizontal line the height a reader sees.
@@ -179,6 +269,8 @@ def find_collisions(
             if area < _MIN_AREA:
                 continue
             if _contains(bbox, other_bbox) or _contains(other_bbox, bbox):
+                continue
+            if not _cross(el, bbox, other, other_bbox):
                 continue
             collisions.append((other, el, area))
         active.append((el, arrow, bbox))

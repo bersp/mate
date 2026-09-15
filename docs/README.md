@@ -6,11 +6,7 @@
 mate slides.md
 ```
 
-The PDF lands next to the source, as `slides.pdf`.
-
-`mate slides.md --warn` builds and runs every check on the way: `warn.overflow` names each region holding more than it fits, `warn.collisions` names the pairs of drawn boxes that cross, and `warn.widows` names the paragraphs whose last line carries `warn.widow_min_words` words or fewer (3 by default). Each one is a configuration key of its own, off by default, and the front matter turns on the ones a deck wants to keep.
-
-`mate --info slides.md` prints what that deck can name: the built-in templates and the ones it loads, every configuration key with its current value, the palette, the commands, the directive properties the templates read, the regions of its layout, the font families that resolve and the API names. Without a file, `mate --info` prints the same listing for a deck with no front matter.
+The PDF lands next to the source, as `slides.pdf`. The other flags are under [Command line](#command-line).
 
 ## Contents
 
@@ -31,6 +27,7 @@ The PDF lands next to the source, as `slides.pdf`.
 - [Colors](#colors)
 - [Templates](#templates)
 - [Python and shapes](#python-and-shapes)
+- [Command line](#command-line)
 - [As a library](#as-a-library)
 
 ## Markdown elements
@@ -60,7 +57,7 @@ Regular paragraphs. **Bold**, _italic_ and `code` work as usual.
 
 Nesting, multi-paragraph items, hard line breaks and the rest follow standard Markdown syntax.
 
-In-body `###`..`######` headings render with the `h3`..`h6` styling, one role per markdown level. Ordered lists parse, but rendering them is up to the template; the built-in ones leave them unimplemented.
+In-body `###`..`######` headings render with the `h3`..`h6` styling, one role per markdown level. Numbered lists (`1. item`) render with their numbers as markers, at the body size.
 
 ## Front matter
 
@@ -348,7 +345,7 @@ if __name__ == "__main__":
     fig.write("scene.pdf")
 ```
 
-Run directly (`python scene.py`), the file compiles a PDF sized to the drawing. The suffix of the path picks the format (`.pdf`, `.png` or `.svg`) and `ppi=` sets the resolution of a raster one. `> add mate figure` embeds the same file in a deck:
+Run directly (`python scene.py`), the file compiles a PDF sized to the drawing. The suffix of the path picks the format (`.pdf`, `.png` or `.svg`) and `ppi=` sets the resolution of a raster one. `mate slides.md --figure scene.py` runs it the same way with the deck's front matter applied first, so a color the deck defines resolves in the preview. `> add mate figure` embeds the same file in a deck:
 
 ```markdown
 > add mate figure : "scene.py"
@@ -501,6 +498,8 @@ Compare [the left term][id="lhs"] with [the right term][id="rhs"].
 > modify : "rhs", color="red"
 ```
 
+`> reveal : "a", "b"` and `> hide : "a", "b"` are the same call for the common case: they set `hidden` on every id given, and a hidden element keeps its place on the slide while drawing nothing.
+
 Any property with a setter works: the span properties from [Styling text](#styling-text), plus things like `shift` and `crop`. Ids can be strings or numbers, several elements can share one id (they all change together), and one element can carry several ids. A step can combine new content with modifications of old content:
 
 ```markdown
@@ -641,6 +640,7 @@ The keys and their defaults:
 | `list.bullet.scale`, `list.bullet.gap` | `0.7`, `0.15` |
 | `list.bullet.dash_thickness`, `list.bullet.outline_width` | `0.04`, `0.04` (bar height of `dash`; stroke of the outline symbols) |
 | `footer.show`, `footer.show_total` | `True`, `False` |
+| `footer.font`, `footer.fontweight`, `footer.fontsize`, `footer.color` | `"libertinus serif"`, `"regular"`, `9.0`, `"dark_gray"` |
 | `region.default` | `"content"` |
 | `region.content.anchor`, `region.content.arrange_gap` | `"top-left"`, `0.25` |
 | `region.full_with_margins.margins` | `0.7` |
@@ -652,7 +652,7 @@ The keys and their defaults:
 | `code.theme` | syntax role to properties mapping (see [Code blocks](#code-blocks)) |
 | `line.stroke_width` | `0.05` |
 | `arrow.tip` | `"hook"` |
-| `arrow.gap` | `0.1` (cm each drawn end stops short of its endpoint) |
+| `arrow.gap` | `0.15` (cm each drawn end stops short of its endpoint) |
 | `arrow.triangle.length`, `arrow.triangle.width` | `0.25`, `0.2` |
 | `arrow.hook.length`, `arrow.hook.opening_angle` | `0.2`, `45.0` |
 | `arrow.bar.width` | `0.2` |
@@ -829,6 +829,21 @@ Arrow((-3, -1), (3, -1), tip=HookTip(), tail=BarTip(), stroke_color="red")
 Arrow((-3, -2), (3, -2), tip=TriangleTip(length=0.5, width=0.4), stroke_dash="dashed")
 ```
 
+## Command line
+
+`mate slides.md` builds the PDF. A few flags change what comes out:
+
+- `--png` writes one PNG per page in place of the PDF, `slides-1.png`, `slides-2.png` and so on next to the deck. Handy for looking at the pages without opening a viewer.
+- `--warn` turns on the three build checks for this run. They print warnings and leave the PDF alone.
+- `--figure scene.py` runs a figure file as a script with the deck's front matter applied first (templates, palette, configuration), so its `write` produces a preview with the deck's colors. See [Figures](#figures).
+- `--info` prints what the deck can name: the templates, every configuration key with its current value, the palette, the commands, the directive properties the templates read, the regions, the font families that resolve and the API names. Without a deck it lists the bare defaults.
+
+The checks are configuration keys, off by default; the front matter turns on the ones a deck wants on every build:
+
+- `warn.overflow` reports a region whose content is wider or taller than the region.
+- `warn.collisions` reports two drawn things that cross: a label over a line, two labels on top of each other. Lines and open arrow heads count by their actual strokes, everything else by its bounding box. A box inside another one (a label inside a shape, the slide background) is fine and not reported.
+- `warn.widows` reports a paragraph whose last line has `warn.widow_min_words` words or fewer (3 by default). A hard line break in the paragraph turns the check off for it.
+
 ## As a library
 
 `mate` is also usable as a plain library, with the same API:
@@ -846,4 +861,4 @@ pres.end_slide()
 pres.write()  # deck.pdf
 ```
 
-`write` also takes an output path, `pres.write("talk.png", ppi=200)`, with the same formats as a figure.
+`write` also takes an output path, with the same formats as a figure; a raster one needs `{n}` in the name for the page number, `pres.write("talk-{n}.png", ppi=200)`.

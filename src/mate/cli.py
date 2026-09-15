@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import runpy
+import sys
 import textwrap
 from pathlib import Path
 
 from . import Presentation, __all__ as api_names, config
 from .backends.typst import _available_font_families
-from .parser import ParsedDocument, ParsedSlide, parse_markdown
+from .parser import FrontMatter, ParsedDocument, ParsedSlide, parse_markdown
 from .templates import built_in_templates
 
 
@@ -34,6 +36,18 @@ def _parse_args() -> argparse.Namespace:
         help="run every build-time check of the deck (see the 'warn.*' config keys)",
     )
     parser.add_argument(
+        "--png",
+        action="store_true",
+        help="write one PNG per page, <deck>-<n>.png next to the deck, instead of the PDF",
+    )
+    parser.add_argument(
+        "--figure",
+        type=Path,
+        metavar="FILE",
+        help="run a figure file as a script under the deck's front matter "
+        "(templates, palette, config), then exit",
+    )
+    parser.add_argument(
         "--info",
         action="store_true",
         help="print the templates, config keys, colors, commands, regions, fonts "
@@ -46,7 +60,7 @@ def _parse_args() -> argparse.Namespace:
     return args
 
 
-def _load_deck(source_path: Path) -> ParsedDocument:
+def load_deck(source_path: Path) -> ParsedDocument:
     """Parse ``source_path`` and point the configuration at its front matter."""
     doc = parse_markdown(source_path.read_text(encoding="utf-8"))
     config.templates = [
@@ -93,7 +107,7 @@ def _print_info(source_path: Path | None) -> None:
     """
     frontmatter = None
     if source_path is not None:
-        frontmatter = _load_deck(source_path).frontmatter
+        frontmatter = load_deck(source_path).frontmatter
     presentation = Presentation("info", frontmatter=frontmatter)
 
     scope = (
@@ -157,6 +171,25 @@ def _print_info(source_path: Path | None) -> None:
     _print_section("API NAMES", _wrapped(list(api_names)))
 
 
+def _run_figure(path: Path, frontmatter: FrontMatter) -> None:
+    """Run the figure file ``path`` as ``__main__`` with ``frontmatter`` applied.
+
+    Building a presentation on the front matter runs the templates' ``setup``
+    and the deck's ``config`` and ``colors``, the state a ``> add mate figure``
+    line embeds the file under; the file's own ``write`` then compiles the
+    drawing against the deck's palette.
+    """
+    if not path.is_file():
+        raise ValueError(f"--figure: no such file: {str(path)!r}")
+    Presentation("figure", frontmatter=frontmatter)
+    directory = str(path.resolve().parent)
+    sys.path.insert(0, directory)
+    try:
+        runpy.run_path(str(path), run_name="__main__")
+    finally:
+        sys.path.remove(directory)
+
+
 def main() -> None:
     """Parse the command line and write the deck's slides to a PDF."""
     args = _parse_args()
@@ -164,7 +197,10 @@ def main() -> None:
         _print_info(args.source)
         return
     source_path = args.source
-    doc = _load_deck(source_path)
+    doc = load_deck(source_path)
+    if args.figure is not None:
+        _run_figure(args.figure, doc.frontmatter)
+        return
     pres = Presentation(
         str(source_path.with_suffix("")),
         total_slides=len(doc.slides),
@@ -180,4 +216,7 @@ def main() -> None:
             pres.end_slide()
         else:
             pres.run_directive(item)
-    pres.write()
+    if args.png:
+        pres.write(source_path.with_name(f"{source_path.stem}-{{n}}.png"))
+    else:
+        pres.write()

@@ -29,7 +29,8 @@ A deck is one Markdown file. `mate deck.md` writes `deck.pdf` next to it.
    colors, commands, regions and fonts are installation-dependent.
 2. Write the deck.
 3. Build with the checks on: `mate deck.md --warn`.
-4. Render every page to an image and look at every one of them (section 9).
+4. Render every page to an image (`mate deck.md --png`) and look at every one
+   of them (section 9).
 5. Note every defect in one pass, fix them in a single edit, render again.
 
 Before step 2, the deck needs three things from the user: the material that goes
@@ -207,6 +208,7 @@ is one call; a blockquote can hold several.
 | `> add : Circle(0.5, pos=(0, 1))` | `element`, `region=None` (no region means the element floats at its own `pos`) |
 | `> add text : "words"` | `text`, `region`, `floating`, `align`, plus any `Text` keyword |
 | `> modify : "id", color="red"` | `id`, then any property with a setter |
+| `> reveal : "id", "other"` | ids to show from this step on; `> hide` takes the same and hides them, their boxes held |
 | `> mask image : "id"` | `id`, `x=0`, `y=0`, `width=1`, `height=1` (fractions) |
 | `> unmask image : "id"` | `id` |
 | `> draw layout` | `regions=None`, `stroke_width=0.03`. Debug overlay of the region map |
@@ -312,9 +314,10 @@ backslash is a hard line break.
 
 ### Lists
 
-Standard Markdown. Nesting picks the next bullet symbol from
-`list.bullet.symbols`. A list item can hold further blocks (paragraphs, images,
-math, `> pause`) indented under it, and they land in the item's text column.
+Standard Markdown, bullets and numbered lists alike. Nesting picks the next
+bullet symbol from `list.bullet.symbols`; a numbered item carries its number at
+the body size. A list item can hold further blocks (paragraphs, images, math,
+`> pause`) indented under it, and they land in the item's text column.
 
 ### Code
 
@@ -440,8 +443,10 @@ revealing never moves what is already visible.
   the next slide.
 - `set_hidden(True)` reserves the element's box and draws nothing. It is how a
   layer built in Python inside a figure waits for its step:
-  `> modify : "id", hidden=False` brings it in with the room held from the first
-  step and the rest of the drawing still. The held box counts in the group's
+  `> reveal : "id"` brings it in with the room held from the first step and the
+  rest of the drawing still, and `> hide : "id"` takes it out again. Both take
+  several ids on one line and are `> modify : "id", hidden=...` under other
+  names. The held box counts in the group's
   box: a region places the drawing by its full extent on every step, and a
   hidden layer off to one side leaves the visible part off-centre until it
   appears. `opacity` is a different knob,
@@ -500,7 +505,7 @@ file of its own.
 | `Line(start, end)` | two points | stroke only; `stroke_width` defaults to `line.stroke_width` |
 | `Polygon(points)` | three points or more | filled and closed |
 | `Curve(segments)` | segments, the first a `MoveTo` | `MoveTo(p)`, `LineTo(p)`, `CubicTo(c1, c2, p)`, `QuadTo(c, p)`, `Close()` |
-| `Arrow(start, end)` | two points | `tip=` and `tail=` take `TriangleTip()`, `HookTip()` or `BarTip()`; with none given the tip is the marker `arrow.tip` names. The drawn ends stop `gap=` cm short of the points (`arrow.gap`, 0.1 by default), clear of the boxes they aim at |
+| `Arrow(start, end)` | two points | `tip=` and `tail=` take `TriangleTip()`, `HookTip()` or `BarTip()`; with none given the tip is the marker `arrow.tip` names. The drawn ends stop `gap=` cm short of the points (`arrow.gap`, 0.15 by default), clear of the boxes they aim at |
 | `Text("words")` | the source string | the markup of section 5 works here |
 | `Image("f.png")` | the path | `width=` / `height=` in cm, `crop=(x, y, w, h)` in fractions of the file |
 | `Group([...])` | the children | takes `anchor=`, never `pos=` |
@@ -600,9 +605,11 @@ A `Group` is a tree node whose box is the union of its children's. It has no
 body of its own, which makes its fill and stroke fields bulk setters over the
 subtree, and it moves as a unit.
 
-`arrange(elements, pos, anchor, gap=0.0, width=None)` stacks a list from top to
-bottom and anchors the stack as a whole. It is what a region runs internally,
-and it is available for a column built inside a drawing.
+`arrange(elements, pos, anchor, gap=0.0, width=None, direction="column")`
+stacks a list from top to bottom and anchors the stack as a whole. It is what a
+region runs internally, and it is available for a column built inside a
+drawing. `direction="row"` lays the list left to right, the vertical
+half of `anchor` aligning the elements' tops, centres or bottoms.
 
 A region is reachable from a fence when a drawing is placed against the layout:
 `self.layout.get("content")` carries `width`, `height`,
@@ -670,10 +677,10 @@ if __name__ == "__main__":
 
 `> add mate figure : "scene.py"` embeds it. It arrives as elements, not a
 picture: palette names resolve against the deck and ids inside the file answer to
-`> modify`. Run the file directly to preview it as a standalone PDF. The preview
-runs against the base palette: a colour the deck's front matter adds does not
-resolve there, and a figure meant to be previewed names a base colour that the
-front matter re-tints.
+`> modify`. `mate deck.md --figure scene.py` runs the file as a script under
+the deck's front matter, and its `write` compiles a standalone preview against
+the deck's palette. A bare `python scene.py` runs it against the base palette,
+where a colour the front matter adds does not resolve.
 
 The file runs with its own directory on `sys.path`, and a drawing shared by
 several slides lives in a builder module that each figure file imports:
@@ -839,12 +846,13 @@ config:
   warn.overflow: true
 ```
 
-The collision report compares bounding boxes, so a diagonal arrow reports
-against the rectangle it spans, and a box holding another (a label inside a
-shape, the slide background) is never reported. On a drawing with diagonal
-arrows most of the report is that: read it for the text-against-text and
-text-against-tip entries. Everything the template's `background()` draws is
-left out of the check, footer rules included. The widow report reads the
+The collision report compares bounding boxes, except for a line and an open
+arrow marker, which count by their strokes: a diagonal arrow reports against a
+box its shaft or a wing enters, not against every box its span covers. A box
+holding another (a label inside a shape, the slide background) is never
+reported, and everything the template's `background()` draws is left out of
+the check, footer rules included. An arrow meeting a box very obliquely can
+still touch it with the far wing; `gap=` on that arrow moves it clear. The widow report reads the
 prose: titles, covers, code, equations and a paragraph broken by hand are left
 out. The report is advice, not an error: in a narrow grid column the wrap is
 not steerable by rewording, and a hard line break (`\` at the end of a line)
@@ -856,12 +864,12 @@ equation reaching into the margin, a long title crowding the body. Render every
 page to an image and open every one of them:
 
 ```bash
-pdftoppm -png -r 150 deck.pdf /tmp/deck_page    # /tmp/deck_page-01.png, ...
+mate deck.md --png    # deck-1.png, deck-2.png, ... next to the deck
 ```
 
-Reading the images is the step, not rendering them. At 150 dpi a 16 x 9 cm slide
-comes out 945 px wide, which is where a 7 pt caption stays legible; 80 dpi is
-small enough to hide the defect being looked for.
+Reading the images is the step, not rendering them. The pages come out at
+144 dpi, 907 px wide for a 16 x 9 cm slide, where a 7 pt caption stays legible;
+a thumbnail is small enough to hide the defect being looked for.
 
 Render every page at once, note every defect in one pass, fix them in a single
 edit, and render once more to confirm. Chasing one defect per rebuild costs
@@ -1077,7 +1085,7 @@ Hooks worth knowing, all optional:
 | `background` | the element drawn behind every slide (branch on `self.current_slide.is_cover`) |
 | `add_title` | the title design (an eyebrow line, uppercase, tracking) |
 | `add_cover` | the cover design, from `title` and the directive properties |
-| `add_footer` | the footer. `footer.show` draws it and `footer.show_total` appends `/<total>`; the base styles the page number from the `text.*` keys |
+| `add_footer` | the footer. `footer.show` draws it, `footer.show_total` appends `/<total>`, and the `footer.font`, `.fontsize`, `.fontweight` and `.color` keys style the page number |
 | `on_directive` | act on `#>` properties: a running section, a theme switch, a section cover |
 | `add_code` | build a `Code` subclass instead of the default block |
 
@@ -1260,9 +1268,6 @@ These are the ones to check by reading the file and the rendered pages.
 - **A `Group` takes no `pos`.** A group's position is the union of its children's
   boxes. `Group(children=[...], pos=(5, 3))` raises; build it and place it with
   `move_to((5, 3))`.
-- **Ordered lists parse but are not rendered** by the base template
-  (`add_ordered_list` raises `NotImplementedError`). Use bullets, or implement
-  the method in a template.
 - **Image and figure paths resolve against the working directory**, not against
   the Markdown file. Run `mate` from the deck's own directory.
 
@@ -1272,7 +1277,7 @@ These are the ones to check by reading the file and the rendered pages.
 - The build log names every slide the file carries. A missing one is a fence
   swallowing the rest of the deck.
 - No `> draw layout` left in the file.
-- The pages were rendered at 150 dpi and every one of them was looked at:
+- The pages were rendered with `--png` and every one of them was looked at:
   nothing runs past its region or off the slide. Check the figure slides first,
   an oversized image is the usual cause and it takes the caption with it.
 - Every `$$` delimiter sits on a line of its own, and no `||` sits inside an
