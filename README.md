@@ -1,6 +1,6 @@
 <p align="center">
     <a href="https://github.com/bersp/mate">
-        <img src="https://raw.githubusercontent.com/bersp/mate/master/.github/assets/logo.png" alt="mate" width="90%">
+        <img src="https://raw.githubusercontent.com/bersp/mate/main/.github/assets/logo.png" alt="mate" width="90%">
     </a>
 </p>
 <br />
@@ -58,10 +58,10 @@ mate slides.md
 
 The PDF lands next to the source, as `slides.pdf`.
 
-There is also an [example deck](https://github.com/bersp/mate/blob/master/docs/example_deck/example_deck.pdf) that goes through most of what `mate` can do, and its [source](https://github.com/bersp/mate/blob/master/docs/example_deck/example_deck.md) shows how each slide is written.
+There is also an [example deck](https://github.com/bersp/mate/blob/main/docs/example_deck/example_deck.pdf) that goes through most of what `mate` can do, and its [source](https://github.com/bersp/mate/blob/main/docs/example_deck/example_deck.md) shows how each slide is written.
 
-See the [docs](https://github.com/bersp/mate/blob/master/docs/README.md) for the full `mate` syntax, front matter, templates, and the Python API.
-If you want to write the slides with the help of an LLM, [`docs/llm.md`](https://github.com/bersp/mate/blob/master/docs/llm.md) is (hopefully) all you need to give it.
+See the [docs](https://github.com/bersp/mate/blob/main/docs/README.md) for the full `mate` syntax, front matter, templates, and the Python API.
+If you want to write the slides with the help of an LLM, [`docs/llm.md`](https://github.com/bersp/mate/blob/main/docs/llm.md) is (hopefully) all you need to give it.
 
 ## Backends
 
