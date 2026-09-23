@@ -58,7 +58,9 @@ mate slides.md
 
 The PDF lands next to the source, as `slides.pdf`.
 
-See the [docs](https://github.com/bersp/mate/blob/master/docs/README.md) for the full Markdown syntax, front matter, templates, and the Python API.
+There is also an [example deck](https://github.com/bersp/mate/blob/master/docs/example_deck/example_deck.pdf) that goes through most of what `mate` can do, and its [source](https://github.com/bersp/mate/blob/master/docs/example_deck/example_deck.md) shows how each slide is written.
+
+See the [docs](https://github.com/bersp/mate/blob/master/docs/README.md) for the full `mate` syntax, front matter, templates, and the Python API.
 If you want to write the slides with the help of an LLM, [`docs/llm.md`](https://github.com/bersp/mate/blob/master/docs/llm.md) is (hopefully) all you need to give it.
 
 ## Backends
