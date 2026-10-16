@@ -1,15 +1,26 @@
-<p align="center">
+<h1 align="center">
     <a href="https://github.com/bersp/mate">
         <img src="https://raw.githubusercontent.com/bersp/mate/main/.github/assets/logo.png" alt="mate" width="90%">
     </a>
+</h1>
+
+<p align="center">
+    <a href="https://github.com/bersp/mate/blob/main/examples/example_deck/example_deck.pdf"><b>Example deck</b></a>
+    &nbsp;·&nbsp;
+    <a href="https://github.com/bersp/mate/blob/main/src/mate/docs/README.md"><b>Docs</b></a>
+    &nbsp;·&nbsp;
+    <a href="https://github.com/bersp/mate/blob/main/src/mate/docs/llm_docs.md"><b>LLM docs</b></a>
+</p>
+
+<p align="center">
+    <a href="https://pypi.org/project/yerba/"><img src="https://img.shields.io/pypi/v/yerba?label=pip%20install%20yerba" alt="pip install yerba"></a>
+    <a href="https://github.com/bersp/mate/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/yerba" alt="License: MIT"></a>
 </p>
 <br />
 
 `mate` is a Python application for creating presentations by writing Markdown files. The goal is to build aesthetically pleasing presentations in a short amount of time while staying highly customizable and versatile: the content is plain Markdown, and the details can be tweaked with a short, clean syntax (or at least that's the intention).
 
-The idea behind `mate` is to create slides fast, in a declarative and programmatic way, and let the template take care of arranging things and giving them their look. Since the content knows nothing about the aesthetics, restyling a whole presentation amounts to switching its template.
-
-Templates get a lot of freedom and tools, and they are constructive: a template can be as small as a background change or as ambitious as a full visual identity, with its own functions and slide designs, and a deck can combine several of them.
+That clean syntax also makes it easy to write slides with an LLM. A deck is a single text file with very little syntax, and a model can write a decent first version from your notes. From there you can keep working on it by hand or ask the model for changes.
 
 ## Features
 
@@ -58,10 +69,10 @@ mate slides.md
 
 The PDF lands next to the source, as `slides.pdf`.
 
-There is also an [example deck](https://github.com/bersp/mate/blob/main/docs/example_deck/example_deck.pdf) that goes through most of what `mate` can do, and its [source](https://github.com/bersp/mate/blob/main/docs/example_deck/example_deck.md) shows how each slide is written.
+There is also an [example deck](https://github.com/bersp/mate/blob/main/examples/example_deck/example_deck.pdf) that goes through most of what `mate` can do, and its [source](https://github.com/bersp/mate/blob/main/examples/example_deck/example_deck.md) shows how each slide is written.
 
-See the [docs](https://github.com/bersp/mate/blob/main/docs/README.md) for the full `mate` syntax, front matter, templates, and the Python API.
-If you want to write the slides with the help of an LLM, [`docs/llm.md`](https://github.com/bersp/mate/blob/main/docs/llm.md) is (hopefully) all you need to give it.
+See the [docs](https://github.com/bersp/mate/blob/main/src/mate/docs/README.md) for the full `mate` syntax, front matter, templates, and the Python API.
+If you want to write the slides with the help of an LLM, the [LLM docs](https://github.com/bersp/mate/blob/main/src/mate/docs/llm_docs.md) are (hopefully) all you need to give it. An agent with a terminal can read them on its own with `mate --llm-docs`.
 
 ## Backends
 

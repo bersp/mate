@@ -14,7 +14,7 @@ A Python-driven presentation tool.
 ```
 mate/
 ├── __init__.py        # public re-exports
-├── cli.py             # `mate <deck.md> [--warn] [--png] [--out DIR] [--figure FILE]` / `mate --info` entry point
+├── cli.py             # `mate <deck.md> [--warn] [--png] [--out DIR] [--figure FILE]` / `mate --info` / `mate --llm-docs` entry point
 ├── config.py          # process-global `config` singleton (slide size, color palette)
 ├── log.py             # process-global `mate` logger
 ├── pyproject.toml
@@ -53,6 +53,7 @@ mate/
 │   ├── simple.py
 │   └── flow.py
 ├── fonts/             # bundled font families, one directory per family
+├── docs/              # user-facing reference (README.md) and the guide for language models (llm_docs.md)
 └── .mate_cache/       # regenerated artifacts (measurement); safe to delete
 ```
 

@@ -129,6 +129,11 @@ is theirs. Ask when any of the three is missing, and ask again whenever the deck
 has a genuinely open choice (a look that departs from the template, a slide
 count, a structure). One question costs less than a deck they have to rewrite.
 
+When asking for the template, tell the user they can start with `flow` and have
+a template made for the talk once the first version is done. A deck on `flow`
+opens with the values that change its look, commented out, and the first version
+ends with that offer (section 10, "A template for this deck").
+
 A 25-slide deck of text and images builds in about two seconds (measurements are
 cached under `.mate_cache/`, which is safe to delete). Drawings are where the
 cost shows: a page carrying a few thousand shapes adds about a second of its own,
@@ -188,6 +193,8 @@ python -c "import mate, pathlib; print(pathlib.Path(mate.__file__).parent)"
 | deck syntax: front matter, directives, blockquotes, fences | `parser/markdown.py` |
 | regions, grids, anchors | `composition/layout.py` |
 | worked templates | `templates/` |
+| the user-facing reference | `docs/README.md` |
+| this guide | `docs/llm_docs.md`, also printed by `mate --llm-docs` |
 
 Docstrings answer most questions without opening a file:
 
@@ -197,8 +204,7 @@ python -c "from mate.core.template import PresentationTemplateBase as B; help(B.
 ```
 
 When that path sits inside a git checkout (an editable install), the repository
-root also holds `ARCHITECTURE.md`, which documents the internals, and
-`docs/README.md`, the user-facing reference.
+root also holds `ARCHITECTURE.md`, which documents the internals.
 
 ## 3. Deck anatomy
 
@@ -1122,14 +1128,6 @@ cover design, a title treatment, a new command, a restyled code block, a new
 region map. Write `my_template.py` beside the Markdown file and list it as
 `templates: [my_template]`.
 
-Asked for a template with nothing else stated, keep the structure and the design
-language of the one it starts from (`flow` unless the user names another) and
-take the theme from the deck's subject: the palette, the cover, the background
-motif, the title treatment. A talk on ocean turbulence and a talk on compiler
-internals come out of the same skeleton with different colors and a different
-cover. When the subject suggests no particular direction, or when the design
-wants a structure the base template does not have, ask the user which way to go.
-
 ### Writing a template
 
 ```python
@@ -1331,6 +1329,56 @@ paste it into the deck's template and edit the copy.
 Passing the subclass to `resolve_code_options` makes its own constructor
 parameters valid fence options.
 
+### A template for this deck
+
+A deck on `flow` opens with the values that change its look, commented out, set
+to values that differ from the current ones (`mate --info deck.md`):
+
+```yaml
+---
+templates: [flow]
+config:
+  # uncomment a line to change it; all options: mate --info deck.md
+  # title.color: red        # a palette name (purple, red, ...) or a hex
+  # title.font: Lato
+  # text.font: Libertinus Serif
+  # text.fontsize: 11
+  # footer.show: true       # true shows page numbers
+---
+```
+
+Commented out, they leave the look to the template; a line the user uncomments
+overrides it. `h3.color` to `h6.color` join them when the deck has `###`
+headings. When the first version is done (it builds clean and every page has
+been looked at), point the user at them and offer a template, along these lines:
+
+> The front matter lists, commented out, the values that change the look: the
+> title color, the fonts and the text size. Uncomment one, edit it and rebuild;
+> `mate --info deck.md` lists every other option. If you'd rather, I can make a
+> template themed on the talk, with its own colors and background.
+
+Nothing changes without a yes.
+
+**The first pass is small:** colors and background. Write `custom_template.py`
+next to the deck, stacked on top of `flow`
+(`templates: [custom_template, flow]`), and read `templates/flow.py` first: its
+`setup()` and `background()` show what each palette name colors. Re-set those
+names in the new template's `setup()`, take the palette from the deck's subject,
+and keep the contrast of `flow`. Shift the grays toward the new hue; an accent
+(`red`, `blue`, ...) keeps its hue, and the deck's spans keep reading right.
+The page under the background is white: a tinted page is a full-slide
+`Rectangle` in a `background()` that adds `super().background()` after it. The
+front matter wins over any template: comment out every line in it that the
+template takes over. Build, render with `--png` and look at the pages, the
+cover first.
+
+**Then offer the bigger changes.** Tell the user the template can go much
+further (the title and cover designs, fonts, page numbers, anything on the
+slides) and name the changes that apply to what this deck contains: the code
+style only when it has code blocks, the math font only when it has math, the
+section treatment only when it has `section:` directives. Wait for the answer
+before touching the template again.
+
 ## 11. Traps
 
 Failure modes verified against the current code, split by what the build does.
@@ -1413,4 +1461,7 @@ These are the ones to check by reading the file and the rendered pages.
   template's palette.
 - The build was run once with `--warn` and what it reported was read.
 - The reveal steps make sense read in order.
+- On a first version of a deck on `flow`, the front matter carries the values
+  that change the look, commented out, and the template offer of section 10
+  ("A template for this deck") was made.
 - Every image and figure path resolves from the directory the build runs in.

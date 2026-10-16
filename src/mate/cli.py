@@ -14,6 +14,8 @@ from .core.authoring import eval_call
 from .parser import FrontMatter, MethodCall, ParsedDocument, ParsedSlide, parse_markdown
 from .templates import built_in_templates
 
+_LLM_DOCS = Path(__file__).resolve().parent / "docs" / "llm_docs.md"
+
 
 def _resolve_template(name: str, base_dir: Path) -> str:
     """Resolve a front-matter template entry against the Markdown file.
@@ -62,8 +64,14 @@ def _parse_args() -> argparse.Namespace:
         "and API names available, then exit; with a deck given, the listing is "
         "the one that deck builds with",
     )
+    parser.add_argument(
+        "--llm-docs",
+        action="store_true",
+        help="print the documentation written for a language model that authors "
+        "decks, then exit",
+    )
     args = parser.parse_args()
-    if args.source is None and not args.info:
+    if args.source is None and not (args.info or args.llm_docs):
         parser.error("the deck's Markdown file is required")
     if args.out is not None and not args.out.is_dir():
         parser.error(f"--out: no such directory: {args.out}")
@@ -216,6 +224,9 @@ def _declared_slide_total(doc: ParsedDocument) -> int:
 def main() -> None:
     """Parse the command line and write the deck's slides to a PDF."""
     args = _parse_args()
+    if args.llm_docs:
+        print(_LLM_DOCS.read_text(encoding="utf-8"))
+        return
     if args.info:
         _print_info(args.source)
         return

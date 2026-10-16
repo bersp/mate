@@ -33,7 +33,7 @@ mate = "mate.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-mate = ["fonts/*/*.ttf", "fonts/*/OFL.txt", "fonts/README.md"]
+mate = ["fonts/*/*.ttf", "fonts/*/OFL.txt", "fonts/README.md", "docs/*.md"]
 
 [tool.ruff]
 line-length = 88

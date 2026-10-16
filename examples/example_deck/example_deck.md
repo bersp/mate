@@ -20,7 +20,7 @@ colors:
 
 A deck is a single Markdown file. `mate` reads that file and hands the typesetting over to the backend (only Typst right now).
 
-These slides are made with mate. The source is `docs/example_deck/example_deck.md`, if you want to see how any of them is written.
+These slides are made with mate. The source is `examples/example_deck/example_deck.md`, if you want to see how any of them is written.
 
 > vspace : 1.0
 > add mate figure : "figures/pipeline.py", align="center"
@@ -460,6 +460,7 @@ A second take, rewritten by hand. This slide and the one before carry the same n
 - `mate example_deck.md --out build` writes the output to `build/`.
 - `mate example_deck.md --png` writes one PNG per page.
 - `mate example_deck.md --warn` builds with every check on: regions that overflow, boxes that collide and widow lines (useful for letting an LLM check a deck without looking at every slide).
+- `mate --llm-docs` prints the docs written for LLMs.
 
 #
 

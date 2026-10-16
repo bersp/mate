@@ -840,6 +840,8 @@ Arrow((-3, -2), (3, -2), tip=TriangleTip(length=0.5, width=0.4), stroke_dash="da
 
 `mate slides.md --figure scene.py` runs a figure file with the deck's front matter applied first, so a palette name the deck defines resolves in the preview. A plain `python scene.py` only knows the base palette. See [Figures](#figures).
 
+`mate --llm-docs` prints the documentation written for a language model that writes decks, the same text as [`llm_docs.md`](llm_docs.md).
+
 ## As a library
 
 `mate` is also usable as a plain library, with the same API:
