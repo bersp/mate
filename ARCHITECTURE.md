@@ -14,7 +14,7 @@ A Python-driven presentation tool.
 ```
 mate/
 ├── __init__.py        # public re-exports
-├── cli.py             # `mate <deck.md> [--warn] [--png] [--out DIR] [--figure FILE]` / `mate --info` / `mate --llm-docs` entry point
+├── cli.py             # `mate <deck.md> [--warn] [--png] [--out DIR] [--figure FILE]` / `mate --info` / `mate --llm-docs` / `mate --version` entry point; a build logs a notice when the daily PyPI check (cached under ~/.cache/mate) found a newer release
 ├── config.py          # process-global `config` singleton (slide size, color palette)
 ├── log.py             # process-global `mate` logger
 ├── pyproject.toml

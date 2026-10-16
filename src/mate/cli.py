@@ -3,18 +3,28 @@
 from __future__ import annotations
 
 import argparse
+import http.client
+import json
+import os
+import re
 import runpy
 import sys
 import textwrap
+import threading
+import time
+from importlib.metadata import distribution
 from pathlib import Path
 
 from . import Presentation, __all__ as api_names, config
 from .backends.typst import _available_font_families
 from .core.authoring import eval_call
+from .log import logger
 from .parser import FrontMatter, MethodCall, ParsedDocument, ParsedSlide, parse_markdown
 from .templates import built_in_templates
 
 _LLM_DOCS = Path(__file__).resolve().parent / "docs" / "llm_docs.md"
+_PYPI_URL = "https://pypi.org/pypi/yerba/json"
+_UPDATE_CHECK_INTERVAL = 24 * 60 * 60  # seconds between two PyPI requests
 
 
 def _resolve_template(name: str, base_dir: Path) -> str:
@@ -27,12 +37,26 @@ def _resolve_template(name: str, base_dir: Path) -> str:
     return str(candidate.resolve()) if candidate.is_file() else name
 
 
+class _PrintVersion(argparse.Action):
+    """Print the installed version and exit, reading it only when asked."""
+
+    def __call__(self, parser, namespace, values, option_string=None) -> None:
+        print(f"mate {distribution('yerba').version}")
+        parser.exit()
+
+
 def _parse_args() -> argparse.Namespace:
     """Read the command line."""
     parser = argparse.ArgumentParser(
         prog="mate", description="Build a PDF from a Markdown deck."
     )
     parser.add_argument("source", type=Path, nargs="?", help="the deck's Markdown file")
+    parser.add_argument(
+        "--version",
+        action=_PrintVersion,
+        nargs=0,
+        help="print the installed version of mate, then exit",
+    )
     parser.add_argument(
         "--warn",
         action="store_true",
@@ -221,6 +245,69 @@ def _declared_slide_total(doc: ParsedDocument) -> int:
     return len(doc.slides) + deltas
 
 
+def _update_check_file() -> Path:
+    """Return the file holding the latest release found on PyPI and when."""
+    cache_home = os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache"
+    return Path(cache_home) / "mate" / "update_check.json"
+
+
+def _release_parts(release: str) -> tuple[int, ...]:
+    """Return the numbers of a ``major.minor.patch`` release string."""
+    return tuple(int(part) for part in re.findall(r"\d+", release)[:3])
+
+
+def _store_latest_release(path: Path) -> None:
+    """Ask PyPI for the latest ``yerba`` release and store it with the time.
+
+    A failure (no network, PyPI down, an unwritable cache) leaves the file as
+    it is, and the next run asks again.
+    """
+    from urllib.request import urlopen
+
+    try:
+        with urlopen(_PYPI_URL, timeout=2) as response:
+            latest = json.load(response)["info"]["version"]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        partial = path.with_suffix(".partial")
+        partial.write_text(
+            json.dumps({"checked_at": time.time(), "latest": latest}), encoding="utf-8"
+        )
+        partial.replace(path)
+    except (OSError, ValueError, KeyError, http.client.HTTPException):
+        pass
+
+
+def _update_notice() -> str | None:
+    """Return the update notice from the last PyPI check, or ``None``.
+
+    The notice names a release newer than the installed one. A check older than
+    a day starts a new one in a background thread, read by the next run. An
+    editable install and a set ``MATE_NO_UPDATE_CHECK`` skip both.
+    """
+    if os.environ.get("MATE_NO_UPDATE_CHECK"):
+        return None
+    installed = distribution("yerba")
+    direct_url = installed.read_text("direct_url.json")
+    if direct_url and json.loads(direct_url).get("dir_info", {}).get("editable"):
+        return None
+    path = _update_check_file()
+    try:
+        stored = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        stored = {}
+    if time.time() - stored.get("checked_at", 0) > _UPDATE_CHECK_INTERVAL:
+        threading.Thread(
+            target=_store_latest_release, args=(path,), daemon=True
+        ).start()
+    latest = stored.get("latest")
+    if latest is None or _release_parts(latest) <= _release_parts(installed.version):
+        return None
+    return (
+        rf"[yellow b]Update[/yellow b] mate {latest} is available "
+        rf"(installed: {installed.version}): pip install -U yerba"
+    )
+
+
 def main() -> None:
     """Parse the command line and write the deck's slides to a PDF."""
     args = _parse_args()
@@ -235,6 +322,7 @@ def main() -> None:
     if args.figure is not None:
         _run_figure(args.figure, doc.frontmatter)
         return
+    update_notice = _update_notice()
     pres = Presentation(
         str(source_path.with_suffix("")),
         total_slides=_declared_slide_total(doc),
@@ -253,3 +341,5 @@ def main() -> None:
     out_dir = args.out if args.out is not None else source_path.parent
     name = f"{source_path.stem}-{{n}}.png" if args.png else f"{source_path.stem}.pdf"
     pres.write(out_dir / name)
+    if update_notice is not None:
+        logger.info(update_notice, extra={"markup": True, "highlighter": None})
