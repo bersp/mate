@@ -24,6 +24,8 @@ classifiers = [
 
 [project.urls]
 Repository = "https://github.com/bersp/mate"
+Documentation = "https://github.com/bersp/mate/blob/main/src/mate/docs/README.md"
+Changelog = "https://github.com/bersp/mate/releases"
 Issues = "https://github.com/bersp/mate/issues"
 
 [project.scripts]
